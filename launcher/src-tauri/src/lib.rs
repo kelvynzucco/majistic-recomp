@@ -121,7 +121,17 @@ fn save_settings(settings: Settings) -> Result<(), String> {
 #[tauri::command]
 fn check_game_status() -> Result<GameStatus, String> {
     let root = get_project_root();
-    let game_data_dir = root.join("game-data-usa");
+    let settings = load_settings().unwrap_or_default();
+    let folder_name = if settings.game_data_root.trim().is_empty() {
+        "game-data-usa".to_string()
+    } else {
+        settings.game_data_root.trim().to_string()
+    };
+    let game_data_dir = if Path::new(&folder_name).is_absolute() {
+        PathBuf::from(&folder_name)
+    } else {
+        root.join(&folder_name)
+    };
     let has_game_data = game_data_dir.join("default.xex").exists();
     let has_unpacked_image = root.join("prototype-usa/private/loaded-image.bin").exists();
     let exe_path = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
@@ -136,6 +146,29 @@ fn check_game_status() -> Result<GameStatus, String> {
         game_data_path: game_data_dir.to_string_lossy().to_string(),
         executable_path: exe_path.to_string_lossy().to_string(),
     })
+}
+
+#[tauri::command]
+fn select_game_data_folder() -> Result<Option<String>, String> {
+    let script = r#"
+        Add-Type -AssemblyName System.Windows.Forms
+        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $dialog.Description = 'Select Game Data Folder'
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            Write-Output $dialog.SelectedPath
+        }
+    "#;
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map_err(|e| format!("Failed to open folder picker: {}", e))?;
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(path))
+    }
 }
 
 #[tauri::command]
@@ -244,11 +277,24 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
         };
 
         // Stage 1: Extract ISO
-        emit_stage(1, total_stages, "Extracting ISO files to game-data-usa/...");
+        let settings = load_settings().unwrap_or_default();
+        let folder_name = if settings.game_data_root.trim().is_empty() {
+            "game-data-usa".to_string()
+        } else {
+            settings.game_data_root.trim().to_string()
+        };
+        let out_dir = if Path::new(&folder_name).is_absolute() {
+            PathBuf::from(&folder_name)
+        } else {
+            root.join(&folder_name)
+        };
+        let out_dir_str = out_dir.to_string_lossy().to_string();
+
+        emit_stage(1, total_stages, &format!("Extracting ISO files to {}...", folder_name));
         emit_log(&format!("=== STAGE 1/{}: EXTRACTING ISO ===", total_stages));
         emit_log(&format!("Source ISO: {}", iso_path));
-        let out_dir = root.join("game-data-usa");
-        if let Err(e) = run_ps_script("extract-iso.ps1", &["-IsoPath", &iso_path, "-OutputDir", out_dir.to_str().unwrap_or("game-data-usa")]) {
+        emit_log(&format!("Target Folder: {}", out_dir_str));
+        if let Err(e) = run_ps_script("extract-iso.ps1", &["-IsoPath", &iso_path, "-OutputDir", &out_dir_str]) {
             emit_log(&format!("ERROR in Stage 1: {}", e));
             let _ = app.emit("build-error", format!("Extraction failed: {}", e));
             return;
@@ -368,6 +414,7 @@ pub fn run() {
             save_settings,
             check_game_status,
             select_iso_file,
+            select_game_data_folder,
             start_game_build,
             launch_game,
             exit_app

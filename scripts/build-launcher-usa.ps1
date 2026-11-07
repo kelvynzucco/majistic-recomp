@@ -1,7 +1,13 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 
-Write-Output "[1/2] Building Majistic Launcher (Tauri v2 + Tailwind)..."
+Write-Output "[1/3] Generating launcher icons..."
+$genIconsScript = Join-Path $PSScriptRoot 'generate-icons.ps1'
+if (Test-Path $genIconsScript) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $genIconsScript
+}
+
+Write-Output "[2/3] Building Majistic Launcher (Tauri v2 + Tailwind)..."
 $launcherDir = Join-Path $root 'launcher'
 
 $cargoBin = Join-Path $env:USERPROFILE '.cargo\bin'
@@ -17,7 +23,7 @@ try {
     Pop-Location
 }
 
-Write-Output "[2/2] Copying executable to project root..."
+Write-Output "[3/3] Copying executable to project root..."
 $sourceExe = Join-Path $launcherDir 'src-tauri\target\release\majistic-launcher.exe'
 $destExe = Join-Path $root 'Majistic Launcher.exe'
 

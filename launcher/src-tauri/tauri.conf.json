@@ -11,10 +11,11 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Majistic Recomp - Launcher",
         "width": 540,
         "height": 720,
-        "resizable": false,
+        "resizable": true,
         "center": true,
         "decorations": true
       }

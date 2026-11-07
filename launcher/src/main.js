@@ -149,6 +149,16 @@ if (elements.tabBtnFixes) elements.tabBtnFixes.addEventListener("click", () => s
 elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
 elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
 
+function safeFloat(val, fallback) {
+  const num = typeof val === "number" ? val : parseFloat(val);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function safeInt(val, fallback) {
+  const num = typeof val === "number" ? val : parseInt(val, 10);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 // ==========================================
 // Settings Management
 // ==========================================
@@ -172,7 +182,21 @@ function populateForm(settings) {
   if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
   if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? true;
   if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? false;
-  if (elements.fovScale) elements.fovScale.value = String(settings.FovScale || 1.0);
+  if (elements.fovScale) {
+    const targetFov = safeFloat(settings.FovScale, 1.0);
+    let matched = false;
+    for (let i = 0; i < elements.fovScale.options.length; i++) {
+      const optVal = parseFloat(elements.fovScale.options[i].value);
+      if (Math.abs(optVal - targetFov) < 0.001) {
+        elements.fovScale.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      elements.fovScale.value = "1.0";
+    }
+  }
   if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? true;
   if (elements.bloom) elements.bloom.checked = settings.Bloom ?? true;
   if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? true;
@@ -180,27 +204,27 @@ function populateForm(settings) {
 
 function readForm() {
   return {
-    WindowSize: elements.windowSize.value,
-    Fullscreen: elements.fullscreen.value === "true",
-    RenderScale: parseInt(elements.renderScale.value, 10),
-    RenderingPath: elements.renderingPath.value,
-    FrameRateMode: elements.frameRateMode.value,
-    VSync: elements.vsync.checked,
-    PostEffect: elements.postEffect.value,
-    Upscaler: elements.upscaler.value,
-    SkipIntroLogos: elements.skipIntroLogos.checked,
-    SkipCutscenes: elements.skipCutscenes.checked,
-    CutsceneSpeed: parseInt(elements.cutsceneSpeed.value, 10),
-    InputMode: elements.inputMode.value,
-    MouseSensitivity: currentSettings.MouseSensitivity || 1.0,
+    WindowSize: elements.windowSize?.value || "1920x1080",
+    Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
+    RenderScale: safeInt(elements.renderScale?.value, 2),
+    RenderingPath: elements.renderingPath?.value || "Default",
+    FrameRateMode: elements.frameRateMode?.value || "60",
+    VSync: elements.vsync ? elements.vsync.checked : true,
+    PostEffect: elements.postEffect?.value || "fxaa",
+    Upscaler: elements.upscaler?.value || "fsr",
+    SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
+    SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
+    CutsceneSpeed: safeInt(elements.cutsceneSpeed?.value, 4),
+    InputMode: elements.inputMode?.value || "Controller",
+    MouseSensitivity: safeFloat(currentSettings.MouseSensitivity, 1.0),
     RecordPerformance: currentSettings.RecordPerformance ?? true,
-    GameDataRoot: elements.gameDataRoot.value.trim(),
+    GameDataRoot: elements.gameDataRoot?.value ? elements.gameDataRoot.value.trim() : "game-data-usa",
     Configuration: "Release",
-    Language: elements.language ? elements.language.value : (currentSettings.Language || "English"),
+    Language: elements.language?.value || currentSettings.Language || "English",
     StepFix: elements.stepFix ? elements.stepFix.checked : false,
     AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : true,
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
-    FovScale: elements.fovScale ? parseFloat(elements.fovScale.value) : 1.0,
+    FovScale: safeFloat(elements.fovScale?.value, 1.0),
     DepthOfField: elements.depthOfField ? elements.depthOfField.checked : true,
     Bloom: elements.bloom ? elements.bloom.checked : true,
     PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : true,
@@ -467,7 +491,7 @@ window.addEventListener("resize", () => {
 
 // Auto-save settings on change
 document.addEventListener("change", async (e) => {
-  if (e.target && (e.target.closest("#tabSettings") || e.target.closest("#tabBuild"))) {
+  if (e.target && (e.target.closest("#tabSettings") || e.target.closest("#tabFixes") || e.target.closest("#tabBuild"))) {
     const settings = readForm();
     try {
       await invoke("save_settings", { settings });

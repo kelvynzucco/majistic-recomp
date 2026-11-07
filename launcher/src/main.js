@@ -60,6 +60,7 @@ const elements = {
   gameDataRoot: document.getElementById("gameDataRoot"),
 
   // Build Tab Elements
+  btnBrowseGameData: document.getElementById("btnBrowseGameData"),
   statusAssets: document.getElementById("statusAssets"),
   statusImage: document.getElementById("statusImage"),
   statusBinary: document.getElementById("statusBinary"),
@@ -90,17 +91,17 @@ function switchTab(tab) {
     elements.tabBuild.classList.add("hidden");
 
     elements.tabBtnSettings.className =
-      "px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all";
+      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
     elements.tabBtnBuild.className =
-      "px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-1.5";
+      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
   } else {
     elements.tabSettings.classList.add("hidden");
     elements.tabBuild.classList.remove("hidden");
 
     elements.tabBtnBuild.className =
-      "px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-1.5";
+      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
     elements.tabBtnSettings.className =
-      "px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all";
+      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
   }
 }
 
@@ -225,6 +226,23 @@ elements.btnClearLog.addEventListener("click", () => {
   elements.buildConsole.innerHTML = "";
 });
 
+// Select Game Data Folder
+if (elements.btnBrowseGameData) {
+  elements.btnBrowseGameData.addEventListener("click", async () => {
+    try {
+      const selected = await invoke("select_game_data_folder");
+      if (selected) {
+        elements.gameDataRoot.value = selected;
+        const settings = readForm();
+        await invoke("save_settings", { settings });
+        await updateGameStatus();
+      }
+    } catch (err) {
+      alert("Error selecting folder: " + err);
+    }
+  });
+}
+
 // Select ISO
 elements.btnBrowseIso.addEventListener("click", async () => {
   try {
@@ -344,12 +362,15 @@ elements.btnExit.addEventListener("click", async () => {
 
 // Auto-save settings on change
 document.addEventListener("change", async (e) => {
-  if (e.target && e.target.closest("#tabSettings")) {
+  if (e.target && (e.target.closest("#tabSettings") || e.target.closest("#tabBuild"))) {
     const settings = readForm();
     try {
       await invoke("save_settings", { settings });
     } catch {
       // ignore
+    }
+    if (e.target.id === "gameDataRoot") {
+      await updateGameStatus();
     }
   }
 });

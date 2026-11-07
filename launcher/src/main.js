@@ -112,6 +112,8 @@ const elements = {
   buildPercentText: document.getElementById("buildPercentText"),
   buildProgressBar: document.getElementById("buildProgressBar"),
   buildConsole: document.getElementById("buildConsole"),
+  btnCopyLog: document.getElementById("btnCopyLog"),
+  btnCopyLogText: document.getElementById("btnCopyLogText"),
   btnClearLog: document.getElementById("btnClearLog"),
 
   // Window Control Buttons
@@ -324,6 +326,31 @@ function appendConsoleLog(line) {
 
 elements.btnClearLog.addEventListener("click", () => {
   elements.buildConsole.innerHTML = "";
+});
+
+if (elements.btnCopyLog) {
+  elements.btnCopyLog.addEventListener("click", async () => {
+    try {
+      const text = elements.buildConsole.innerText || elements.buildConsole.textContent || "";
+      await navigator.clipboard.writeText(text);
+      if (elements.btnCopyLogText) {
+        const originalText = elements.btnCopyLogText.textContent;
+        elements.btnCopyLogText.textContent = "Copied!";
+        elements.btnCopyLog.classList.add("text-emerald-400");
+        setTimeout(() => {
+          elements.btnCopyLogText.textContent = originalText;
+          elements.btnCopyLog.classList.remove("text-emerald-400");
+        }, 2000);
+      }
+    } catch (err) {
+      console.warn("Failed to copy log to clipboard:", err);
+    }
+  });
+}
+
+// Disable native browser context menu (right click) across the application
+window.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
 });
 
 // Select Game Data Folder

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: MIT
 function Protect-MajinDiagnosticText([string]$Text,[string[]]$LocalRoots=@()) {
     foreach($path in @($LocalRoots | Where-Object {$_} | Sort-Object Length -Descending)+@($env:USERPROFILE)) {
         if($path){$Text=$Text.Replace($path.Replace('\','\\'),'<LOCAL>').Replace($path,'<LOCAL>').Replace($path.Replace('\','/'),'<LOCAL>')}

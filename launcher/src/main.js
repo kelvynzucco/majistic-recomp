@@ -454,6 +454,16 @@ async function updateMaximizeIcon() {
   }
 }
 
+// Window Dragging Support
+const appHeader = document.getElementById("appHeader");
+if (appHeader) {
+  appHeader.addEventListener("mousedown", (e) => {
+    if (e.button === 0 && !e.target.closest("button, a, input, select, textarea")) {
+      invoke("start_drag_window").catch(() => {});
+    }
+  });
+}
+
 if (elements.btnWindowMinimize) {
   elements.btnWindowMinimize.addEventListener("click", async () => {
     try {

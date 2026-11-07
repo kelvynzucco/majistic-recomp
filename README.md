@@ -1,8 +1,19 @@
+<div align="center">
+
+<img src="branding/majistic_logo.png" alt="Majistic Recomp" width="480">
+
 # Majistic Recomp
 
-An advanced, high-performance static recompilation of **Majin and the Forsaken Kingdom** (Xbox 360) for modern Windows x64 PC.
+**An advanced, high-performance static recompilation of Majin and the Forsaken Kingdom (Xbox 360) for modern Windows x64 PC.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6.svg)]()
+[![C++23](https://img.shields.io/badge/Standard-C%2B%2B23-00599C.svg)]()
+[![Direct3D 12](https://img.shields.io/badge/Graphics-Direct3D%2012-107C10.svg)]()
 
 Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Threaded PSO Caching · Fast-Forward Cutscene Pacing · Multi-Language Support
+
+</div>
 
 ---
 
@@ -31,6 +42,7 @@ By translating game logic into native CPU instructions and mapping the Xbox 360 
 - **Synchronized fast-forward** for in-game dialogues and cutscenes with dynamic audio frequency scaling.
 - **Multi-language support** with full in-game text and localized voiceover selection (English, Spanish, French, German, Italian, Korean, and Japanese).
 - **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, and **FXAA** upscalers.
+- **Modern Desktop Launcher** powered by Tauri v2 and Tailwind CSS, featuring full configuration controls, automatic build pipelines, and portable game-data management.
 
 ---
 
@@ -79,6 +91,29 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **Sub-Motion & Object Animation Speed Normalization (`anim_speed`):** Fixes partial animations (Majin's facial expressions, Tepeu's gesture commands, healing animations) and certain world objects running 2x to 4x too fast above 30 FPS by dynamically scaling them by frame delta-time.
 - **Frame-Time Smoothing (`frame_timer`):** Evens out frame time steps to keep game delta-time in lockstep with real time, avoiding collision jitter.
 - **Camera FOV & Post-Processing Controls:** Configurable field-of-view multiplier (`--majin_fov_scale`) and switches for pause blur (`--majin_pause_blur`), depth of field (`--majin_dof`), and glare/bloom (`--majin_bloom`).
+
+---
+
+## Directory Architecture: Self-Contained `game-data/`
+
+All decompiled game files, extracted assets, binaries, and runtime caches are cleanly isolated inside a single self-contained directory:
+
+```
+Majin Recomp/
+├── Majistic Launcher.exe       # Portable desktop launcher executable
+├── branding/                   # Official logo & high-resolution icons
+├── launcher/                   # Launcher source code (Tauri v2 + Tailwind CSS)
+├── prototype-usa/              # Recompiled USA game source & translation tables
+├── scripts/                    # Automation scripts (extraction, build, run)
+└── game-data/                  # Self-contained game directory
+    ├── bin/                    # Compiled native game binary (majin.exe)
+    ├── unpacked/               # Unpacked executable image (loaded-image.bin)
+    ├── runtime/                # Save files (user/), shader cache, and logs
+    └── [Game Assets]           # Audio, video, textures, level packages from disc
+```
+
+> [!TIP]
+> If you ever want to recompile, clean cache, or switch game versions, **simply delete or replace the `game-data/` directory**. The root launcher and project files remain completely untouched and clean.
 
 ---
 
@@ -139,9 +174,9 @@ cd majistic-recomp
 ```
 
 #### 3. Extract your legally owned game data
-Extract your Xbox 360 disc dump using the clean-room extractor:
+Extract your Xbox 360 disc dump directly into `game-data/`:
 ```powershell
-.\scripts\extract-iso.ps1 -IsoPath "path\to\your_dump.iso" -OutputDir "game-data-usa"
+.\scripts\extract-iso.ps1 -IsoPath "path\to\your_dump.iso" -OutputDir "game-data"
 ```
 
 Unpack the encrypted executable:
@@ -150,17 +185,17 @@ Unpack the encrypted executable:
 ```
 
 #### 4. Recompile and build the native executable
-Generates the C++23 source translation via `rexglue codegen` and compiles `majin.exe`:
+Generates the C++23 source translation via `rexglue codegen` and compiles `game-data/bin/majin.exe`:
 ```powershell
 .\scripts\build-usa.ps1 -Configuration Release
 ```
 
 #### 5. Build and Launch via the Desktop Launcher
-To build the lightweight Tauri v2 + Tailwind launcher:
+To build the lightweight desktop launcher:
 ```powershell
 .\scripts\build-launcher-usa.ps1
 ```
-Then run `Majistic Launcher.exe` or develop live with:
+Then run `Majistic Launcher.exe`, or develop live with:
 ```powershell
 cd launcher
 npm run tauri dev
@@ -184,5 +219,5 @@ Alternatively, you can launch directly via the CLI runner:
 
 ## License
 
-This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
-See the [`LICENSE`](LICENSE) file for complete terms. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/).
+This project is licensed under the **MIT License**. You are completely free to use, modify, distribute, sublicense, and build upon this code for any personal or open-source purpose.  
+See the [`LICENSE`](LICENSE) file for the full text. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/).

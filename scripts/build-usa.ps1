@@ -48,9 +48,24 @@ $protoFolder = if ($isPal) { 'prototype' } else { 'prototype-usa' }
 $editionName = if ($isPal) { 'Europe / PAL (0.0.0.3)' } else { 'USA / NTSC-U (0.0.0.2)' }
 Write-Output "Detected Majin and the Forsaken Kingdom: $editionName (using $protoFolder)"
 
+# Helper for PowerShell 5.1 compatibility (Path.GetRelativePath only exists in .NET Core 2.1+)
+function Get-RelativePathCompat([string]$fromPath, [string]$toPath) {
+    try {
+        if (-not $fromPath.EndsWith('\') -and -not $fromPath.EndsWith('/')) {
+            $fromPath += '\'
+        }
+        $fromUri = New-Object System.Uri($fromPath)
+        $toUri = New-Object System.Uri($toPath)
+        $relUri = $fromUri.MakeRelativeUri($toUri)
+        return [System.Uri]::UnescapeDataString($relUri.ToString()).Replace('\', '/')
+    } catch {
+        return '../' + (Split-Path $toPath -Leaf)
+    }
+}
+
 # Dynamically sync majin_manifest.toml with actual GameDataRoot
 $protoPath = Join-Path $projectRoot $protoFolder
-$relGameData = [System.IO.Path]::GetRelativePath($protoPath, $GameDataRoot).Replace('\', '/')
+$relGameData = Get-RelativePathCompat $protoPath $GameDataRoot
 $relXex = "$relGameData/default.xex"
 
 $manifestPath = Join-Path $protoPath 'majin_manifest.toml'

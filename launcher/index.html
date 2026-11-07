@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Majistic Recomp</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="bg-darkBg text-slate-100 flex flex-col h-screen select-none">
+    <!-- Header -->
+    <header class="px-6 py-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/60 backdrop-blur-sm">
+      <div>
+        <h1 class="text-xl font-bold tracking-wider text-white">MAJISTIC RECOMP</h1>
+        <p class="text-xs text-slate-400">PC Recompilation Settings</p>
+      </div>
+      <span class="text-xs px-2.5 py-1 rounded bg-sky-950 text-sky-400 border border-sky-800 font-medium">v0.1.0</span>
+    </header>
+
+    <!-- Main Content (Scrollable) -->
+    <main class="flex-1 overflow-y-auto p-6 space-y-4">
+      <!-- Section: Display & Graphics -->
+      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Display & Graphics</h2>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Window Size</label>
+            <select id="windowSize" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="1280x720">1280x720 (720p)</option>
+              <option value="1920x1080">1920x1080 (1080p)</option>
+              <option value="2560x1440">2560x1440 (1440p)</option>
+              <option value="3840x2160">3840x2160 (4K)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Display Mode</label>
+            <select id="fullscreen" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="false">Windowed</option>
+              <option value="true">Fullscreen</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Internal Render Scale</label>
+            <select id="renderScale" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="1">1x - Native (720p)</option>
+              <option value="2">2x - 1440p (Recommended)</option>
+              <option value="3">3x - 2160p (4K UHD)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Framerate</label>
+            <select id="frameRateMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="60">60 FPS (Recommended)</option>
+              <option value="Original">30 FPS (Original)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-300 mb-1">Rendering Backend</label>
+          <select id="renderingPath" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+            <option value="Default">Direct3D 12 (Default RTV - Recommended)</option>
+            <option value="ROV">Direct3D 12 (Forced ROV)</option>
+            <option value="Vulkan">Vulkan (Experimental)</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Upscaler</label>
+            <select id="upscaler" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="fsr">AMD FSR 1 (Default)</option>
+              <option value="cas">AMD CAS</option>
+              <option value="bilinear">Bilinear</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Anti-Aliasing</label>
+            <select id="postEffect" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="fxaa">FXAA (Recommended)</option>
+              <option value="none">None (Original)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2 pt-1">
+          <input type="checkbox" id="vsync" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
+          <label for="vsync" class="text-xs text-slate-300">Enable Vertical Sync (VSync)</label>
+        </div>
+      </section>
+
+      <!-- Section: Gameplay & Controls -->
+      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Gameplay & Controls</h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Input Profile</label>
+            <select id="inputMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="Controller">Controller (Gamepad)</option>
+              <option value="KeyboardMouse">Keyboard + Mouse</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">Fast-Forward Speed</label>
+            <select id="cutsceneSpeed" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
+              <option value="2">2x Speed</option>
+              <option value="4">4x Speed (Default)</option>
+              <option value="6">6x Speed</option>
+              <option value="8">8x Speed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <div class="flex items-center space-x-2">
+            <input type="checkbox" id="skipCutscenes" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
+            <label for="skipCutscenes" class="text-xs text-slate-300">Allow Fast-Forward in Dialogues & Cutscenes (Hold Select / Tab)</label>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <input type="checkbox" id="skipIntroLogos" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
+            <label for="skipIntroLogos" class="text-xs text-slate-300">Skip Intro Logos (Boot directly to title)</label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Game Data Path -->
+      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-2">
+        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Game Data Folder</h2>
+        <input type="text" id="gameDataRoot" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent font-mono" />
+      </section>
+    </main>
+
+    <!-- Footer Controls -->
+    <footer class="p-4 border-t border-darkBorder bg-darkCard/80 flex items-center justify-between space-x-3">
+      <button id="btnExit" class="px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold tracking-wide border border-darkBorder transition-colors">
+        EXIT
+      </button>
+
+      <button id="btnLaunch" class="flex-1 py-2.5 px-4 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold tracking-wider flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950 transition-all">
+        <span>▶</span>
+        <span>LAUNCH GAME</span>
+      </button>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

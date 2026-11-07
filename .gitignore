@@ -2,6 +2,9 @@ tools/
 generated/
 build/
 out/
+target/
+dist/
+node_modules/
 private/
 game-data*/
 assets/

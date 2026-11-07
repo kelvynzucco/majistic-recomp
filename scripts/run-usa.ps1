@@ -23,7 +23,7 @@ param(
     $PauseBlur = $true,
     $DepthOfField = $true,
     $Bloom = $true,
-    [string]$GameDataRoot = 'game-data-usa',
+    [string]$GameDataRoot = 'game-data',
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -42,20 +42,30 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
 
 if (-not [System.IO.Path]::IsPathRooted($GameDataRoot)) {
-    $GameDataRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $GameDataRoot))
+    $candidate = Join-Path $projectRoot $GameDataRoot
+    if (-not (Test-Path $candidate) -and (Test-Path (Join-Path $projectRoot 'game-data-usa'))) {
+        $candidate = Join-Path $projectRoot 'game-data-usa'
+    }
+    $GameDataRoot = [System.IO.Path]::GetFullPath($candidate)
 }
 
 if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
     throw "default.xex not found in $GameDataRoot"
 }
 
+$unifiedExe = Join-Path $GameDataRoot 'bin\majin.exe'
 $build = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
-$exe = Join-Path $build 'majin.exe'
+$prototypeExe = Join-Path $build 'majin.exe'
+
+$exe = if (Test-Path $unifiedExe) { $unifiedExe } elseif (Test-Path $prototypeExe) { $prototypeExe } else { $unifiedExe }
 if (-not (Test-Path $exe)) {
     throw "Build majin.exe before running ($exe)."
 }
 
-$sessionRoot = Join-Path $projectRoot 'private\runtime-usa'
+$sessionRoot = Join-Path $GameDataRoot 'runtime'
+if (-not (Test-Path $sessionRoot) -and (Test-Path (Join-Path $projectRoot 'private\runtime-usa'))) {
+    $sessionRoot = Join-Path $projectRoot 'private\runtime-usa'
+}
 New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
 
 $isVulkan = ($RenderingPath -eq 'Vulkan' -or $RenderingPath -eq 'Vulkan_FSI')
@@ -68,7 +78,9 @@ New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRo
 $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { '' }
 $vulkanTargetPath = if ($RenderingPath -eq 'Vulkan_FSI') { 'fsi' } else { 'fbo' }
 $allowInvalid = 'true'
-$logPath = Join-Path $projectRoot ('reports\runtime-usa-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+$logDir = Join-Path $sessionRoot 'logs'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$logPath = Join-Path $logDir ('runtime-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
 
 $dimensions = $WindowSize.Split('x')
 $launchArgs = @(

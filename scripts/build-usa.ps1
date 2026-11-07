@@ -42,4 +42,15 @@ if ((Get-FileHash $gpu).Hash -ne (Get-FileHash $gpuTarget).Hash) {
     throw 'Patched GPU verification failed.'
 }
 
+# Deploy executable and runtime DLLs into unified game-data/bin
+$gameDataBin = Join-Path $projectRoot "game-data\bin"
+New-Item -ItemType Directory -Force -Path $gameDataBin | Out-Null
+$builtExe = Join-Path $projectRoot "prototype-usa\out\build\$preset\majin.exe"
+if (Test-Path $builtExe) {
+    Copy-Item $builtExe -Destination (Join-Path $gameDataBin "majin.exe") -Force
+    Copy-Item $target -Destination $gameDataBin -Force
+    Copy-Item $gpuTarget -Destination $gameDataBin -Force
+    Write-Output "Copied majin.exe and patched DLLs to $gameDataBin"
+}
+
 Write-Output "SUCCESS: majin.exe ($Configuration) compiled and patched DLLs installed!"

@@ -5,6 +5,46 @@ use std::process::{Command, Stdio};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
+fn default_window_size() -> String {
+    "1920x1080".into()
+}
+
+fn default_render_scale() -> u32 {
+    2
+}
+
+fn default_rendering_path() -> String {
+    "Default".into()
+}
+
+fn default_frame_rate_mode() -> String {
+    "60".into()
+}
+
+fn default_post_effect() -> String {
+    "fxaa".into()
+}
+
+fn default_upscaler() -> String {
+    "fsr".into()
+}
+
+fn default_cutscene_speed() -> u32 {
+    4
+}
+
+fn default_input_mode() -> String {
+    "Controller".into()
+}
+
+fn default_game_data_root() -> String {
+    "game-data-usa".into()
+}
+
+fn default_configuration() -> String {
+    "Release".into()
+}
+
 fn default_language() -> String {
     "English".into()
 }
@@ -21,41 +61,96 @@ fn default_fov_scale() -> f64 {
     1.0
 }
 
+fn deserialize_nullable_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(1.0))
+}
+
+fn deserialize_nullable_u32_cutscene<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<u32>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(4))
+}
+
+fn deserialize_nullable_u32_render_scale<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<u32>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(2))
+}
+
+fn deserialize_nullable_bool_true<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<bool>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(true))
+}
+
+fn deserialize_nullable_bool_false<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<bool>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(false))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Settings {
+    #[serde(default = "default_window_size")]
     pub window_size: String,
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub fullscreen: bool,
+    #[serde(default = "default_render_scale", deserialize_with = "deserialize_nullable_u32_render_scale")]
     pub render_scale: u32,
+    #[serde(default = "default_rendering_path")]
     pub rendering_path: String,
+    #[serde(default = "default_frame_rate_mode")]
     pub frame_rate_mode: String,
-    #[serde(rename = "VSync")]
+    #[serde(rename = "VSync", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub vsync: bool,
+    #[serde(default = "default_post_effect")]
     pub post_effect: String,
+    #[serde(default = "default_upscaler")]
     pub upscaler: String,
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub skip_intro_logos: bool,
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub skip_cutscenes: bool,
+    #[serde(default = "default_cutscene_speed", deserialize_with = "deserialize_nullable_u32_cutscene")]
     pub cutscene_speed: u32,
+    #[serde(default = "default_input_mode")]
     pub input_mode: String,
+    #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub mouse_sensitivity: f64,
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub record_performance: bool,
+    #[serde(default = "default_game_data_root")]
     pub game_data_root: String,
+    #[serde(default = "default_configuration")]
     pub configuration: String,
     #[serde(default = "default_language")]
     pub language: String,
-    #[serde(default = "default_false")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub step_fix: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub anim_speed_fix: bool,
-    #[serde(default = "default_false")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub dt_smoothing: bool,
-    #[serde(default = "default_fov_scale")]
+    #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub fov_scale: f64,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub pause_blur: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub depth_of_field: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub bloom: bool,
 }
 

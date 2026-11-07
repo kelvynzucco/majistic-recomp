@@ -11,30 +11,22 @@
   >
     <!-- Custom Application Top Bar / Titlebar -->
     <header
+      id="appHeader"
       data-tauri-drag-region
       class="h-11 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default"
     >
-      <!-- Left: Logo & Title (Draggable) -->
+      <!-- Left: Title (Draggable) -->
       <div
         data-tauri-drag-region
-        class="flex items-center gap-2.5 pointer-events-none"
+        class="flex items-center gap-2 select-none"
       >
-        <div
-          class="w-6 h-6 rounded bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400 font-black text-xs select-none"
+        <h1 class="text-xs font-bold tracking-wider text-white pointer-events-none">
+          MAJISTIC RECOMP
+        </h1>
+        <span
+          class="text-[9px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-mono font-medium pointer-events-none"
+          >v0.1.0</span
         >
-          M
-        </div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-xs font-bold tracking-wider text-white">
-            MAJISTIC RECOMP
-          </h1>
-          <span
-            class="text-[9px] px-1.5 py-0.2 rounded bg-sky-950 text-sky-400 border border-sky-800 font-mono font-medium"
-            >v0.1.0</span
-          >
-          <span class="text-slate-600 text-xs">•</span>
-          <span class="text-[11px] text-slate-400 font-normal">PC Static Recompiler</span>
-        </div>
       </div>
 
       <!-- Right: Status Badge & Window Controls -->

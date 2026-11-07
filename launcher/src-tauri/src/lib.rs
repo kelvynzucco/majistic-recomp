@@ -621,6 +621,11 @@ fn is_window_maximized(window: tauri::Window) -> bool {
 }
 
 #[tauri::command]
+fn start_drag_window(window: tauri::Window) {
+    let _ = window.start_dragging();
+}
+
+#[tauri::command]
 fn exit_app() {
     std::process::exit(0);
 }
@@ -651,6 +656,7 @@ pub fn run() {
             toggle_maximize_window,
             close_window,
             is_window_maximized,
+            start_drag_window,
             exit_app
         ])
         .run(tauri::generate_context!())

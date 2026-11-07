@@ -1,8 +1,8 @@
 # Majistic Recomp
 
-An advanced, high-performance static recompilation of the Xbox 360 action-adventure classic for Windows x64 PC.
+An advanced, high-performance static recompilation of **Majin and the Forsaken Kingdom** (Xbox 360) for modern Windows x64 PC.
 
-Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Threaded PSO Caching · Fast-Forward Cutscene Pacing
+Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Threaded PSO Caching · Fast-Forward Cutscene Pacing · Multi-Language Support
 
 ---
 
@@ -11,7 +11,7 @@ Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Thread
 > [!IMPORTANT]
 > **STRICT ZERO-ASSET DISTRIBUTION POLICY:**
 > This repository distributes **NO game assets, ISO disk images, executables, textures, audio, dialogue, video, or precompiled game binaries**.  
-> Users and testers **MUST** provide their own legally acquired physical disc copy of the original Xbox 360 game. All executable unpacking, symbol mapping, code generation, and static recompilation steps are executed **strictly locally on the user's computer** using the automated scripts provided in this repository.
+> Users and testers **MUST** provide their own legally acquired physical disc copy of the original Xbox 360 game (**Majin and the Forsaken Kingdom**). All executable unpacking, symbol mapping, code generation, and static recompilation steps are executed **strictly locally on the user's computer** using the automated scripts provided in this repository.
 
 > [!NOTE]
 > **NO AFFILIATION DISCLAIMER:**
@@ -22,13 +22,14 @@ Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Thread
 
 ## Overview
 
-**Majistic Recomp** translates original PowerPC machine code into native, optimized C++23, running on modern Windows x64 hardware via the **ReXGlue SDK (0.10.0)** and a specialized **Direct3D 12** graphics runtime derived from Xenia.
+**Majistic Recomp** is an open-source static recompilation of the classic 2010 action-adventure game **Majin and the Forsaken Kingdom** (originally developed by Game Republic and published by Bandai Namco for the Xbox 360). It translates original PowerPC machine code into native, optimized C++23, running on modern Windows x64 hardware via the **ReXGlue SDK (0.10.0)** and a specialized **Direct3D 12** graphics runtime derived from Xenia.
 
 By translating game logic into native CPU instructions and mapping the Xbox 360 Xenos GPU commands into modern Direct3D 12 graphics pipelines, the project achieves:
 - **Full 60 FPS gameplay** with verified delta-time normalization.
 - **Multi-threaded startup PSO compilation**, eliminating runtime shader compilation stutter.
 - **Native Host Render Target (RTV) rendering**, delivering full 3D visual fidelity without relying on slow Rasterizer-Ordered View (ROV) interlocks.
 - **Synchronized fast-forward** for in-game dialogues and cutscenes with dynamic audio frequency scaling.
+- **Multi-language support** with full in-game text and localized voiceover selection (English, Spanish, French, German, Italian, Korean, and Japanese).
 - **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, and **FXAA** upscalers.
 
 ---

@@ -21,6 +21,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <timeapi.h>
 #endif
 
 class MajinApp : public rex::ReXApp {
@@ -29,6 +30,7 @@ class MajinApp : public rex::ReXApp {
   ~MajinApp() override {
 #if defined(_WIN32)
     StopTitleTimer();
+    timeEndPeriod(1);
 #endif
   }
 
@@ -109,9 +111,27 @@ class MajinApp : public rex::ReXApp {
       rex::cvar::SetFlagByName("present_effect", "fsr");
     }
     rex::cvar::SetFlagByName("present_dither", "true");
+
+    // Texture cache memory tuning (ported from ArthurMS15/MajinRecomp):
+    // Prevents continuous cache eviction and re-untiling hitching on room transitions.
+    if (rex::cvar::GetFlagSource("texture_cache_memory_limit_soft") == rex::cvar::Source::kDefault) {
+      rex::cvar::SetFlagByName("texture_cache_memory_limit_soft", "4096");
+    }
+    if (rex::cvar::GetFlagSource("texture_cache_memory_limit_hard") == rex::cvar::Source::kDefault) {
+      rex::cvar::SetFlagByName("texture_cache_memory_limit_hard", "8192");
+    }
+    if (rex::cvar::GetFlagSource("texture_cache_memory_limit_soft_lifetime") == rex::cvar::Source::kDefault) {
+      rex::cvar::SetFlagByName("texture_cache_memory_limit_soft_lifetime", "3600");
+    }
+    if (rex::cvar::GetFlagSource("texture_cache_memory_limit_render_to_texture") == rex::cvar::Source::kDefault) {
+      rex::cvar::SetFlagByName("texture_cache_memory_limit_render_to_texture", "256");
+    }
   }
 
   void OnPreSetup(rex::RuntimeConfig& config) override {
+#if defined(_WIN32)
+    timeBeginPeriod(1);
+#endif
     if (!config.graphics && config.gpu_plugin.empty()) {
       config.gpu_plugin = "xenos";
     }

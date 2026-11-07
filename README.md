@@ -74,6 +74,12 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - Includes waitable-timer frame presentation pacing (`vulkan_hooks.cpp`).
 - Dedicated reverse-engineering and diagnosis ongoing to decouple 2D vector HUD passes from 3D resolution upscaling.
 
+### 6. High Frame Rate Physics & Animation Fixes
+- **Collision Edge Step Scaling (`step_fix`):** At high frame rates (60+ FPS), character movement steps into small lips, ledges, or stair edges could resolve backwards rather than upwards, creating invisible walls. Incorporates root-motion scaling hooks (researched by ArthurMS15) to smoothly scale step distance when blocked, allowing characters to climb edges naturally just like on console.
+- **Sub-Motion & Object Animation Speed Normalization (`anim_speed`):** Fixes partial animations (Majin's facial expressions, Tepeu's gesture commands, healing animations) and certain world objects running 2x to 4x too fast above 30 FPS by dynamically scaling them by frame delta-time.
+- **Frame-Time Smoothing (`frame_timer`):** Evens out frame time steps to keep game delta-time in lockstep with real time, avoiding collision jitter.
+- **Camera FOV & Post-Processing Controls:** Configurable field-of-view multiplier (`--majin_fov_scale`) and switches for pause blur (`--majin_pause_blur`), depth of field (`--majin_dof`), and glare/bloom (`--majin_bloom`).
+
 ---
 
 ## Controls Reference
@@ -170,6 +176,7 @@ Alternatively, you can launch directly via the CLI runner:
 ## Credits & Acknowledgments
 
 - **GM-0856 / [majin-recompile](https://github.com/GM-0856/majin-recompile):** Original recompilation research and PAL proof-of-concept that served as the initial kickoff inspiration for this project.
+- **ArthurMS15 / [MajinRecomp](https://github.com/ArthurMS15/MajinRecomp):** Research and implementation of physics collision step scaling (`step_fix`), sub-motion animation speed correction (`anim_speed`), frame time smoothing (`frame_timer`), camera FOV scaling, and post-processing toggles.
 - **[ReXGlue Project](https://github.com/rexglue/rexglue-sdk) & [Xenia Project](https://github.com/xenia-project/xenia):** Static recompilation toolkit, PowerPC intermediate representation, and Xbox 360 Direct3D 12 GPU emulation architecture.
 - **Game Republic & Bandai Namco:** The original developers and publishers of this classic game.
 

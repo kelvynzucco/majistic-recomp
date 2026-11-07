@@ -18,10 +18,16 @@ set(MAJIN_SOURCES
     src/cutscene.cpp
     src/vulkan_hooks.cpp
     src/scene_resolution.cpp
+    src/step_fix.cpp
+    src/anim_speed.cpp
+    src/frame_timer.cpp
+    src/camera_fov.cpp
+    src/post_effects.cpp
 )
 
 if(WIN32)
     add_executable(majin WIN32 ${MAJIN_SOURCES})
+    target_link_libraries(majin PRIVATE winmm)
 else()
     add_executable(majin ${MAJIN_SOURCES})
 endif()

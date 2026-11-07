@@ -3,9 +3,9 @@
 [project]
 name = "majin"
 sdk_version = "0.10.0"
-game_root = "../private/game-data"
+game_root = "../game-data"
 
 [entrypoint]
-file_path = "../private/game-data/default.xex"
+file_path = "../game-data/default.xex"
 out_directory_path = "generated/default"
 includes = ["analysis-overrides.toml", "dispatch-thunks.toml", "member-dispatch-thunks.toml", "dispatch-variants.toml"]

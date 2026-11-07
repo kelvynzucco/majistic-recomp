@@ -62,19 +62,6 @@ pub struct GameStatus {
 }
 
 fn get_project_root() -> PathBuf {
-    if let Ok(mut cur) = std::env::current_dir() {
-        for _ in 0..6 {
-            if cur.join("scripts/run-usa.ps1").exists() {
-                return cur;
-            }
-            if let Some(parent) = cur.parent() {
-                cur = parent.to_path_buf();
-            } else {
-                break;
-            }
-        }
-    }
-
     if let Ok(exe) = std::env::current_exe() {
         let mut cur = exe;
         for _ in 0..6 {
@@ -82,6 +69,19 @@ fn get_project_root() -> PathBuf {
                 if parent.join("scripts/run-usa.ps1").exists() {
                     return parent.to_path_buf();
                 }
+                cur = parent.to_path_buf();
+            } else {
+                break;
+            }
+        }
+    }
+
+    if let Ok(mut cur) = std::env::current_dir() {
+        for _ in 0..6 {
+            if cur.join("scripts/run-usa.ps1").exists() {
+                return cur;
+            }
+            if let Some(parent) = cur.parent() {
                 cur = parent.to_path_buf();
             } else {
                 break;
@@ -138,13 +138,19 @@ fn check_game_status() -> Result<GameStatus, String> {
     let has_executable = exe_path.exists();
     let is_ready = has_game_data && has_executable;
 
+    let display_game_data_path = if let Ok(rel) = game_data_dir.strip_prefix(&root) {
+        rel.to_string_lossy().to_string()
+    } else {
+        folder_name
+    };
+
     Ok(GameStatus {
         has_game_data,
         has_unpacked_image,
         has_executable,
         is_ready,
-        game_data_path: game_data_dir.to_string_lossy().to_string(),
-        executable_path: exe_path.to_string_lossy().to_string(),
+        game_data_path: display_game_data_path,
+        executable_path: "prototype-usa/out/build/win-amd64-release/majin.exe".to_string(),
     })
 }
 
@@ -167,7 +173,13 @@ fn select_game_data_folder() -> Result<Option<String>, String> {
     if path.is_empty() {
         Ok(None)
     } else {
-        Ok(Some(path))
+        let p = PathBuf::from(&path);
+        let root = get_project_root();
+        if let Ok(rel) = p.strip_prefix(&root) {
+            Ok(Some(rel.to_string_lossy().to_string()))
+        } else {
+            Ok(Some(path))
+        }
     }
 }
 
@@ -283,18 +295,21 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
         } else {
             settings.game_data_root.trim().to_string()
         };
-        let out_dir = if Path::new(&folder_name).is_absolute() {
-            PathBuf::from(&folder_name)
+        let out_dir_rel = if Path::new(&folder_name).is_absolute() {
+            if let Ok(rel) = PathBuf::from(&folder_name).strip_prefix(&root) {
+                rel.to_string_lossy().to_string()
+            } else {
+                folder_name.clone()
+            }
         } else {
-            root.join(&folder_name)
+            folder_name.clone()
         };
-        let out_dir_str = out_dir.to_string_lossy().to_string();
 
-        emit_stage(1, total_stages, &format!("Extracting ISO files to {}...", folder_name));
+        emit_stage(1, total_stages, &format!("Extracting ISO files to {}...", out_dir_rel));
         emit_log(&format!("=== STAGE 1/{}: EXTRACTING ISO ===", total_stages));
         emit_log(&format!("Source ISO: {}", iso_path));
-        emit_log(&format!("Target Folder: {}", out_dir_str));
-        if let Err(e) = run_ps_script("extract-iso.ps1", &["-IsoPath", &iso_path, "-OutputDir", &out_dir_str]) {
+        emit_log(&format!("Target Folder: {}", out_dir_rel));
+        if let Err(e) = run_ps_script("extract-iso.ps1", &["-IsoPath", &iso_path, "-OutputDir", &out_dir_rel]) {
             emit_log(&format!("ERROR in Stage 1: {}", e));
             let _ = app.emit("build-error", format!("Extraction failed: {}", e));
             return;
@@ -303,7 +318,7 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
         // Stage 2: Unpack XEX
         emit_stage(2, total_stages, "Unpacking default.xex executable...");
         emit_log(&format!("=== STAGE 2/{}: UNPACKING XEX ===", total_stages));
-        if let Err(e) = run_ps_script("unpack-xex-usa.ps1", &[]) {
+        if let Err(e) = run_ps_script("unpack-xex-usa.ps1", &["-GameDataRoot", &out_dir_rel]) {
             emit_log(&format!("ERROR in Stage 2: {}", e));
             let _ = app.emit("build-error", format!("Unpacking XEX failed: {}", e));
             return;
@@ -337,11 +352,26 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         return Err(format!("Runner script not found at: {}", script.display()));
     }
 
-    let game_data_path = if Path::new(&settings.game_data_root).is_absolute() {
-        PathBuf::from(&settings.game_data_root)
+    let game_data_rel = if Path::new(&settings.game_data_root).is_absolute() {
+        if let Ok(rel) = PathBuf::from(&settings.game_data_root).strip_prefix(&root) {
+            rel.to_string_lossy().to_string()
+        } else {
+            settings.game_data_root.clone()
+        }
+    } else if settings.game_data_root.trim().is_empty() {
+        "game-data-usa".to_string()
     } else {
-        root.join(&settings.game_data_root)
+        settings.game_data_root.trim().to_string()
     };
+
+    let log_file_path = root.join("private/launcher-launch.log");
+    if let Some(parent) = log_file_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let out_file = fs::File::create(&log_file_path)
+        .map_err(|e| format!("Failed to create launch log: {}", e))?;
+    let err_file = out_file.try_clone()
+        .map_err(|e| format!("Failed to clone file handle: {}", e))?;
 
     let args = [
         "-NoLogo".to_string(),
@@ -371,23 +401,52 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         "-CutsceneSpeed".to_string(),
         settings.cutscene_speed.to_string(),
         "-GameDataRoot".to_string(),
-        game_data_path.to_string_lossy().to_string(),
+        game_data_rel,
         "-Configuration".to_string(),
         settings.configuration,
     ];
 
-    Command::new("powershell.exe")
-        .args(&args)
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args(&args)
         .current_dir(&root)
-        .spawn()
-        .map_err(|e| format!("Failed to spawn process: {}", e))?;
+        .stdout(out_file)
+        .stderr(err_file);
 
-    std::thread::spawn(|| {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        std::process::exit(0);
-    });
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+    }
 
-    Ok(())
+    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn runner process: {}", e))?;
+
+    // Allow PowerShell 1.5s to validate parameters and launch majin.exe
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+
+    match child.try_wait() {
+        Ok(Some(status)) => {
+            let err_content = fs::read_to_string(&log_file_path).unwrap_or_default();
+            let trimmed = err_content.trim();
+            let detail = if !trimmed.is_empty() {
+                trimmed
+            } else {
+                "PowerShell process terminated unexpectedly."
+            };
+            Err(format!("Game failed to start (exit status {}):\n\n{}", status, detail))
+        }
+        Ok(None) => {
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                std::process::exit(0);
+            });
+            Ok(())
+        }
+        Err(e) => {
+            Err(format!("Failed to monitor game process: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -428,7 +487,7 @@ pub fn run() {
             let path = std::env::current_exe()
                 .ok()
                 .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
-                .unwrap_or_else(|| std::path::PathBuf::from("C:\\Users\\kelvy\\Desktop\\Majin Recomp\\launcher.log"));
+                .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
             if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
                 use std::io::Write;
                 let _ = writeln!(f, "setup() hook reached successfully!");

@@ -177,4 +177,4 @@ Alternatively, you can launch directly via the CLI runner:
 ## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.  
-See the [`LICENSE`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/LICENSE) file for complete terms. Upstream third-party licenses are preserved in [`LICENSES/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/LICENSES/).
+See the [`LICENSE`](LICENSE) file for complete terms. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/).

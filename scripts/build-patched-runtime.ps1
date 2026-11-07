@@ -113,7 +113,8 @@ foreach($item in $fpsExpected.Files){
  try{$hash=([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalized)))).Replace('-','')}finally{$hasher.Dispose()}
  if($hash -ne $item.NormalizedPatchedSHA256){throw 'Unexpected optional timing source; use a clean pinned SDK checkout.'}
 }
-$vsRoot=& 'C:/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe' -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+$vsRoot = if (Test-Path $vswhere) { & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath } else { $null }
 if(!$vsRoot){throw 'Visual Studio C++ tools required.'}
 & (Join-Path $vsRoot 'Common7/Tools/Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
 $cmakeRoot=Join-Path $vsRoot 'Common7/IDE/CommonExtensions/Microsoft/CMake'

@@ -7,7 +7,7 @@ pub fn write_log(msg: &str) {
     let path = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
-        .unwrap_or_else(|| std::path::PathBuf::from("C:\\Users\\kelvy\\Desktop\\Majin Recomp\\launcher.log"));
+        .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
     if let Ok(mut f) = OpenOptions::new()
         .create(true)
         .append(true)

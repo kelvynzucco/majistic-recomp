@@ -4,18 +4,18 @@ param(
     $Fullscreen = $false,
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
-    [ValidateSet('none','fxaa')][string]$PostEffect = 'none',
+    [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
-    [ValidateSet('Default','ROV','Vulkan')][string]$RenderingPath = 'Default',
+    [ValidateSet('Default','ROV','RTV','Vulkan')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
     $IncludeHardware = $false,
-    [ValidateSet('Original','60')][string]$FrameRateMode = '60',
+    [ValidateSet('Original','30','60','Uncapped')][string]$FrameRateMode = '60',
     $SkipCutscenes = $true,
-    [ValidateRange(2,16)][int]$CutsceneSpeed = 4,
+    [ValidateRange(1,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
-    [string]$GameDataRoot = (Join-Path (Split-Path $PSScriptRoot -Parent) 'game-data-usa'),
+    [string]$GameDataRoot = 'game-data-usa',
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -32,6 +32,10 @@ $isRecordPerf = ConvertTo-Bool $RecordPerformance
 
 $projectRoot = Split-Path $PSScriptRoot -Parent
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
+
+if (-not [System.IO.Path]::IsPathRooted($GameDataRoot)) {
+    $GameDataRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $GameDataRoot))
+}
 
 if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
     throw "default.xex not found in $GameDataRoot"
@@ -53,7 +57,7 @@ $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
 $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
 
-$renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } else { '' }
+$renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { '' }
 $allowInvalid = 'true'
 $logPath = Join-Path $projectRoot ('reports\runtime-usa-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
 
@@ -112,7 +116,8 @@ if ($InputMode -eq 'KeyboardMouse') {
 $launchArgs += "--majin_window_fps=$((-not $isFullscreen).ToString().ToLowerInvariant())"
 $launchArgs += "--majin_record_performance=$($isRecordPerf.ToString().ToLowerInvariant())"
 if ($isRecordPerf) { $launchArgs += "--perf_log_csv=$logPath.performance.csv" }
-$launchArgs += "--majin_60fps=$(($FrameRateMode -eq '60').ToString().ToLowerInvariant())"
+$is60fps = ($FrameRateMode -eq '60' -or $FrameRateMode -eq 'Uncapped')
+$launchArgs += "--majin_60fps=$($is60fps.ToString().ToLowerInvariant())"
 $isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
 $launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInvariant())"
 $launchArgs += "--majin_cutscene_speed=$CutsceneSpeed"

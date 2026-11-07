@@ -116,6 +116,14 @@ if (-not $IsoPath -or -not $OutputDir) {
   exit 1
 }
 
+$projectRoot = Split-Path $PSScriptRoot -Parent
+if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
+  $OutputDir = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $OutputDir))
+}
+if (-not [System.IO.Path]::IsPathRooted($IsoPath)) {
+  $IsoPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $IsoPath))
+}
+
 Write-Host "Extracting Xbox 360 ISO: $IsoPath"
 Write-Host "Destination: $OutputDir"
 [IsoDumper.Extractor]::Extract($IsoPath, $OutputDir)

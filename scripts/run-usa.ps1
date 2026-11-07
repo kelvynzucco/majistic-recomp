@@ -6,7 +6,7 @@ param(
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
-    [ValidateSet('Default','ROV','RTV','Vulkan')][string]$RenderingPath = 'Default',
+    [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
@@ -58,7 +58,7 @@ if (-not (Test-Path $exe)) {
 $sessionRoot = Join-Path $projectRoot 'private\runtime-usa'
 New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
 
-$isVulkan = ($RenderingPath -eq 'Vulkan')
+$isVulkan = ($RenderingPath -eq 'Vulkan' -or $RenderingPath -eq 'Vulkan_FSI')
 $gpuBackend = if ($isVulkan) { 'vulkan' } else { 'd3d12' }
 $cacheKey = $gpuBackend + '-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
 $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
@@ -66,6 +66,7 @@ $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
 
 $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { '' }
+$vulkanTargetPath = if ($RenderingPath -eq 'Vulkan_FSI') { 'fsi' } else { 'fbo' }
 $allowInvalid = 'true'
 $logPath = Join-Path $projectRoot ('reports\runtime-usa-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
 
@@ -89,7 +90,7 @@ $launchArgs = @(
 )
 if ($isVulkan) {
     $launchArgs += @(
-        '--render_target_path_vulkan=fbo',
+        "--render_target_path_vulkan=$vulkanTargetPath",
         '--vulkan_dynamic_rendering=false',
         '--vulkan_async_skip_incomplete_frames=false'
     )

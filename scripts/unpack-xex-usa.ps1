@@ -1,12 +1,18 @@
+param(
+    [string]$GameDataRoot = 'game-data-usa'
+)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$xexPath = Join-Path $root 'game-data-usa\default.xex'
+if (-not [System.IO.Path]::IsPathRooted($GameDataRoot)) {
+    $GameDataRoot = [System.IO.Path]::GetFullPath((Join-Path $root $GameDataRoot))
+}
+$xexPath = Join-Path $GameDataRoot 'default.xex'
 $privDir = Join-Path $root 'prototype-usa\private'
 $repDir  = Join-Path $root 'reports'
 New-Item -ItemType Directory -Force -Path $privDir, $repDir | Out-Null
 
 if (-not (Test-Path $xexPath)) {
-    Write-Error "default.xex not found at $xexPath. Please place your USA dump in game-data-usa/."
+    Write-Error "default.xex not found at $xexPath. Please place your USA dump in $GameDataRoot."
     exit 1
 }
 

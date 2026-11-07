@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Majistic Recomp</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body
@@ -15,14 +16,16 @@
       data-tauri-drag-region
       class="h-11 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default"
     >
-      <!-- Left: Title (Draggable) -->
+      <!-- Left: Logo & Version (Draggable) -->
       <div
         data-tauri-drag-region
-        class="flex items-center gap-2 select-none"
+        class="flex items-center gap-2.5 select-none"
       >
-        <h1 class="text-xs font-bold tracking-wider text-white pointer-events-none">
-          MAJISTIC RECOMP
-        </h1>
+        <img
+          src="/logo.png"
+          alt="Majestic Recomp"
+          class="h-6 w-auto object-contain pointer-events-none select-none"
+        />
         <span
           class="text-[9px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-mono font-medium pointer-events-none"
           >v0.1.0</span

@@ -190,5 +190,12 @@ $quotedArgs = @($launchArgs | ForEach-Object {
 })
 
 Write-Output "Iniciando majin.exe ($WindowSize, Fullscreen=$isFullscreen, InputMode=$InputMode, FrameRate=$FrameRateMode)..."
-$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $build -WindowStyle Normal -PassThru -Wait
+$workingDir = if (Test-Path (Split-Path $exe -Parent)) {
+    Split-Path $exe -Parent
+} elseif (Test-Path $build) {
+    $build
+} else {
+    $projectRoot
+}
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle Normal -PassThru -Wait
 Write-Output "majin.exe encerrado com ExitCode: $($process.ExitCode)"

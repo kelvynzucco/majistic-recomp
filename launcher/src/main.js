@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { check } from "@tauri-apps/plugin-updater";
 
 // Default configuration structure
 const defaultSettings = {
@@ -49,10 +50,27 @@ const elements = {
   tabBuildIndicator: document.getElementById("tabBuildIndicator"),
 
   // Header & Status
+  appVersionBadge: document.getElementById("appVersionBadge"),
+  btnCheckUpdates: document.getElementById("btnCheckUpdates"),
+  btnCheckUpdatesText: document.getElementById("btnCheckUpdatesText"),
+  updateBtnIcon: document.getElementById("updateBtnIcon"),
   gameStatusBadge: document.getElementById("gameStatusBadge"),
   gameStatusBadgeText: document.getElementById("gameStatusBadgeText"),
   setupWarningBanner: document.getElementById("setupWarningBanner"),
   btnGoToSetup: document.getElementById("btnGoToSetup"),
+
+  // Software Update Modal
+  updateModal: document.getElementById("updateModal"),
+  updateModalVersion: document.getElementById("updateModalVersion"),
+  updateModalNotesContainer: document.getElementById("updateModalNotesContainer"),
+  updateProgressContainer: document.getElementById("updateProgressContainer"),
+  updateProgressStatus: document.getElementById("updateProgressStatus"),
+  updateProgressPercent: document.getElementById("updateProgressPercent"),
+  updateProgressBar: document.getElementById("updateProgressBar"),
+  updateModalActions: document.getElementById("updateModalActions"),
+  btnUpdateLater: document.getElementById("btnUpdateLater"),
+  btnUpdateNow: document.getElementById("btnUpdateNow"),
+  btnCloseUpdateModal: document.getElementById("btnCloseUpdateModal"),
 
   // Settings form elements
   windowSize: document.getElementById("windowSize"),
@@ -515,6 +533,207 @@ document.addEventListener("change", async (e) => {
 });
 
 // ==========================================
+// Software Update Logic
+// ==========================================
+let currentPendingUpdate = null;
+let isCheckingUpdates = false;
+let isDownloadingUpdate = false;
+
+function setUpdateBtnState(state, text) {
+  const btn = elements.btnCheckUpdates;
+  const btnText = elements.btnCheckUpdatesText;
+  const btnIcon = elements.updateBtnIcon;
+
+  if (!btn || !btnText) return;
+
+  if (state === "checking") {
+    btnText.textContent = text || "Checking...";
+    if (btnIcon) {
+      btnIcon.classList.add("animate-spin");
+      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+    }
+    btn.disabled = true;
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-darkControl/50 text-slate-400 border border-darkBorder text-[11px] font-medium select-none cursor-wait focus:outline-none";
+  } else if (state === "up-to-date") {
+    btnText.textContent = text || "Up to Date";
+    if (btnIcon) {
+      btnIcon.classList.remove("animate-spin");
+      btnIcon.innerHTML = `<path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/>`;
+    }
+    btn.disabled = false;
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+  } else if (state === "available") {
+    btnText.textContent = text || "Update Available";
+    if (btnIcon) {
+      btnIcon.classList.remove("animate-spin");
+      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+    }
+    btn.disabled = false;
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-accent/20 hover:bg-accent/30 text-accent hover:text-white border border-accent/50 text-[11px] font-semibold transition-all select-none cursor-pointer focus:outline-none";
+  } else if (state === "error") {
+    btnText.textContent = text || "Check Failed";
+    if (btnIcon) {
+      btnIcon.classList.remove("animate-spin");
+    }
+    btn.disabled = false;
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-rose-950/40 text-rose-400 border border-rose-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+  } else {
+    // default
+    btnText.textContent = "Check for Updates";
+    if (btnIcon) {
+      btnIcon.classList.remove("animate-spin");
+      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+    }
+    btn.disabled = false;
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white border border-darkBorder hover:border-slate-500 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+  }
+}
+
+function showUpdateModal(update) {
+  if (!elements.updateModal) return;
+  if (elements.updateModalVersion) {
+    elements.updateModalVersion.textContent = `v${update.version}`;
+  }
+  if (elements.updateModalNotesContainer) {
+    if (update.body && update.body.trim().length > 0) {
+      elements.updateModalNotesContainer.textContent = update.body;
+      elements.updateModalNotesContainer.classList.remove("hidden");
+    } else {
+      elements.updateModalNotesContainer.classList.add("hidden");
+    }
+  }
+  if (elements.updateProgressContainer) {
+    elements.updateProgressContainer.classList.add("hidden");
+  }
+  if (elements.updateModalActions) {
+    elements.updateModalActions.classList.remove("hidden");
+  }
+  elements.updateModal.classList.remove("hidden");
+}
+
+function hideUpdateModal() {
+  if (!elements.updateModal) return;
+  elements.updateModal.classList.add("hidden");
+}
+
+async function checkForUpdates(isUserClick = false) {
+  if (isCheckingUpdates || isDownloadingUpdate) return;
+  isCheckingUpdates = true;
+  setUpdateBtnState("checking");
+
+  try {
+    const update = await check();
+    if (update) {
+      currentPendingUpdate = update;
+      setUpdateBtnState("available");
+      showUpdateModal(update);
+    } else {
+      currentPendingUpdate = null;
+      setUpdateBtnState("up-to-date");
+      setTimeout(() => {
+        if (!currentPendingUpdate) setUpdateBtnState("default");
+      }, 4000);
+    }
+  } catch (err) {
+    console.warn("Update check response:", err);
+    const errMsg = String(err?.message || err || "").toLowerCase();
+    // In GitHub releases, if release 1 hasn't been posted yet or 404, the app is up to date
+    if (errMsg.includes("404") || errMsg.includes("not found") || errMsg.includes("no release")) {
+      currentPendingUpdate = null;
+      setUpdateBtnState("up-to-date");
+      setTimeout(() => {
+        if (!currentPendingUpdate) setUpdateBtnState("default");
+      }, 4000);
+    } else {
+      setUpdateBtnState("error", "Check Failed");
+      setTimeout(() => {
+        if (!currentPendingUpdate) setUpdateBtnState("default");
+      }, 4000);
+    }
+  } finally {
+    isCheckingUpdates = false;
+  }
+}
+
+async function installUpdate() {
+  if (!currentPendingUpdate || isDownloadingUpdate) return;
+  isDownloadingUpdate = true;
+
+  if (elements.updateProgressContainer) {
+    elements.updateProgressContainer.classList.remove("hidden");
+  }
+  if (elements.updateModalActions) {
+    elements.updateModalActions.classList.add("hidden");
+  }
+  if (elements.btnCheckUpdatesText) {
+    elements.btnCheckUpdatesText.textContent = "Downloading...";
+  }
+
+  let totalBytes = 0;
+  let downloadedBytes = 0;
+
+  try {
+    await currentPendingUpdate.downloadAndInstall((event) => {
+      if (event.event === "Started") {
+        totalBytes = event.data?.contentLength || 0;
+        if (elements.updateProgressStatus) {
+          elements.updateProgressStatus.textContent = "Downloading update...";
+        }
+      } else if (event.event === "Progress") {
+        downloadedBytes += event.data?.chunkLength || 0;
+        let percent = totalBytes > 0 ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : 0;
+        if (elements.updateProgressPercent) {
+          elements.updateProgressPercent.textContent = `${percent}%`;
+        }
+        if (elements.updateProgressBar) {
+          elements.updateProgressBar.style.width = `${percent}%`;
+        }
+        if (elements.btnCheckUpdatesText) {
+          elements.btnCheckUpdatesText.textContent = `Updating (${percent}%)...`;
+        }
+      } else if (event.event === "Finished") {
+        if (elements.updateProgressStatus) {
+          elements.updateProgressStatus.textContent = "Installing and restarting launcher...";
+        }
+        if (elements.btnCheckUpdatesText) {
+          elements.btnCheckUpdatesText.textContent = "Restarting...";
+        }
+      }
+    });
+  } catch (err) {
+    console.error("Failed to install update:", err);
+    if (elements.updateProgressStatus) {
+      elements.updateProgressStatus.textContent = "Installation error: " + (err?.message || err);
+    }
+    if (elements.updateModalActions) {
+      elements.updateModalActions.classList.remove("hidden");
+    }
+    isDownloadingUpdate = false;
+  }
+}
+
+// Updater event listeners
+if (elements.btnCheckUpdates) {
+  elements.btnCheckUpdates.addEventListener("click", () => {
+    if (currentPendingUpdate) {
+      showUpdateModal(currentPendingUpdate);
+    } else {
+      checkForUpdates(true);
+    }
+  });
+}
+
+if (elements.btnCloseUpdateModal) {
+  elements.btnCloseUpdateModal.addEventListener("click", hideUpdateModal);
+}
+if (elements.btnUpdateLater) {
+  elements.btnUpdateLater.addEventListener("click", hideUpdateModal);
+}
+if (elements.btnUpdateNow) {
+  elements.btnUpdateNow.addEventListener("click", installUpdate);
+}
+
+// ==========================================
 // Initialization
 // ==========================================
 async function init() {
@@ -529,6 +748,11 @@ async function init() {
   populateForm(currentSettings);
   await updateGameStatus();
   await updateMaximizeIcon();
+
+  // Background silent check for updates on startup
+  setTimeout(() => {
+    checkForUpdates(false);
+  }, 1500);
 }
 
 init();

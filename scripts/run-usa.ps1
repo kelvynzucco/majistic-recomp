@@ -15,6 +15,7 @@ param(
     $SkipCutscenes = $true,
     [ValidateRange(1,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
+    [ValidateSet('English','Spanish','French','German','Italian','Korean','Japanese','Portuguese')][string]$Language = 'English',
     [string]$GameDataRoot = 'game-data-usa',
     [switch]$Preview
 )
@@ -123,6 +124,19 @@ $launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInva
 $launchArgs += "--majin_cutscene_speed=$CutsceneSpeed"
 $isSkipIntroLogos = ConvertTo-Bool $SkipIntroLogos
 $launchArgs += "--majin_skip_intro_logos=$($isSkipIntroLogos.ToString().ToLowerInvariant())"
+
+$langMap = @{
+    'English'    = 1
+    'Japanese'   = 2
+    'German'     = 3
+    'French'     = 4
+    'Spanish'    = 5
+    'Italian'    = 6
+    'Korean'     = 7
+    'Portuguese' = 9
+}
+$langId = if ($langMap.ContainsKey($Language)) { $langMap[$Language] } else { 1 }
+$launchArgs += "--user_language=$langId"
 
 if ($Preview) {
     Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"

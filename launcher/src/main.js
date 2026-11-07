@@ -19,6 +19,7 @@ const defaultSettings = {
   RecordPerformance: true,
   GameDataRoot: "game-data-usa",
   Configuration: "Release",
+  Language: "English",
 };
 
 let currentSettings = { ...defaultSettings };
@@ -58,6 +59,7 @@ const elements = {
   skipCutscenes: document.getElementById("skipCutscenes"),
   skipIntroLogos: document.getElementById("skipIntroLogos"),
   gameDataRoot: document.getElementById("gameDataRoot"),
+  language: document.getElementById("language"),
 
   // Build Tab Elements
   btnBrowseGameData: document.getElementById("btnBrowseGameData"),
@@ -132,6 +134,7 @@ function populateForm(settings) {
   if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? true;
   if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? true;
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data-usa";
+  if (elements.language) elements.language.value = settings.Language || "English";
 }
 
 function readForm() {
@@ -152,6 +155,7 @@ function readForm() {
     RecordPerformance: currentSettings.RecordPerformance ?? true,
     GameDataRoot: elements.gameDataRoot.value.trim(),
     Configuration: "Release",
+    Language: elements.language ? elements.language.value : (currentSettings.Language || "English"),
   };
 }
 

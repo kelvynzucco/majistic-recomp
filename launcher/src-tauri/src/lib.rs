@@ -5,6 +5,10 @@ use std::process::{Command, Stdio};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
+fn default_language() -> String {
+    "English".into()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Settings {
@@ -25,6 +29,8 @@ pub struct Settings {
     pub record_performance: bool,
     pub game_data_root: String,
     pub configuration: String,
+    #[serde(default = "default_language")]
+    pub language: String,
 }
 
 impl Default for Settings {
@@ -46,6 +52,7 @@ impl Default for Settings {
             record_performance: true,
             game_data_root: "game-data-usa".into(),
             configuration: "Release".into(),
+            language: "English".into(),
         }
     }
 }
@@ -402,6 +409,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.cutscene_speed.to_string(),
         "-GameDataRoot".to_string(),
         game_data_rel,
+        "-Language".to_string(),
+        settings.language,
         "-Configuration".to_string(),
         settings.configuration,
     ];

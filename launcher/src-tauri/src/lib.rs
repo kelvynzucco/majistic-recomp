@@ -656,3 +656,112 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_settings_with_null_fov_scale() {
+        let json = r#"{
+            "WindowSize": "1920x1080",
+            "Fullscreen": false,
+            "RenderScale": 2,
+            "RenderingPath": "Default",
+            "FrameRateMode": "60",
+            "VSync": true,
+            "PostEffect": "fxaa",
+            "Upscaler": "fsr",
+            "SkipIntroLogos": true,
+            "SkipCutscenes": true,
+            "CutsceneSpeed": 4,
+            "InputMode": "Controller",
+            "MouseSensitivity": null,
+            "RecordPerformance": true,
+            "GameDataRoot": "game-data-usa",
+            "Configuration": "Release",
+            "Language": "English",
+            "StepFix": false,
+            "AnimSpeedFix": true,
+            "DtSmoothing": false,
+            "FovScale": null,
+            "PauseBlur": null,
+            "DepthOfField": true,
+            "Bloom": true
+        }"#;
+
+        let parsed: Result<Settings, _> = serde_json::from_str(json);
+        assert!(parsed.is_ok(), "Failed to deserialize settings with null fields: {:?}", parsed.err());
+        let settings = parsed.unwrap();
+        assert_eq!(settings.fov_scale, 1.0);
+        assert_eq!(settings.mouse_sensitivity, 1.0);
+        assert!(settings.pause_blur);
+    }
+
+    #[test]
+    fn test_deserialize_settings_with_missing_fields() {
+        let json = r#"{
+            "WindowSize": "1280x720",
+            "Fullscreen": true
+        }"#;
+
+        let parsed: Result<Settings, _> = serde_json::from_str(json);
+        assert!(parsed.is_ok(), "Failed to deserialize partial settings: {:?}", parsed.err());
+        let settings = parsed.unwrap();
+        assert_eq!(settings.window_size, "1280x720");
+        assert!(settings.fullscreen);
+        assert_eq!(settings.render_scale, 2);
+        assert_eq!(settings.fov_scale, 1.0);
+        assert_eq!(settings.cutscene_speed, 4);
+        assert_eq!(settings.language, "English");
+        assert!(!settings.step_fix);
+        assert!(settings.anim_speed_fix);
+    }
+
+    #[test]
+    fn test_deserialize_valid_settings() {
+        let json = r#"{
+            "WindowSize": "2560x1440",
+            "Fullscreen": true,
+            "RenderScale": 3,
+            "RenderingPath": "Vulkan",
+            "FrameRateMode": "120",
+            "VSync": false,
+            "PostEffect": "cas",
+            "Upscaler": "none",
+            "SkipIntroLogos": false,
+            "SkipCutscenes": false,
+            "CutsceneSpeed": 2,
+            "InputMode": "KeyboardMouse",
+            "MouseSensitivity": 1.5,
+            "RecordPerformance": false,
+            "GameDataRoot": "game-data-usa",
+            "Configuration": "Release",
+            "Language": "Japanese",
+            "StepFix": true,
+            "AnimSpeedFix": false,
+            "DtSmoothing": true,
+            "FovScale": 1.2,
+            "PauseBlur": false,
+            "DepthOfField": false,
+            "Bloom": false
+        }"#;
+
+        let parsed: Result<Settings, _> = serde_json::from_str(json);
+        assert!(parsed.is_ok(), "Failed to deserialize valid settings: {:?}", parsed.err());
+        let settings = parsed.unwrap();
+        assert_eq!(settings.window_size, "2560x1440");
+        assert!(settings.fullscreen);
+        assert_eq!(settings.render_scale, 3);
+        assert_eq!(settings.rendering_path, "Vulkan");
+        assert_eq!(settings.frame_rate_mode, "120");
+        assert!(!settings.vsync);
+        assert_eq!(settings.fov_scale, 1.2);
+        assert_eq!(settings.mouse_sensitivity, 1.5);
+        assert_eq!(settings.language, "Japanese");
+        assert!(settings.step_fix);
+        assert!(!settings.anim_speed_fix);
+        assert!(settings.dt_smoothing);
+        assert!(!settings.pause_blur);
+    }
+}

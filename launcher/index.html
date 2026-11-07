@@ -6,148 +6,286 @@
     <title>Majistic Recomp</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body class="bg-darkBg text-slate-100 flex flex-col h-screen select-none">
+  <body class="bg-darkBg text-slate-100 flex flex-col h-screen select-none overflow-hidden">
     <!-- Header -->
-    <header class="px-6 py-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/60 backdrop-blur-sm">
+    <header class="px-6 py-3.5 border-b border-darkBorder flex items-center justify-between bg-darkCard/60 backdrop-blur-sm shrink-0">
       <div>
-        <h1 class="text-xl font-bold tracking-wider text-white">MAJISTIC RECOMP</h1>
-        <p class="text-xs text-slate-400">PC Recompilation Settings</p>
+        <h1 class="text-lg font-bold tracking-wider text-white flex items-center gap-2">
+          <span>MAJISTIC RECOMP</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800 font-mono font-medium">v0.1.0</span>
+        </h1>
+        <p class="text-[11px] text-slate-400">PC Static Recompilation Launcher & Build Manager</p>
       </div>
-      <span class="text-xs px-2.5 py-1 rounded bg-sky-950 text-sky-400 border border-sky-800 font-medium">v0.1.0</span>
+
+      <div id="gameStatusBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="gameStatusBadgeText">Checking Status...</span>
+      </div>
     </header>
 
-    <!-- Main Content (Scrollable) -->
-    <main class="flex-1 overflow-y-auto p-6 space-y-4">
-      <!-- Section: Display & Graphics -->
-      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
-        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Display & Graphics</h2>
-        
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Window Size</label>
-            <select id="windowSize" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="1280x720">1280x720 (720p)</option>
-              <option value="1920x1080">1920x1080 (1080p)</option>
-              <option value="2560x1440">2560x1440 (1440p)</option>
-              <option value="3840x2160">3840x2160 (4K)</option>
-            </select>
-          </div>
+    <!-- Navigation Tabs -->
+    <nav class="flex border-b border-darkBorder bg-darkCard/30 shrink-0 px-6 gap-2 pt-2">
+      <button id="tabBtnSettings" class="px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all">
+        ⚙ Settings & Play
+      </button>
+      <button id="tabBtnBuild" class="px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-1.5">
+        <span>🔨 Setup Game from ISO</span>
+        <span id="tabBuildIndicator" class="hidden w-2 h-2 rounded-full bg-amber-400"></span>
+      </button>
+    </nav>
 
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Display Mode</label>
-            <select id="fullscreen" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="false">Windowed</option>
-              <option value="true">Fullscreen</option>
-            </select>
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-y-auto p-5">
+      <!-- ========================================== -->
+      <!-- TAB 1: SETTINGS & PLAY                     -->
+      <!-- ========================================== -->
+      <div id="tabSettings" class="space-y-4">
+        <!-- Missing Game Data Warning Banner -->
+        <div id="setupWarningBanner" class="hidden p-3.5 rounded-lg border border-amber-700/60 bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200">
+          <div class="flex items-center gap-2">
+            <span class="text-base">⚠️</span>
+            <span>Game assets or executable are missing. Extract your legally owned game disc to play!</span>
           </div>
+          <button id="btnGoToSetup" class="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold whitespace-nowrap text-xs transition-colors">
+            Setup Game →
+          </button>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Internal Render Scale</label>
-            <select id="renderScale" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="1">1x - Native (720p)</option>
-              <option value="2">2x - 1440p (Recommended)</option>
-              <option value="3">3x - 2160p (4K UHD)</option>
-            </select>
+        <!-- Section: Display & Graphics -->
+        <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+          <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Display & Graphics</h2>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Window Size</label>
+              <select id="windowSize" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="1280x720">1280x720 (720p)</option>
+                <option value="1920x1080">1920x1080 (1080p)</option>
+                <option value="2560x1440">2560x1440 (1440p)</option>
+                <option value="3840x2160">3840x2160 (4K)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Display Mode</label>
+              <select id="fullscreen" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="false">Windowed</option>
+                <option value="true">Fullscreen</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Framerate</label>
-            <select id="frameRateMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="60">60 FPS (Recommended)</option>
-              <option value="Original">30 FPS (Original)</option>
-            </select>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Internal Render Scale</label>
+              <select id="renderScale" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="1">1x - Native (720p)</option>
+                <option value="2">2x - 1440p (Recommended)</option>
+                <option value="3">3x - 4K High</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Frame Rate Limit</label>
+              <select id="frameRateMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="30">30 FPS (Original Physics)</option>
+                <option value="60">60 FPS (Fluid Patched)</option>
+                <option value="Uncapped">Uncapped (Experimental)</option>
+              </select>
+            </div>
           </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Rendering Path</label>
+              <select id="renderingPath" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="Default">Direct3D 12 (Default)</option>
+                <option value="ROV">Rasterizer Ordered Views</option>
+                <option value="RTV">Render Target Views</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Upscaler</label>
+              <select id="upscaler" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="fsr">AMD FSR 1.0</option>
+                <option value="bilinear">Bilinear Filtering</option>
+                <option value="cas">AMD CAS</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Post Effect</label>
+              <select id="postEffect" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="fxaa">FXAA Fast</option>
+                <option value="fxaa_extreme">FXAA Extreme Quality</option>
+                <option value="none">Off (No Anti-Aliasing)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-1 flex items-center space-x-2">
+            <input type="checkbox" id="vsync" class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4" />
+            <label for="vsync" class="text-xs text-slate-300">Enable Vertical Synchronization (VSync)</label>
+          </div>
+        </section>
+
+        <!-- Section: Gameplay & Controls -->
+        <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+          <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Gameplay & Controls</h2>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Input Device</label>
+              <select id="inputMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="Controller">Gamepad / Controller</option>
+                <option value="KeyboardMouse">Keyboard & Mouse</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">Cutscene Speed Multiplier</label>
+              <select id="cutsceneSpeed" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent">
+                <option value="1">1x (Normal Speed)</option>
+                <option value="2">2x Speed</option>
+                <option value="4">4x Fast-Forward</option>
+                <option value="8">8x Hyper Speed</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-1">
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" id="skipCutscenes" class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4" />
+              <label for="skipCutscenes" class="text-xs text-slate-300">Allow Skipping In-Game Cutscenes</label>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" id="skipIntroLogos" class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4" />
+              <label for="skipIntroLogos" class="text-xs text-slate-300">Skip Intro Logos (Boot directly to title)</label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section: Game Data Path -->
+        <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-2">
+          <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Game Data Folder</h2>
+          <input type="text" id="gameDataRoot" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent font-mono" />
+        </section>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: SETUP / BUILD GAME                  -->
+      <!-- ========================================== -->
+      <div id="tabBuild" class="hidden space-y-4">
+        <!-- Status Overview Card -->
+        <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-2.5">
+          <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Game Installation Status</h2>
+          
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <div class="bg-darkControl/60 border border-darkBorder/60 p-2.5 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">1. Game Assets</span>
+              <span id="statusAssets" class="font-bold text-amber-400">Checking...</span>
+            </div>
+            <div class="bg-darkControl/60 border border-darkBorder/60 p-2.5 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">2. Decrypted XEX</span>
+              <span id="statusImage" class="font-bold text-amber-400">Checking...</span>
+            </div>
+            <div class="bg-darkControl/60 border border-darkBorder/60 p-2.5 rounded">
+              <span class="text-slate-400 block text-[10px] uppercase font-semibold">3. Game Binary</span>
+              <span id="statusBinary" class="font-bold text-amber-400">Checking...</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Step 1: ISO Selection Card -->
+        <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Select Game Disc Image</h2>
+            <span class="text-[10px] text-slate-400">Xbox 360 (.iso)</span>
+          </div>
+
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Select your legally dumped Xbox 360 game disc image. The launcher will extract game assets and build the recompilation.
+          </p>
+
+          <div class="flex items-center gap-2">
+            <input 
+              type="text" 
+              id="txtIsoPath" 
+              placeholder="C:\Path\To\Majin_and_the_Forsaken_Kingdom.iso" 
+              class="flex-1 bg-darkControl border border-darkBorder rounded px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-accent font-mono truncate"
+              readonly
+            />
+            <button 
+              id="btnBrowseIso" 
+              class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 border border-darkBorder text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+            >
+              <span>📁</span>
+              <span>Browse...</span>
+            </button>
+          </div>
+
+          <div class="pt-1 flex items-center justify-between border-t border-darkBorder/50">
+            <div class="flex items-center space-x-2">
+              <input type="checkbox" id="chkCompileBinary" checked class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4" />
+              <label for="chkCompileBinary" class="text-xs text-slate-300">
+                Compile native game binary (<span class="font-mono text-[11px] text-slate-400">majin.exe</span>)
+              </label>
+            </div>
+            <span class="text-[10px] text-slate-400">Requires Visual Studio / Clang</span>
+          </div>
+        </section>
+
+        <!-- Step 2: Build Actions -->
+        <div class="flex gap-2">
+          <button 
+            id="btnStartBuild" 
+            class="flex-1 py-3 px-4 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 transition-all"
+          >
+            <span>⚡</span>
+            <span>EXTRACT & BUILD GAME FROM ISO</span>
+          </button>
         </div>
 
-        <div>
-          <label class="block text-xs text-slate-300 mb-1">Rendering Backend</label>
-          <select id="renderingPath" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-            <option value="Default">Direct3D 12 (Default RTV - Recommended)</option>
-            <option value="ROV">Direct3D 12 (Forced ROV)</option>
-            <option value="Vulkan">Vulkan (Experimental)</option>
-          </select>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3 pt-1">
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Upscaler</label>
-            <select id="upscaler" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="fsr">AMD FSR 1 (Default)</option>
-              <option value="cas">AMD CAS</option>
-              <option value="bilinear">Bilinear</option>
-            </select>
+        <!-- Step 3: Real-Time Build Output & Console -->
+        <section id="buildProgressSection" class="hidden bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span id="buildSpinner" class="animate-spin text-accent text-sm">⏳</span>
+              <span id="buildStageText" class="text-xs font-semibold text-white">Starting pipeline...</span>
+            </div>
+            <span id="buildPercentText" class="text-xs font-mono text-accent">0%</span>
           </div>
 
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Anti-Aliasing</label>
-            <select id="postEffect" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="fxaa">FXAA (Recommended)</option>
-              <option value="none">None (Original)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="flex items-center space-x-2 pt-1">
-          <input type="checkbox" id="vsync" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
-          <label for="vsync" class="text-xs text-slate-300">Enable Vertical Sync (VSync)</label>
-        </div>
-      </section>
-
-      <!-- Section: Gameplay & Controls -->
-      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-3">
-        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Gameplay & Controls</h2>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Input Profile</label>
-            <select id="inputMode" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="Controller">Controller (Gamepad)</option>
-              <option value="KeyboardMouse">Keyboard + Mouse</option>
-            </select>
+          <!-- Progress Bar -->
+          <div class="w-full bg-darkControl h-2 rounded-full overflow-hidden border border-darkBorder">
+            <div id="buildProgressBar" class="bg-gradient-to-r from-sky-500 to-emerald-500 h-full w-0 transition-all duration-300"></div>
           </div>
 
-          <div>
-            <label class="block text-xs text-slate-300 mb-1">Fast-Forward Speed</label>
-            <select id="cutsceneSpeed" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-accent">
-              <option value="2">2x Speed</option>
-              <option value="4">4x Speed (Default)</option>
-              <option value="6">6x Speed</option>
-              <option value="8">8x Speed</option>
-            </select>
+          <!-- Console Terminal Output -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <span class="font-mono font-semibold">TERMINAL LOG</span>
+              <button id="btnClearLog" class="hover:text-slate-200">Clear</button>
+            </div>
+            <div id="buildConsole" class="bg-black/90 font-mono text-[11px] text-emerald-400 p-3 rounded border border-darkBorder/80 h-44 overflow-y-auto space-y-0.5 leading-relaxed selection:bg-emerald-800 selection:text-white">
+              <div class="text-slate-500">[Launcher Ready] Select an ISO to start extraction and compilation.</div>
+            </div>
           </div>
-        </div>
-
-        <div class="space-y-2 pt-1">
-          <div class="flex items-center space-x-2">
-            <input type="checkbox" id="skipCutscenes" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
-            <label for="skipCutscenes" class="text-xs text-slate-300">Allow Fast-Forward in Dialogues & Cutscenes (Hold Select / Tab)</label>
-          </div>
-
-          <div class="flex items-center space-x-2">
-            <input type="checkbox" id="skipIntroLogos" class="w-4 h-4 rounded bg-darkControl border-darkBorder text-accent focus:ring-0" />
-            <label for="skipIntroLogos" class="text-xs text-slate-300">Skip Intro Logos (Boot directly to title)</label>
-          </div>
-        </div>
-      </section>
-
-      <!-- Section: Game Data Path -->
-      <section class="bg-darkCard border border-darkBorder rounded-lg p-4 space-y-2">
-        <h2 class="text-xs font-semibold tracking-wider text-accent uppercase">Game Data Folder</h2>
-        <input type="text" id="gameDataRoot" class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-accent font-mono" />
-      </section>
+        </section>
+      </div>
     </main>
 
     <!-- Footer Controls -->
-    <footer class="p-4 border-t border-darkBorder bg-darkCard/80 flex items-center justify-between space-x-3">
+    <footer class="p-4 border-t border-darkBorder bg-darkCard/80 flex items-center justify-between space-x-3 shrink-0">
       <button id="btnExit" class="px-5 py-2.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold tracking-wide border border-darkBorder transition-colors">
         EXIT
       </button>
 
-      <button id="btnLaunch" class="flex-1 py-2.5 px-4 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold tracking-wider flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950 transition-all">
+      <button id="btnLaunch" class="flex-1 py-2.5 px-4 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold tracking-wider flex items-center justify-center space-x-2 shadow-lg shadow-emerald-950 transition-all disabled:opacity-50 disabled:pointer-events-none">
         <span>▶</span>
-        <span>LAUNCH GAME</span>
+        <span id="btnLaunchText">LAUNCH GAME</span>
       </button>
     </footer>
 

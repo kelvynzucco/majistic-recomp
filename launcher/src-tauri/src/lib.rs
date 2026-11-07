@@ -1,7 +1,9 @@
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -46,6 +48,17 @@ impl Default for Settings {
             configuration: "Release".into(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameStatus {
+    pub has_game_data: bool,
+    pub has_unpacked_image: bool,
+    pub has_executable: bool,
+    pub is_ready: bool,
+    pub game_data_path: String,
+    pub executable_path: String,
 }
 
 fn get_project_root() -> PathBuf {
@@ -102,6 +115,169 @@ fn save_settings(settings: Settings) -> Result<(), String> {
     }
     let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn check_game_status() -> Result<GameStatus, String> {
+    let root = get_project_root();
+    let game_data_dir = root.join("game-data-usa");
+    let has_game_data = game_data_dir.join("default.xex").exists();
+    let has_unpacked_image = root.join("prototype-usa/private/loaded-image.bin").exists();
+    let exe_path = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
+    let has_executable = exe_path.exists();
+    let is_ready = has_game_data && has_executable;
+
+    Ok(GameStatus {
+        has_game_data,
+        has_unpacked_image,
+        has_executable,
+        is_ready,
+        game_data_path: game_data_dir.to_string_lossy().to_string(),
+        executable_path: exe_path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn select_iso_file() -> Result<Option<String>, String> {
+    let script = r#"
+        Add-Type -AssemblyName System.Windows.Forms
+        $dialog = New-Object System.Windows.Forms.OpenFileDialog
+        $dialog.Filter = 'Xbox 360 Game Image (*.iso)|*.iso|All Files (*.*)|*.*'
+        $dialog.Title = 'Select Majin and the Forsaken Kingdom ISO'
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            Write-Output $dialog.FileName
+        }
+    "#;
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map_err(|e| format!("Failed to open file picker: {}", e))?;
+
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(path))
+    }
+}
+
+#[tauri::command]
+fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: bool) -> Result<(), String> {
+    let root = get_project_root();
+    let iso = PathBuf::from(&iso_path);
+    if !iso.exists() {
+        return Err(format!("Selected ISO file does not exist: {}", iso_path));
+    }
+
+    std::thread::spawn(move || {
+        let emit_log = |msg: &str| {
+            let _ = app.emit("build-log", msg.to_string());
+        };
+        let emit_stage = |stage: u32, total: u32, desc: &str| {
+            #[derive(Serialize, Clone)]
+            struct StagePayload<'a> {
+                stage: u32,
+                total: u32,
+                description: &'a str,
+            }
+            let _ = app.emit("build-stage", StagePayload { stage, total, description: desc });
+        };
+
+        let total_stages = if compile_binary { 3 } else { 2 };
+
+        let run_ps_script = |script_name: &str, extra_args: &[&str]| -> Result<(), String> {
+            let script_path = root.join("scripts").join(script_name);
+            if !script_path.exists() {
+                return Err(format!("Script not found: {}", script_path.display()));
+            }
+
+            let mut cmd_args = vec![
+                "-NoLogo",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                script_path.to_str().unwrap_or_default(),
+            ];
+            cmd_args.extend_from_slice(extra_args);
+
+            let mut child = Command::new("powershell.exe")
+                .args(&cmd_args)
+                .current_dir(&root)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|e| format!("Failed to spawn {}: {}", script_name, e))?;
+
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+
+            let app_out = app.clone();
+            let stdout_thread = std::thread::spawn(move || {
+                if let Some(out) = stdout {
+                    let reader = BufReader::new(out);
+                    for line in reader.lines().flatten() {
+                        let _ = app_out.emit("build-log", line);
+                    }
+                }
+            });
+
+            let app_err = app.clone();
+            let stderr_thread = std::thread::spawn(move || {
+                if let Some(err) = stderr {
+                    let reader = BufReader::new(err);
+                    for line in reader.lines().flatten() {
+                        let _ = app_err.emit("build-log", format!("[stderr] {}", line));
+                    }
+                }
+            });
+
+            let _ = stdout_thread.join();
+            let _ = stderr_thread.join();
+
+            let status = child.wait().map_err(|e| format!("Process error: {}", e))?;
+            if !status.success() {
+                return Err(format!("{} exited with status: {}", script_name, status));
+            }
+            Ok(())
+        };
+
+        // Stage 1: Extract ISO
+        emit_stage(1, total_stages, "Extracting ISO files to game-data-usa/...");
+        emit_log(&format!("=== STAGE 1/{}: EXTRACTING ISO ===", total_stages));
+        emit_log(&format!("Source ISO: {}", iso_path));
+        let out_dir = root.join("game-data-usa");
+        if let Err(e) = run_ps_script("extract-iso.ps1", &["-IsoPath", &iso_path, "-OutputDir", out_dir.to_str().unwrap_or("game-data-usa")]) {
+            emit_log(&format!("ERROR in Stage 1: {}", e));
+            let _ = app.emit("build-error", format!("Extraction failed: {}", e));
+            return;
+        }
+
+        // Stage 2: Unpack XEX
+        emit_stage(2, total_stages, "Unpacking default.xex executable...");
+        emit_log(&format!("=== STAGE 2/{}: UNPACKING XEX ===", total_stages));
+        if let Err(e) = run_ps_script("unpack-xex-usa.ps1", &[]) {
+            emit_log(&format!("ERROR in Stage 2: {}", e));
+            let _ = app.emit("build-error", format!("Unpacking XEX failed: {}", e));
+            return;
+        }
+
+        // Stage 3: Compile Binary (if requested)
+        if compile_binary {
+            emit_stage(3, total_stages, "Compiling native game executable (majin.exe)...");
+            emit_log(&format!("=== STAGE 3/{}: COMPILING GAME ===", total_stages));
+            if let Err(e) = run_ps_script("build-usa.ps1", &["-Configuration", "Release"]) {
+                emit_log(&format!("ERROR in Stage 3: {}", e));
+                let _ = app.emit("build-error", format!("Compilation failed: {}", e));
+                return;
+            }
+        }
+
+        emit_log("=== BUILD PIPELINE FINISHED SUCCESSFULLY! ===");
+        let _ = app.emit("build-complete", true);
+    });
+
     Ok(())
 }
 
@@ -190,6 +366,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_settings,
             save_settings,
+            check_game_status,
+            select_iso_file,
+            start_game_build,
             launch_game,
             exit_app
         ])

@@ -9,6 +9,18 @@ fn default_language() -> String {
     "English".into()
 }
 
+fn default_true() -> bool {
+    true
+}
+
+fn default_false() -> bool {
+    false
+}
+
+fn default_fov_scale() -> f64 {
+    1.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Settings {
@@ -31,6 +43,20 @@ pub struct Settings {
     pub configuration: String,
     #[serde(default = "default_language")]
     pub language: String,
+    #[serde(default = "default_false")]
+    pub step_fix: bool,
+    #[serde(default = "default_true")]
+    pub anim_speed_fix: bool,
+    #[serde(default = "default_false")]
+    pub dt_smoothing: bool,
+    #[serde(default = "default_fov_scale")]
+    pub fov_scale: f64,
+    #[serde(default = "default_true")]
+    pub pause_blur: bool,
+    #[serde(default = "default_true")]
+    pub depth_of_field: bool,
+    #[serde(default = "default_true")]
+    pub bloom: bool,
 }
 
 impl Default for Settings {
@@ -53,6 +79,13 @@ impl Default for Settings {
             game_data_root: "game-data-usa".into(),
             configuration: "Release".into(),
             language: "English".into(),
+            step_fix: false,
+            anim_speed_fix: true,
+            dt_smoothing: false,
+            fov_scale: 1.0,
+            pause_blur: true,
+            depth_of_field: true,
+            bloom: true,
         }
     }
 }
@@ -411,6 +444,14 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         game_data_rel,
         "-Language".to_string(),
         settings.language,
+        format!("-StepFix:${}", settings.step_fix),
+        format!("-AnimSpeedFix:${}", settings.anim_speed_fix),
+        format!("-DtSmoothing:${}", settings.dt_smoothing),
+        "-FovScale".to_string(),
+        settings.fov_scale.to_string(),
+        format!("-PauseBlur:${}", settings.pause_blur),
+        format!("-DepthOfField:${}", settings.depth_of_field),
+        format!("-Bloom:${}", settings.bloom),
         "-Configuration".to_string(),
         settings.configuration,
     ];

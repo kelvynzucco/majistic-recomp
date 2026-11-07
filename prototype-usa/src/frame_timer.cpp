@@ -24,7 +24,7 @@
 #include <chrono>
 #include <cmath>
 
-REXCVAR_DEFINE_BOOL(majin_dt_smooth, true, "Majin",
+REXCVAR_DEFINE_BOOL(majin_dt_smooth, false, "Majin",
                     "Even out the game's frame time steps (keeps game time in step with real time)");
 REXCVAR_DEFINE_BOOL(majin_log_dt, false, "Majin",
                     "Log the game's frame time (dt) spread once per second (diagnostics)");

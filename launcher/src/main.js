@@ -20,6 +20,13 @@ const defaultSettings = {
   GameDataRoot: "game-data-usa",
   Configuration: "Release",
   Language: "English",
+  StepFix: false,
+  AnimSpeedFix: true,
+  DtSmoothing: false,
+  FovScale: 1.0,
+  PauseBlur: true,
+  DepthOfField: true,
+  Bloom: true,
 };
 
 let currentSettings = { ...defaultSettings };
@@ -34,8 +41,10 @@ let gameStatus = {
 const elements = {
   // Navigation Tabs
   tabBtnSettings: document.getElementById("tabBtnSettings"),
+  tabBtnFixes: document.getElementById("tabBtnFixes"),
   tabBtnBuild: document.getElementById("tabBtnBuild"),
   tabSettings: document.getElementById("tabSettings"),
+  tabFixes: document.getElementById("tabFixes"),
   tabBuild: document.getElementById("tabBuild"),
   tabBuildIndicator: document.getElementById("tabBuildIndicator"),
 
@@ -60,6 +69,15 @@ const elements = {
   skipIntroLogos: document.getElementById("skipIntroLogos"),
   gameDataRoot: document.getElementById("gameDataRoot"),
   language: document.getElementById("language"),
+
+  // Fixes form elements
+  stepFix: document.getElementById("stepFix"),
+  dtSmoothing: document.getElementById("dtSmoothing"),
+  animSpeedFix: document.getElementById("animSpeedFix"),
+  fovScale: document.getElementById("fovScale"),
+  depthOfField: document.getElementById("depthOfField"),
+  bloom: document.getElementById("bloom"),
+  pauseBlur: document.getElementById("pauseBlur"),
 
   // Build Tab Elements
   btnBrowseGameData: document.getElementById("btnBrowseGameData"),
@@ -94,26 +112,40 @@ const elements = {
 // Tab Switching
 // ==========================================
 function switchTab(tab) {
+  const activeClass =
+    "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
+  const inactiveClass =
+    "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
+
   if (tab === "settings") {
     elements.tabSettings.classList.remove("hidden");
+    if (elements.tabFixes) elements.tabFixes.classList.add("hidden");
     elements.tabBuild.classList.add("hidden");
 
-    elements.tabBtnSettings.className =
-      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
-    elements.tabBtnBuild.className =
-      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
+    elements.tabBtnSettings.className = activeClass;
+    if (elements.tabBtnFixes) elements.tabBtnFixes.className = inactiveClass;
+    elements.tabBtnBuild.className = inactiveClass;
+  } else if (tab === "fixes") {
+    elements.tabSettings.classList.add("hidden");
+    if (elements.tabFixes) elements.tabFixes.classList.remove("hidden");
+    elements.tabBuild.classList.add("hidden");
+
+    elements.tabBtnSettings.className = inactiveClass;
+    if (elements.tabBtnFixes) elements.tabBtnFixes.className = activeClass;
+    elements.tabBtnBuild.className = inactiveClass;
   } else {
     elements.tabSettings.classList.add("hidden");
+    if (elements.tabFixes) elements.tabFixes.classList.add("hidden");
     elements.tabBuild.classList.remove("hidden");
 
-    elements.tabBtnBuild.className =
-      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
-    elements.tabBtnSettings.className =
-      "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
+    elements.tabBtnSettings.className = inactiveClass;
+    if (elements.tabBtnFixes) elements.tabBtnFixes.className = inactiveClass;
+    elements.tabBtnBuild.className = activeClass;
   }
 }
 
 elements.tabBtnSettings.addEventListener("click", () => switchTab("settings"));
+if (elements.tabBtnFixes) elements.tabBtnFixes.addEventListener("click", () => switchTab("fixes"));
 elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
 elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
 
@@ -135,6 +167,15 @@ function populateForm(settings) {
   if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? true;
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data-usa";
   if (elements.language) elements.language.value = settings.Language || "English";
+
+  // Fixes form
+  if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
+  if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? true;
+  if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? false;
+  if (elements.fovScale) elements.fovScale.value = String(settings.FovScale || 1.0);
+  if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? true;
+  if (elements.bloom) elements.bloom.checked = settings.Bloom ?? true;
+  if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? true;
 }
 
 function readForm() {
@@ -156,6 +197,13 @@ function readForm() {
     GameDataRoot: elements.gameDataRoot.value.trim(),
     Configuration: "Release",
     Language: elements.language ? elements.language.value : (currentSettings.Language || "English"),
+    StepFix: elements.stepFix ? elements.stepFix.checked : false,
+    AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : true,
+    DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
+    FovScale: elements.fovScale ? parseFloat(elements.fovScale.value) : 1.0,
+    DepthOfField: elements.depthOfField ? elements.depthOfField.checked : true,
+    Bloom: elements.bloom ? elements.bloom.checked : true,
+    PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : true,
   };
 }
 

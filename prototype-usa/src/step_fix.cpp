@@ -38,7 +38,7 @@
 #include <mutex>
 #include <unordered_map>
 
-REXCVAR_DEFINE_BOOL(majin_step_fix, true, "Majin",
+REXCVAR_DEFINE_BOOL(majin_step_fix, false, "Majin",
                     "Let characters climb small edges at high frame rates (bigger step when blocked)");
 REXCVAR_DEFINE_DOUBLE(majin_step_fix_max, 4.0, "Majin",
                       "Largest blocked step, in 30 fps frames (higher climbs edges more eagerly)");

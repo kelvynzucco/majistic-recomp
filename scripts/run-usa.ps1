@@ -16,6 +16,13 @@ param(
     [ValidateRange(1,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
     [ValidateSet('English','Spanish','French','German','Italian','Korean','Japanese','Portuguese')][string]$Language = 'English',
+    $StepFix = $false,
+    $AnimSpeedFix = $true,
+    $DtSmoothing = $false,
+    [ValidateRange(0.5, 2.0)][double]$FovScale = 1.0,
+    $PauseBlur = $true,
+    $DepthOfField = $true,
+    $Bloom = $true,
     [string]$GameDataRoot = 'game-data-usa',
     [switch]$Preview
 )
@@ -137,6 +144,27 @@ $langMap = @{
 }
 $langId = if ($langMap.ContainsKey($Language)) { $langMap[$Language] } else { 1 }
 $launchArgs += "--user_language=$langId"
+
+# Engine Fixes & Enhancements
+$isStepFix = ConvertTo-Bool $StepFix
+$launchArgs += "--majin_step_fix=$($isStepFix.ToString().ToLowerInvariant())"
+
+$isAnimSpeedFix = ConvertTo-Bool $AnimSpeedFix
+$launchArgs += "--majin_submotion_fix=$($isAnimSpeedFix.ToString().ToLowerInvariant())"
+
+$isDtSmoothing = ConvertTo-Bool $DtSmoothing
+$launchArgs += "--majin_dt_smooth=$($isDtSmoothing.ToString().ToLowerInvariant())"
+
+$launchArgs += "--majin_fov_scale=$($FovScale.ToString([Globalization.CultureInfo]::InvariantCulture))"
+
+$isPauseBlur = ConvertTo-Bool $PauseBlur
+$launchArgs += "--majin_pause_blur=$($isPauseBlur.ToString().ToLowerInvariant())"
+
+$isDof = ConvertTo-Bool $DepthOfField
+$launchArgs += "--majin_dof=$($isDof.ToString().ToLowerInvariant())"
+
+$isBloom = ConvertTo-Bool $Bloom
+$launchArgs += "--majin_bloom=$($isBloom.ToString().ToLowerInvariant())"
 
 if ($Preview) {
     Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"

@@ -391,6 +391,32 @@ fn launch_game(settings: Settings) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn minimize_window(window: tauri::Window) {
+    let _ = window.minimize();
+}
+
+#[tauri::command]
+fn toggle_maximize_window(window: tauri::Window) {
+    if let Ok(is_max) = window.is_maximized() {
+        if is_max {
+            let _ = window.unmaximize();
+        } else {
+            let _ = window.maximize();
+        }
+    }
+}
+
+#[tauri::command]
+fn close_window(window: tauri::Window) {
+    let _ = window.close();
+}
+
+#[tauri::command]
+fn is_window_maximized(window: tauri::Window) -> bool {
+    window.is_maximized().unwrap_or(false)
+}
+
+#[tauri::command]
 fn exit_app() {
     std::process::exit(0);
 }
@@ -417,6 +443,10 @@ pub fn run() {
             select_game_data_folder,
             start_game_build,
             launch_game,
+            minimize_window,
+            toggle_maximize_window,
+            close_window,
+            is_window_maximized,
             exit_app
         ])
         .run(tauri::generate_context!())

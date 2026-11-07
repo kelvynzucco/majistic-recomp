@@ -76,8 +76,14 @@ const elements = {
   buildConsole: document.getElementById("buildConsole"),
   btnClearLog: document.getElementById("btnClearLog"),
 
+  // Window Control Buttons
+  btnWindowMinimize: document.getElementById("btnWindowMinimize"),
+  btnWindowMaximize: document.getElementById("btnWindowMaximize"),
+  btnWindowClose: document.getElementById("btnWindowClose"),
+  iconMaximize: document.getElementById("iconMaximize"),
+  iconRestore: document.getElementById("iconRestore"),
+
   // Footer Buttons
-  btnExit: document.getElementById("btnExit"),
   btnLaunch: document.getElementById("btnLaunch"),
   btnLaunchText: document.getElementById("btnLaunchText"),
 };
@@ -352,12 +358,59 @@ elements.btnLaunch.addEventListener("click", async () => {
   }
 });
 
-elements.btnExit.addEventListener("click", async () => {
+// ==========================================
+// Window Controls (Frameless Titlebar)
+// ==========================================
+async function updateMaximizeIcon() {
   try {
-    await invoke("exit_app");
+    const isMax = await invoke("is_window_maximized");
+    if (elements.iconMaximize && elements.iconRestore) {
+      if (isMax) {
+        elements.iconMaximize.classList.add("hidden");
+        elements.iconRestore.classList.remove("hidden");
+      } else {
+        elements.iconMaximize.classList.remove("hidden");
+        elements.iconRestore.classList.add("hidden");
+      }
+    }
   } catch {
-    window.close();
+    // ignore
   }
+}
+
+if (elements.btnWindowMinimize) {
+  elements.btnWindowMinimize.addEventListener("click", async () => {
+    try {
+      await invoke("minimize_window");
+    } catch (err) {
+      console.warn("Failed to minimize window:", err);
+    }
+  });
+}
+
+if (elements.btnWindowMaximize) {
+  elements.btnWindowMaximize.addEventListener("click", async () => {
+    try {
+      await invoke("toggle_maximize_window");
+      await updateMaximizeIcon();
+    } catch (err) {
+      console.warn("Failed to toggle maximize window:", err);
+    }
+  });
+}
+
+if (elements.btnWindowClose) {
+  elements.btnWindowClose.addEventListener("click", async () => {
+    try {
+      await invoke("close_window");
+    } catch {
+      window.close();
+    }
+  });
+}
+
+window.addEventListener("resize", () => {
+  updateMaximizeIcon();
 });
 
 // Auto-save settings on change
@@ -389,6 +442,7 @@ async function init() {
   }
   populateForm(currentSettings);
   await updateGameStatus();
+  await updateMaximizeIcon();
 }
 
 init();

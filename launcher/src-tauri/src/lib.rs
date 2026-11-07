@@ -311,10 +311,14 @@ fn select_game_data_folder() -> Result<Option<String>, String> {
             Write-Output $dialog.SelectedPath
         }
     "#;
-    let output = Command::new("powershell.exe")
-        .args(["-NoProfile", "-Command", script])
-        .output()
-        .map_err(|e| format!("Failed to open folder picker: {}", e))?;
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args(["-NoProfile", "-Command", script]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    let output = cmd.output().map_err(|e| format!("Failed to open folder picker: {}", e))?;
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if path.is_empty() {
@@ -341,10 +345,14 @@ fn select_iso_file() -> Result<Option<String>, String> {
             Write-Output $dialog.FileName
         }
     "#;
-    let output = Command::new("powershell.exe")
-        .args(["-NoProfile", "-Command", script])
-        .output()
-        .map_err(|e| format!("Failed to open file picker: {}", e))?;
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args(["-NoProfile", "-Command", script]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    let output = cmd.output().map_err(|e| format!("Failed to open file picker: {}", e))?;
 
     let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
     if path.is_empty() {
@@ -394,12 +402,19 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
             ];
             cmd_args.extend_from_slice(extra_args);
 
-            let mut child = Command::new("powershell.exe")
-                .args(&cmd_args)
+            let mut cmd = Command::new("powershell.exe");
+            cmd.args(&cmd_args)
                 .current_dir(&root)
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
+                .stderr(Stdio::piped());
+
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+
+            let mut child = cmd.spawn()
                 .map_err(|e| format!("Failed to spawn {}: {}", script_name, e))?;
 
             let stdout = child.stdout.take();
@@ -475,7 +490,7 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
         if compile_binary {
             emit_stage(3, total_stages, "Compiling native game executable (majin.exe)...");
             emit_log(&format!("=== STAGE 3/{}: COMPILING GAME ===", total_stages));
-            if let Err(e) = run_ps_script("build-usa.ps1", &["-Configuration", "Release"]) {
+            if let Err(e) = run_ps_script("build-usa.ps1", &["-Configuration", "Release", "-GameDataRoot", &out_dir_rel]) {
                 emit_log(&format!("ERROR in Stage 3: {}", e));
                 let _ = app.emit("build-error", format!("Compilation failed: {}", e));
                 return;

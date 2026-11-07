@@ -73,6 +73,15 @@ Get-ChildItem -Path $srcProto -Exclude 'out' | ForEach-Object {
 }
 Write-Host "[4/7] Copied prototype-usa (source & manifest)"
 
+# 4b. Copy prototype (PAL, excluding build cache 'out')
+$destPalProto = Join-Path $releaseDir 'prototype'
+New-Item -ItemType Directory -Path $destPalProto -Force | Out-Null
+$srcPalProto = Join-Path $root 'prototype'
+Get-ChildItem -Path $srcPalProto -Exclude 'out' | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $destPalProto $_.Name) -Recurse -Force
+}
+Write-Host "[4b/7] Copied prototype (PAL source & manifest)"
+
 # 5. Copy branding & licenses
 $destBranding = Join-Path $releaseDir 'branding'
 New-Item -ItemType Directory -Path $destBranding -Force | Out-Null

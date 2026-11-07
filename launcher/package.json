@@ -13,6 +13,7 @@
     "@tauri-apps/api": "^2.2.0"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@tauri-apps/cli": "^2.2.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",

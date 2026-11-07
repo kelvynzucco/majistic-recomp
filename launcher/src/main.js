@@ -243,9 +243,9 @@ async function updateGameStatus() {
       // Update Header Badge
       if (status.isReady) {
         elements.gameStatusBadge.className =
-          "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border bg-emerald-950/60 text-emerald-300 border-emerald-800/80";
+          "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border bg-[#6da712]/15 text-[#a3cc54] border-[#6da712]/40";
         elements.gameStatusBadge.innerHTML = `
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="w-2 h-2 rounded-full bg-[#6da712]"></span>
           <span>Game Ready</span>
         `;
         elements.setupWarningBanner.classList.add("hidden");
@@ -271,17 +271,17 @@ async function updateGameStatus() {
       // Update Tab 2 Status Cards
       elements.statusAssets.textContent = status.hasGameData ? "Extracted (Ready)" : "Missing";
       elements.statusAssets.className = status.hasGameData
-        ? "font-bold text-emerald-400"
+        ? "font-bold text-[#6da712]"
         : "font-bold text-rose-400";
 
       elements.statusImage.textContent = status.hasUnpackedImage ? "Unpacked (Ready)" : "Pending";
       elements.statusImage.className = status.hasUnpackedImage
-        ? "font-bold text-emerald-400"
+        ? "font-bold text-[#6da712]"
         : "font-bold text-amber-400";
 
       elements.statusBinary.textContent = status.hasExecutable ? "Compiled (Ready)" : "Missing";
       elements.statusBinary.className = status.hasExecutable
-        ? "font-bold text-emerald-400"
+        ? "font-bold text-[#6da712]"
         : "font-bold text-rose-400";
     }
   } catch (err) {

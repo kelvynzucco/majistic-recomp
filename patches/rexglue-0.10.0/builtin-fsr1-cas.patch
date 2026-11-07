@@ -1,0 +1,51 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 9b3cdf5..f95d415 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -183,6 +183,11 @@ endif()
+ # Build config as compile definition (multi-config generators don't know config at configure time)
+ add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
+ 
++# Built-in spatial FSR 1 / CAS present effects (precompiled shaders, no external
++# SDK). Defined for every SDK target because it changes class layouts in public
++# presenter headers; rexruntime re-exports it PUBLIC for consumers.
++add_compile_definitions(REX_HAS_FIDELITYFX_SDK=1)
++
+ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
+ 
+ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
+diff --git a/src/system/CMakeLists.txt b/src/system/CMakeLists.txt
+index fc46d86..62d1fc6 100644
+--- a/src/system/CMakeLists.txt
++++ b/src/system/CMakeLists.txt
+@@ -111,6 +111,10 @@ if(WIN32)
+     target_compile_definitions(rexruntime PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+ endif()
+ 
++# Re-export the global built-in FSR 1 / CAS definition (see top-level CMakeLists.txt)
++# so consumers of the installed SDK compile presenter headers with the same layout.
++target_compile_definitions(rexruntime PUBLIC REX_HAS_FIDELITYFX_SDK=1)
++
+ if(REXGLUE_USE_D3D12)
+     target_link_libraries(rexruntime PUBLIC dxc-headers)
+     target_compile_definitions(rexruntime PUBLIC REX_HAS_D3D12=1)
+diff --git a/src/ui/CMakeLists.txt b/src/ui/CMakeLists.txt
+index 5bd3dc5..6e4880c 100644
+--- a/src/ui/CMakeLists.txt
++++ b/src/ui/CMakeLists.txt
+@@ -116,12 +116,14 @@ target_link_libraries(rexui PUBLIC
+ )
+ target_link_libraries(rexui PRIVATE utf8cpp)
+ 
++# REX_HAS_FIDELITYFX_SDK (spatial FSR 1 / CAS, precompiled shaders) is defined
++# globally in the top-level CMakeLists.txt. Only the temporal FSR 2/3 runtime
++# below depends on the external FidelityFX SDK (REX_HAS_FIDELITYFX_RUNTIME).
+ if(REXGLUE_FIDELITYFX_SOURCE_DIR AND EXISTS "${REXGLUE_FIDELITYFX_SOURCE_DIR}/sdk/include")
+     target_include_directories(rexui PRIVATE
+         "${REXGLUE_FIDELITYFX_SOURCE_DIR}/sdk/include"
+         "${REXGLUE_FIDELITYFX_SOURCE_DIR}/ffx-api/include"
+     )
+-    target_compile_definitions(rexui PRIVATE REX_HAS_FIDELITYFX_SDK=1)
+ endif()
+ 
+ set(REXUI_HAS_FIDELITYFX_RUNTIME OFF)

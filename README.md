@@ -106,6 +106,7 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
    - **Clang:** Visual Studio component *C++ Clang Compiler for Windows*, or standalone LLVM 20.1.8+
 3. **CMake 3.25+** and **Ninja**
 4. **Python 3.10+**, **Git**, and **PowerShell 7+** (or Windows PowerShell 5.1)
+5. **Node.js 18+** and **Rust** (optional, only required to build or modify the desktop launcher from source)
 
 You can install the required toolchain quickly via `winget`:
 ```powershell
@@ -147,15 +148,20 @@ Generates the C++23 source translation via `rexglue codegen` and compiles `majin
 .\scripts\build-usa.ps1 -Configuration Release
 ```
 
-#### 5. Launch the Game
-You can launch directly via the CLI runner:
+#### 5. Build and Launch via the Desktop Launcher
+To build the lightweight Tauri v2 + Tailwind launcher:
 ```powershell
-.\scripts\run-usa.ps1 -RenderingPath Default -Resolution 1080p -FrameRate 60
+.\scripts\build-launcher-usa.ps1
+```
+Then run `Majistic Launcher.exe` or develop live with:
+```powershell
+cd launcher
+npm run tauri dev
 ```
 
-Or configure and launch using the GUI Launcher script:
+Alternatively, you can launch directly via the CLI runner:
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\launcher.ps1
+.\scripts\run-usa.ps1 -RenderingPath Default -Resolution 1080p -FrameRate 60
 ```
 
 ---

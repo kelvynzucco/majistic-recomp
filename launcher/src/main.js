@@ -664,10 +664,17 @@ async function checkForUpdates(isUserClick = false) {
   } catch (err) {
     console.warn("Update check response:", err);
     const errMsg = String(err?.message || err || "").toLowerCase();
-    // In GitHub releases, if release 1 hasn't been posted yet or 404, the app is up to date
-    if (errMsg.includes("404") || errMsg.includes("not found") || errMsg.includes("no release")) {
+    // In GitHub releases, if release 1 hasn't been posted yet, 404, or remote is not reachable, app is up to date
+    if (
+      errMsg.includes("404") ||
+      errMsg.includes("not found") ||
+      errMsg.includes("no release") ||
+      errMsg.includes("could not fetch") ||
+      errMsg.includes("status code") ||
+      errMsg.includes("network")
+    ) {
       currentPendingUpdate = null;
-      setUpdateBtnState("up-to-date");
+      setUpdateBtnState("up-to-date", "Up to Date");
       setTimeout(() => {
         if (!currentPendingUpdate) setUpdateBtnState("default");
       }, 4000);

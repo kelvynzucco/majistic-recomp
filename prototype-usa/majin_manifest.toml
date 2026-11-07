@@ -1,0 +1,11 @@
+# Majin and the Forsaken Kingdom (USA 0.0.0.2) ReXGlue Manifest
+
+[project]
+name = "majin"
+sdk_version = "0.10.0"
+game_root = "../game-data-usa"
+
+[entrypoint]
+file_path = "../game-data-usa/default.xex"
+out_directory_path = "generated/default"
+includes = ["analysis-overrides.toml", "dispatch-thunks.toml", "member-dispatch-thunks.toml", "dispatch-variants.toml"]

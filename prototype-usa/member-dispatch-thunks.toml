@@ -1,0 +1,5 @@
+# Exact five-instruction member dispatch thunks; see audit report.
+[functions]
+0x82441950 = { name = "sub_82441950" }
+0x827430C0 = { name = "sub_827430C0" }
+0x827503A0 = { name = "sub_827503A0" }

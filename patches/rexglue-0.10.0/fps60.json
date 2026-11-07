@@ -1,0 +1,13 @@
+{
+  "SdkRevision": "f5337cdc947ff6d4c4196737e2c807a48f2a1fc2",
+  "Files": [
+    {
+      "Path": "src/graphics/graphics_system.cpp",
+      "NormalizedPatchedSHA256": "519E46FDF57C76864D2CF80D242C45732F7FB97B596BAE122F81D64A60ED4E78"
+    },
+    {
+      "Path": "src/ui/d3d12/d3d12_presenter.cpp",
+      "NormalizedPatchedSHA256": "4074600AB6E5449DB96D64DF17EBAC94DA71D51704DC6832DD7A774B83A0584C"
+    }
+  ]
+}

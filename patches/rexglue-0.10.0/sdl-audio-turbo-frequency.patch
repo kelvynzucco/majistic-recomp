@@ -1,0 +1,69 @@
+diff --git a/include/rex/audio/audio_driver.h b/include/rex/audio/audio_driver.h
+index 37ccbf2..2daf983 100644
+--- a/include/rex/audio/audio_driver.h
++++ b/include/rex/audio/audio_driver.h
+@@ -16,6 +16,9 @@
+ 
+ namespace rex::audio {
+ 
++void SetPlaybackFrequencyRatio(float ratio);
++float GetPlaybackFrequencyRatio();
++
+ class AudioDriver {
+  public:
+   explicit AudioDriver(memory::Memory* memory);
+diff --git a/src/audio/audio_driver.cpp b/src/audio/audio_driver.cpp
+index f01eb6a..1433470 100644
+--- a/src/audio/audio_driver.cpp
++++ b/src/audio/audio_driver.cpp
+@@ -10,9 +10,20 @@
+  */
+ 
+ #include <rex/audio/audio_driver.h>
++#include <atomic>
+ 
+ namespace rex::audio {
+ 
++static std::atomic<float> s_playback_frequency_ratio{1.0f};
++
++void SetPlaybackFrequencyRatio(float ratio) {
++  s_playback_frequency_ratio.store(ratio, std::memory_order_relaxed);
++}
++
++float GetPlaybackFrequencyRatio() {
++  return s_playback_frequency_ratio.load(std::memory_order_relaxed);
++}
++
+ AudioDriver::AudioDriver(memory::Memory* memory) : memory_(memory) {}
+ 
+ AudioDriver::~AudioDriver() = default;
+diff --git a/src/audio/sdl/sdl_audio_driver.cpp b/src/audio/sdl/sdl_audio_driver.cpp
+index 20a2cd8..bc88e80 100644
+--- a/src/audio/sdl/sdl_audio_driver.cpp
++++ b/src/audio/sdl/sdl_audio_driver.cpp
+@@ -165,6 +165,17 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
+     REXAPU_ERROR("SDLAudioDriver::SDLCallback called with nullptr.");
+     return;
+   }
++
++  static float s_last_ratio = 1.0f;
++  const float current_ratio = rex::audio::GetPlaybackFrequencyRatio();
++  if (current_ratio != s_last_ratio) {
++    if (s_last_ratio > 1.0f && current_ratio <= 1.0f) {
++      // Discard accumulated latency queue when exiting turbo to restore perfect lip sync
++      SDL_ClearAudioStream(stream);
++    }
++    s_last_ratio = current_ratio;
++    SDL_SetAudioStreamFrequencyRatio(stream, current_ratio);
++  }
+   const auto driver = static_cast<SDLAudioDriver*>(userdata);
+   const int sample_count =
+       static_cast<int>(channel_samples_ * std::max<uint8_t>(driver->sdl_device_channels_, 1));
+@@ -191,6 +202,7 @@ void SDLAudioDriver::SDLCallback(void* userdata, SDL_AudioStream* stream, int ad
+         REXAPU_ERROR("SDL_PutAudioStreamData() failed while filling silence: {}", SDL_GetError());
+         break;
+       }
++      driver->semaphore_->Release(1, nullptr);
+       additional_amount -= len;
+     } else {
+       auto buffer = driver->frames_queued_.front();

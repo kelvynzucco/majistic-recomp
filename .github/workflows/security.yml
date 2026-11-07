@@ -1,0 +1,23 @@
+name: Security audit
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  security-audit:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan all reachable history with pinned Gitleaks
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'gitleaks.zip'
+          $tool = Join-Path $env:RUNNER_TEMP 'gitleaks'
+          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $zip
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') { throw 'Scanner checksum mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $tool
+          & "$tool/gitleaks.exe" git . '--log-opts=--all' '--redact=100' --no-banner
+          if ($LASTEXITCODE) { throw 'Secret scan failed' }

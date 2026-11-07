@@ -176,6 +176,17 @@ fn exit_app() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|_app| {
+            let path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
+                .unwrap_or_else(|| std::path::PathBuf::from("C:\\Users\\kelvy\\Desktop\\Majin Recomp\\launcher.log"));
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                use std::io::Write;
+                let _ = writeln!(f, "setup() hook reached successfully!");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             load_settings,
             save_settings,

@@ -15,9 +15,10 @@
         "title": "Majistic Recomp - Launcher",
         "width": 540,
         "height": 720,
-        "resizable": true,
+        "resizable": false,
         "center": true,
-        "decorations": true
+        "decorations": true,
+        "visible": true
       }
     ],
     "security": {

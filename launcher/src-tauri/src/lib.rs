@@ -38,7 +38,7 @@ fn default_input_mode() -> String {
 }
 
 fn default_game_data_root() -> String {
-    "game-data-usa".into()
+    "game-data".into()
 }
 
 fn default_configuration() -> String {
@@ -171,7 +171,7 @@ impl Default for Settings {
             input_mode: "Controller".into(),
             mouse_sensitivity: 1.0,
             record_performance: true,
-            game_data_root: "game-data-usa".into(),
+            game_data_root: "game-data".into(),
             configuration: "Release".into(),
             language: "English".into(),
             step_fix: false,
@@ -258,7 +258,7 @@ fn check_game_status() -> Result<GameStatus, String> {
     let root = get_project_root();
     let settings = load_settings().unwrap_or_default();
     let folder_name = if settings.game_data_root.trim().is_empty() {
-        "game-data-usa".to_string()
+        "game-data".to_string()
     } else {
         settings.game_data_root.trim().to_string()
     };
@@ -268,9 +268,11 @@ fn check_game_status() -> Result<GameStatus, String> {
         root.join(&folder_name)
     };
     let has_game_data = game_data_dir.join("default.xex").exists();
-    let has_unpacked_image = root.join("prototype-usa/private/loaded-image.bin").exists();
-    let exe_path = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
-    let has_executable = exe_path.exists();
+    let has_unpacked_image = game_data_dir.join("unpacked/loaded-image.bin").exists()
+        || root.join("prototype-usa/private/loaded-image.bin").exists();
+    let exe_unified = game_data_dir.join("bin/majin.exe");
+    let exe_prototype = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
+    let has_executable = exe_unified.exists() || exe_prototype.exists();
     let is_ready = has_game_data && has_executable;
 
     let display_game_data_path = if let Ok(rel) = game_data_dir.strip_prefix(&root) {
@@ -279,13 +281,23 @@ fn check_game_status() -> Result<GameStatus, String> {
         folder_name
     };
 
+    let display_exe_path = if exe_unified.exists() {
+        if let Ok(rel) = exe_unified.strip_prefix(&root) {
+            rel.to_string_lossy().to_string()
+        } else {
+            "game-data/bin/majin.exe".to_string()
+        }
+    } else {
+        "prototype-usa/out/build/win-amd64-release/majin.exe".to_string()
+    };
+
     Ok(GameStatus {
         has_game_data,
         has_unpacked_image,
         has_executable,
         is_ready,
         game_data_path: display_game_data_path,
-        executable_path: "prototype-usa/out/build/win-amd64-release/majin.exe".to_string(),
+        executable_path: display_exe_path,
     })
 }
 
@@ -426,7 +438,7 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
         // Stage 1: Extract ISO
         let settings = load_settings().unwrap_or_default();
         let folder_name = if settings.game_data_root.trim().is_empty() {
-            "game-data-usa".to_string()
+            "game-data".to_string()
         } else {
             settings.game_data_root.trim().to_string()
         };
@@ -494,7 +506,7 @@ fn launch_game(settings: Settings) -> Result<(), String> {
             settings.game_data_root.clone()
         }
     } else if settings.game_data_root.trim().is_empty() {
-        "game-data-usa".to_string()
+        "game-data".to_string()
     } else {
         settings.game_data_root.trim().to_string()
     };
@@ -684,7 +696,7 @@ mod tests {
             "InputMode": "Controller",
             "MouseSensitivity": null,
             "RecordPerformance": true,
-            "GameDataRoot": "game-data-usa",
+            "GameDataRoot": "game-data",
             "Configuration": "Release",
             "Language": "English",
             "StepFix": false,
@@ -741,7 +753,7 @@ mod tests {
             "InputMode": "KeyboardMouse",
             "MouseSensitivity": 1.5,
             "RecordPerformance": false,
-            "GameDataRoot": "game-data-usa",
+            "GameDataRoot": "game-data",
             "Configuration": "Release",
             "Language": "Japanese",
             "StepFix": true,

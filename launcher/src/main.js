@@ -17,7 +17,7 @@ const defaultSettings = {
   InputMode: "Controller",
   MouseSensitivity: 1.0,
   RecordPerformance: true,
-  GameDataRoot: "game-data-usa",
+  GameDataRoot: "game-data",
   Configuration: "Release",
   Language: "English",
   StepFix: false,
@@ -175,7 +175,7 @@ function populateForm(settings) {
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
   if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? true;
   if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? true;
-  if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data-usa";
+  if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data";
   if (elements.language) elements.language.value = settings.Language || "English";
 
   // Fixes form
@@ -218,7 +218,7 @@ function readForm() {
     InputMode: elements.inputMode?.value || "Controller",
     MouseSensitivity: safeFloat(currentSettings.MouseSensitivity, 1.0),
     RecordPerformance: currentSettings.RecordPerformance ?? true,
-    GameDataRoot: elements.gameDataRoot?.value ? elements.gameDataRoot.value.trim() : "game-data-usa",
+    GameDataRoot: elements.gameDataRoot?.value ? elements.gameDataRoot.value.trim() : "game-data",
     Configuration: "Release",
     Language: elements.language?.value || currentSettings.Language || "English",
     StepFix: elements.stepFix ? elements.stepFix.checked : false,

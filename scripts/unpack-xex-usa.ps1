@@ -1,15 +1,20 @@
 param(
-    [string]$GameDataRoot = 'game-data-usa'
+    [string]$GameDataRoot = 'game-data'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 if (-not [System.IO.Path]::IsPathRooted($GameDataRoot)) {
-    $GameDataRoot = [System.IO.Path]::GetFullPath((Join-Path $root $GameDataRoot))
+    $candidate = Join-Path $root $GameDataRoot
+    if (-not (Test-Path $candidate) -and (Test-Path (Join-Path $root 'game-data-usa'))) {
+        $candidate = Join-Path $root 'game-data-usa'
+    }
+    $GameDataRoot = [System.IO.Path]::GetFullPath($candidate)
 }
 $xexPath = Join-Path $GameDataRoot 'default.xex'
 $privDir = Join-Path $root 'prototype-usa\private'
+$unpackedDir = Join-Path $GameDataRoot 'unpacked'
 $repDir  = Join-Path $root 'reports'
-New-Item -ItemType Directory -Force -Path $privDir, $repDir | Out-Null
+New-Item -ItemType Directory -Force -Path $privDir, $unpackedDir, $repDir | Out-Null
 
 if (-not (Test-Path $xexPath)) {
     Write-Error "default.xex not found at $xexPath. Please place your USA dump in $GameDataRoot."
@@ -55,4 +60,6 @@ foreach ($b in $blocks) {
 
 $imagePath = Join-Path $privDir 'loaded-image.bin'
 [System.IO.File]::WriteAllBytes($imagePath, $image)
-Write-Host "Saved unpacked linear PE image ($($image.Length) bytes) to $imagePath"
+$unpackedImagePath = Join-Path $unpackedDir 'loaded-image.bin'
+[System.IO.File]::WriteAllBytes($unpackedImagePath, $image)
+Write-Host "Saved unpacked linear PE image ($($image.Length) bytes) to $imagePath and $unpackedImagePath"

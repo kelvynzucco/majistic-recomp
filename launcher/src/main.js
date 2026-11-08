@@ -2,6 +2,24 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { check } from "@tauri-apps/plugin-updater";
 
+function logToBackend(msg) {
+  invoke("log_message", { msg: String(msg) }).catch(() => {});
+}
+
+// Global JS error & rejection logging
+window.addEventListener("error", (e) => {
+  logToBackend(`GLOBAL_ERROR: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  logToBackend(`UNHANDLED_REJECTION: ${e.reason?.stack || e.reason}`);
+});
+
+// Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen
+function compositorHeartbeat() {
+  requestAnimationFrame(compositorHeartbeat);
+}
+requestAnimationFrame(compositorHeartbeat);
+
 // Default configuration structure
 const defaultSettings = {
   WindowSize: "1280x720",
@@ -666,14 +684,17 @@ async function checkForUpdates(isUserClick = false) {
   if (isCheckingUpdates || isDownloadingUpdate) return;
   isCheckingUpdates = true;
   setUpdateBtnState("checking");
+  logToBackend(`checkForUpdates: start (userClick=${isUserClick})`);
 
   try {
     const update = await check();
     if (update) {
+      logToBackend(`checkForUpdates: update available: v${update.version}`);
       currentPendingUpdate = update;
       setUpdateBtnState("available");
       showUpdateModal(update);
     } else {
+      logToBackend("checkForUpdates: up to date");
       currentPendingUpdate = null;
       setUpdateBtnState("up-to-date");
       setTimeout(() => {
@@ -681,6 +702,7 @@ async function checkForUpdates(isUserClick = false) {
       }, 4000);
     }
   } catch (err) {
+    logToBackend(`checkForUpdates: error: ${err?.message || err}`);
     console.warn("Update check response:", err);
     const errMsg = String(err?.message || err || "").toLowerCase();
     // In GitHub releases, if release 1 hasn't been posted yet, 404, or remote is not reachable, app is up to date
@@ -790,6 +812,7 @@ if (elements.btnUpdateNow) {
 // Initialization
 // ==========================================
 async function init() {
+  logToBackend("init() started");
   try {
     const loaded = await invoke("load_settings");
     if (loaded && typeof loaded === "object") {
@@ -797,15 +820,15 @@ async function init() {
     }
   } catch (err) {
     console.warn("Could not load settings:", err);
+    logToBackend("Could not load settings: " + err);
   }
   populateForm(currentSettings);
   await updateGameStatus();
   await updateMaximizeIcon();
+  logToBackend("init() completed successfully");
 
-  // Background silent check for updates on startup
-  setTimeout(() => {
-    checkForUpdates(false);
-  }, 1500);
+  // Note: Automatic silent check for updates on startup was disabled to prevent
+  // idle compositor freezes on AMD GPUs. Updates can be checked manually via "Check for Updates".
 }
 
 init();

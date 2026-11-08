@@ -122,7 +122,7 @@ fn main() {
     {
         // Prevent WebView2 blank/white/black screen on AMD GPUs and frameless window occlusion
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-        let flags = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+        let flags = "--disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
         let combined = if existing.is_empty() {
             flags.to_string()
         } else {

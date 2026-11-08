@@ -656,6 +656,18 @@ fn start_drag_window(window: tauri::Window) {
 }
 
 #[tauri::command]
+fn log_message(msg: String) {
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
+        .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        use std::io::Write;
+        let _ = writeln!(f, "[JS] {}", msg);
+    }
+}
+
+#[tauri::command]
 fn exit_app() {
     std::process::exit(0);
 }
@@ -688,6 +700,7 @@ pub fn run() {
             close_window,
             is_window_maximized,
             start_drag_window,
+            log_message,
             exit_app
         ])
         .run(tauri::generate_context!())

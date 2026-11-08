@@ -6,7 +6,7 @@
 
 **Native PC port and static recompilation of Majin and the Forsaken Kingdom (Xbox 360) for modern Windows x64 PC.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6.svg)]()
 [![C++23](https://img.shields.io/badge/Standard-C%2B%2B23-00599C.svg)]()
 [![Direct3D 12](https://img.shields.io/badge/Graphics-Direct3D%2012-107C10.svg)]()
@@ -227,5 +227,5 @@ Alternatively, you can launch directly via the CLI runner:
 
 ## License
 
-This project is licensed under the **MIT License**. You are completely free to use, modify, distribute, sublicense, and build upon this code for any personal or open-source purpose.  
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. You are free to use, modify, and distribute this software under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
 See the [`LICENSE`](LICENSE) file for the full text. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/).

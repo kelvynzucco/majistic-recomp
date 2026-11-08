@@ -3,7 +3,7 @@ name = "majistic-launcher"
 version = "0.1.0"
 description = "Majistic Recomp Launcher"
 authors = ["Majistic Recomp Team"]
-license = "MIT"
+license = "GPL-3.0-only"
 edition = "2021"
 
 [lib]

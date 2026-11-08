@@ -769,6 +769,27 @@ mod tests {
     }
 
     #[test]
+    fn test_zip_deflate_support() {
+        use std::io::Write;
+        let mut buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            writer.start_file("test.txt", options).unwrap();
+            writer.write_all(b"deflate test data").unwrap();
+            writer.finish().unwrap();
+        }
+
+        let cursor = std::io::Cursor::new(buf);
+        let mut archive = zip::ZipArchive::new(cursor).unwrap();
+        let mut file = archive.by_name("test.txt").unwrap();
+        let mut content = String::new();
+        std::io::Read::read_to_string(&mut file, &mut content).unwrap();
+        assert_eq!(content, "deflate test data");
+    }
+
+    #[test]
     fn test_deserialize_valid_settings() {
         let json = r#"{
             "WindowSize": "2560x1440",

@@ -96,17 +96,31 @@ fn handle_update_mode() -> bool {
         return false;
     }
 
-    // Copy game-data and scripts if present in temp_dir
-    let src_game_data = temp_dir.join("game-data");
-    if src_game_data.exists() {
-        write_log("Copying updated game-data folder...");
-        let _ = copy_dir_recursive(&src_game_data, &target_dir.join("game-data"));
+    // Update project folders if present in temp_dir (merges cleanly into target_dir)
+    let folders_to_update = [
+        "game-data",
+        "scripts",
+        "prototype-usa",
+        "prototype",
+        "tools",
+        "src",
+        "branding",
+        "LICENSES",
+    ];
+    for folder in &folders_to_update {
+        let src_folder = temp_dir.join(folder);
+        if src_folder.exists() {
+            write_log(&format!("Updating folder '{}'...", folder));
+            let _ = copy_dir_recursive(&src_folder, &target_dir.join(folder));
+        }
     }
 
-    let src_scripts = temp_dir.join("scripts");
-    if src_scripts.exists() {
-        write_log("Copying updated scripts folder...");
-        let _ = copy_dir_recursive(&src_scripts, &target_dir.join("scripts"));
+    let files_to_update = ["LICENSE", "README.md"];
+    for file in &files_to_update {
+        let src_file = temp_dir.join(file);
+        if src_file.exists() {
+            let _ = std::fs::copy(&src_file, target_dir.join(file));
+        }
     }
 
     write_log("Files updated successfully. Relaunching updated launcher...");
@@ -120,9 +134,11 @@ fn handle_update_mode() -> bool {
 fn main() {
     #[cfg(windows)]
     {
-        // Prevent WebView2 blank/white/black screen on AMD GPUs and frameless window occlusion
+        // Disable GPU hardware acceleration in WebView2 to prevent D3D11 swapchain device-loss
+        // and idle white/black screens on AMD Radeon GPUs and hybrid graphics setups.
+        // Also disable native window occlusion to prevent frameless window suspend.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-        let flags = "--disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
+        let flags = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
         let combined = if existing.is_empty() {
             flags.to_string()
         } else {

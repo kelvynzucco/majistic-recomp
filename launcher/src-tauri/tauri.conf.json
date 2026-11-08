@@ -21,7 +21,8 @@
         "center": true,
         "decorations": false,
         "visible": true,
-        "additionalBrowserArgs": "--disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
+        "backgroundColor": "#0f172a",
+        "additionalBrowserArgs": "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
         "devtools": true
       }
     ],

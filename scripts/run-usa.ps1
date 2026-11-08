@@ -78,7 +78,7 @@ $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
 
 $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { '' }
-$vulkanTargetPath = if ($RenderingPath -eq 'Vulkan_FSI') { 'fsi' } else { 'fbo' }
+$vulkanTargetPath = 'fbo'
 $allowInvalid = 'true'
 $logDir = Join-Path $sessionRoot 'logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null

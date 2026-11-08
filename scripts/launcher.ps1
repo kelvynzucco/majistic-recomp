@@ -153,13 +153,12 @@ Add-FieldLabel $grpPerf 'Rendering path:' 16 60 100
 $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
     'Direct3D 12 (Default RTV/ROV - Recommended)',
     'Direct3D 12 (Forced ROV)',
-    'Vulkan (FBO Host - Recommended)',
-    'Vulkan (FSI Interlock - Experimental)'
+    'Vulkan (FBO Host - Recommended)'
 ) 0
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
 $tooltip.SetToolTip($sync, 'Enables vertical sync to prevent screen tearing.')
-$tooltip.SetToolTip($renderingPath, 'D3D12 e Vulkan FBO utilizam host render targets padrão. Vulkan FSI utiliza fragment shader interlock (experimental).')
+$tooltip.SetToolTip($renderingPath, 'D3D12 e Vulkan FBO utilizam host render targets padrão acelerados por hardware.')
 
 # =========================================================================
 # Section 3: Startup & Cutscenes
@@ -306,9 +305,7 @@ if (Test-Path -LiteralPath $settingsPath) {
         if ($saved.VSync -is [bool]) { $sync.SelectedIndex = if ($saved.VSync) { 0 } else { 1 } }
         if ($saved.RenderScale -in @(1,2,3)) { $scale.SelectedIndex = [int]$saved.RenderScale - 1 }
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
-        if ($saved.RenderingPath -eq 'Vulkan_FSI') {
-            $renderingPath.SelectedIndex = 3
-        } elseif ($saved.RenderingPath -eq 'Vulkan' -or $saved.RenderingPath -eq 'Vulkan_FBO') {
+        if ($saved.RenderingPath -eq 'Vulkan' -or $saved.RenderingPath -eq 'Vulkan_FBO' -or $saved.RenderingPath -eq 'Vulkan_FSI') {
             $renderingPath.SelectedIndex = 2
         } elseif ($saved.RenderingPath -eq 'ROV') {
             $renderingPath.SelectedIndex = 1
@@ -379,7 +376,7 @@ $play.Add_Click({
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
             Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
-            RenderingPath     = (@('Default','ROV','Vulkan','Vulkan_FSI')[$renderingPath.SelectedIndex])
+            RenderingPath     = (@('Default','ROV','Vulkan')[$renderingPath.SelectedIndex])
             SkipIntroLogos    = $chkSkipLogos.Checked
             SkipCutscenes     = $cutsceneEnabled.Checked
             CutsceneSpeed     = $speedMap[$cutsceneSpeed.SelectedIndex]

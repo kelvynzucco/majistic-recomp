@@ -5,6 +5,9 @@
 #pragma once
 
 #include <rex/rex_app.h>
+#include <rex/runtime.h>
+#include <rex/system/interfaces/graphics.h>
+#include <rex/ui/presenter.h>
 #include <rex/system/gpu_plugin.h>
 #include <rex/ui/keybinds.h>
 #include <rex/cvar.h>
@@ -13,6 +16,8 @@
 #include <rex/ui/window.h>
 #include <stdexcept>
 #include <string>
+#include <fstream>
+#include <vector>
 #include "window_layout.h"
 #include "vulkan_hooks.h"
 #include "scene_resolution.h"
@@ -64,7 +69,76 @@ class MajinApp : public rex::ReXApp {
   }
 #endif
 
+  static void SaveRawImageToBmp(const rex::ui::RawImage& img, const std::string& path) {
+    const uint32_t w = img.width;
+    const uint32_t h = img.height;
+    if (!w || !h || img.data.empty()) return;
+    const uint32_t row_stride = (w * 3 + 3) & ~3u;
+    const uint32_t data_size = row_stride * h;
+    const uint32_t file_size = 54 + data_size;
+
+    std::filesystem::path p(path);
+    if (p.has_parent_path()) {
+      std::error_code ec;
+      std::filesystem::create_directories(p.parent_path(), ec);
+    }
+
+    uint8_t header[54] = {
+      'B', 'M',
+      uint8_t(file_size), uint8_t(file_size >> 8), uint8_t(file_size >> 16), uint8_t(file_size >> 24),
+      0, 0, 0, 0,
+      54, 0, 0, 0,
+      40, 0, 0, 0,
+      uint8_t(w), uint8_t(w >> 8), uint8_t(w >> 16), uint8_t(w >> 24),
+      uint8_t(h), uint8_t(h >> 8), uint8_t(h >> 16), uint8_t(h >> 24),
+      1, 0,
+      24, 0,
+      0, 0, 0, 0,
+      uint8_t(data_size), uint8_t(data_size >> 8), uint8_t(data_size >> 16), uint8_t(data_size >> 24),
+      0, 0, 0, 0,
+      0, 0, 0, 0,
+      0, 0, 0, 0,
+      0, 0, 0, 0
+    };
+
+    std::ofstream f(path, std::ios::binary);
+    if (!f.is_open()) return;
+    f.write(reinterpret_cast<const char*>(header), 54);
+    std::vector<uint8_t> row(row_stride, 0);
+    const size_t src_stride = img.stride ? img.stride : size_t(w) * 4;
+    for (int y = int(h) - 1; y >= 0; --y) {
+      const uint8_t* src_row = img.data.data() + size_t(y) * src_stride;
+      for (uint32_t x = 0; x < w; ++x) {
+        row[x * 3 + 0] = src_row[x * 4 + 2]; // B
+        row[x * 3 + 1] = src_row[x * 4 + 1]; // G
+        row[x * 3 + 2] = src_row[x * 4 + 0]; // R
+      }
+      f.write(reinterpret_cast<const char*>(row.data()), row_stride);
+    }
+  }
+
+  void CaptureFrame(const std::string& filename) {
+    if (runtime() && runtime()->graphics_system()) {
+      auto* p = runtime()->graphics_system()->presenter();
+      if (p) {
+        rex::ui::RawImage img;
+        if (p->CaptureGuestOutput(img)) {
+          SaveRawImageToBmp(img, "reports/" + filename);
+          SaveRawImageToBmp(img, "../../reports/" + filename);
+          SaveRawImageToBmp(img, "../reports/" + filename);
+          REXLOG_INFO("[Majin Capture] Frame captured: {} ({}x{})", filename, img.width, img.height);
+        } else {
+          REXLOG_WARN("[Majin Capture] CaptureGuestOutput failed");
+        }
+      }
+    }
+  }
+
   void OnKeyDown(rex::ui::KeyEvent& event) override {
+    if (event.virtual_key() == rex::ui::VirtualKey::kF12) {
+      const auto backend = rex::cvar::GetFlagByName("gpu_backend");
+      CaptureFrame("screenshot_" + backend + ".bmp");
+    }
 #if defined(_WIN32)
     if (event.virtual_key() == rex::ui::VirtualKey::kEscape) {
       event.set_handled(true);
@@ -112,7 +186,7 @@ class MajinApp : public rex::ReXApp {
       rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "false");
     }
     rex::cvar::SetFlagByName("vulkan_async_skip_incomplete_frames", "false");
-    rex::cvar::SetFlagByName("async_shader_compilation", "true");
+    rex::cvar::SetFlagByName("async_shader_compilation", "false");
     if (rex::cvar::GetFlagByName("present_effect").empty()) {
       rex::cvar::SetFlagByName("present_effect", "fsr");
     }
@@ -199,6 +273,13 @@ class MajinApp : public rex::ReXApp {
 
   void RefreshTitle() {
     if (!window()) return;
+    static int capture_ticks = 0;
+    capture_ticks++;
+    // Capture at 7s (tick 14), 11s (tick 22), 15s (tick 30)
+    if (capture_ticks == 14 || capture_ticks == 22 || capture_ticks == 30) {
+      const auto backend = rex::cvar::GetFlagByName("gpu_backend");
+      CaptureFrame("capture_" + backend + "_" + std::to_string(capture_ticks / 2) + "s.bmp");
+    }
     if (window()->IsFullscreen()) {
       window()->SetTitle("Majistic Recomp");
       return;

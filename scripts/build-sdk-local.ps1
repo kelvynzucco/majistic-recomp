@@ -16,17 +16,36 @@ Push-Location $source
 try {
     New-Item -ItemType Directory -Force out | Out-Null
 
-    Write-Output '[1/5] Compiling and running XMA audio recovery unit tests...'
-    clang++ -std=c++20 src/audio/empty_packet_recovery_test.cpp -o out/empty_packet_recovery_test.exe
-    Check-Native 'XMA test compilation'
-    & ./out/empty_packet_recovery_test.exe
-    Check-Native 'XMA boundary tests'
+    $audioTest = Join-Path $source 'src/audio/empty_packet_recovery_test.cpp'
+    if (Test-Path $audioTest) {
+        Write-Output '[1/5] Compiling and running XMA audio recovery unit tests...'
+        clang++ -std=c++20 $audioTest -o out/empty_packet_recovery_test.exe
+        Check-Native 'XMA test compilation'
+        & ./out/empty_packet_recovery_test.exe
+        Check-Native 'XMA boundary tests'
+    } else {
+        Write-Output '[1/5] Skipping XMA audio test (not in current branch).'
+    }
 
-    Write-Output '[2/5] Compiling and running GPU log filter unit tests...'
-    clang++ -std=c++20 "-I$source/thirdparty/spdlog/include" "-I$source/thirdparty/fmt/include" (Join-Path $patchRoot 'texture_warning_sink_test.cpp') -o out/texture_warning_sink_test.exe
-    Check-Native 'Texture logging test compilation'
-    & ./out/texture_warning_sink_test.exe
-    Check-Native 'Texture logging tests'
+    $texTest = Join-Path $patchRoot 'texture_warning_sink_test.cpp'
+    if ((Test-Path $texTest) -and (Test-Path "$source/thirdparty/spdlog/include")) {
+        Write-Output '[2/5] Compiling and running GPU log filter unit tests...'
+        clang++ -std=c++20 "-I$source/thirdparty/spdlog/include" "-I$source/thirdparty/fmt/include" $texTest -o out/texture_warning_sink_test.exe
+        Check-Native 'Texture logging test compilation'
+        & ./out/texture_warning_sink_test.exe
+        Check-Native 'Texture logging tests'
+    } else {
+        Write-Output '[2/5] Skipping texture logging test.'
+    }
+
+    $ffmpegPatch = Join-Path $source 'patches\ffmpeg\0413-xmaframes-frame-skips.patch'
+    if ((Test-Path $ffmpegPatch) -and !(git -C (Join-Path $source 'thirdparty\FFmpeg') status -s)) {
+        git -C (Join-Path $source 'thirdparty\FFmpeg') apply ($ffmpegPatch -replace '\\', '/')
+    }
+    $sdlPatch = Join-Path $source 'patches\sdl3\0147-sdl-haptic-endless-effects.patch'
+    if ((Test-Path $sdlPatch) -and !(git -C (Join-Path $source 'thirdparty\sdl3') status -s)) {
+        git -C (Join-Path $source 'thirdparty\sdl3') apply ($sdlPatch -replace '\\', '/')
+    }
 
     Write-Output '[3/5] Configuring CMake for rexglue-sdk (win-amd64)...'
     cmake --preset win-amd64 -DREXGLUE_USE_VULKAN=ON -DREXGLUE_BUILD_TESTS=OFF

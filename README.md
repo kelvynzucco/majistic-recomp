@@ -39,7 +39,7 @@ Early Prototype (WIP) · Native C++23 · Direct3D 12 · 60 FPS Target · Custom 
 
 ## Overview
 
-**Majistic Recomp** is an open-source static recompilation of the classic 2010 action-adventure game **Majin and the Forsaken Kingdom** (originally developed by Game Republic and published by Bandai Namco for the Xbox 360). It translates original PowerPC machine code into native, optimized C++23, running on modern Windows x64 hardware via the **ReXGlue SDK (0.10.0)** and a specialized **Direct3D 12** graphics runtime derived from Xenia.
+**Majistic Recomp** is an open-source static recompilation of the classic 2010 action-adventure game **Majin and the Forsaken Kingdom** (originally developed by Game Republic and published by Bandai Namco for the Xbox 360). It translates original PowerPC machine code into native, optimized C++23, running on modern Windows x64 hardware via the **ReIGlue / ReXGlue SDK** with dedicated **Direct3D 12** and **Vulkan** graphics runtimes derived from Xenia and Forza Horizon 1: ReImagined.
 
 By translating game logic into native CPU instructions and mapping Xbox 360 GPU calls through a Direct3D 12 runtime, the project currently implements:
 - **60 FPS gameplay target** with experimental delta-time normalization hooks.
@@ -88,9 +88,10 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **Upscaling & Anti-Aliasing:** Integrated AMD FSR 1.0 (EASU edge-adaptive scaling + RCAS contrast-adaptive sharpening), Contrast-Adaptive Sharpening (CAS), Bilinear stretching, and FXAA.
 - **Input Profiles:** Controller (via SDL3 / XInput) and fully remappable Keyboard + Mouse with configurable mouse look sensitivity.
 
-### 5. Vulkan Backend (Experimental / In Development)
-- Includes waitable-timer frame presentation pacing (`vulkan_hooks.cpp`).
-- Dedicated reverse-engineering and diagnosis ongoing to decouple 2D vector HUD passes from 3D resolution upscaling.
+### 5. Vulkan Backend (Operational via ReIGlue)
+- Fully functional Vulkan rendering powered by **ReIGlue** Xenos GPU emulation and SPIR-V constant-fetch handling.
+- Resolves texture binding null-descriptors, enabling accurate 2D UI menus, fonts, textures, and 3D geometry rendering.
+- Includes waitable-timer frame presentation pacing (`vulkan_hooks.cpp`) and native FSR 1 / CAS post-processing.
 
 ### 6. High Frame Rate Physics & Animation Fixes
 - **Collision Edge Step Scaling (`step_fix`):** At high frame rates (60+ FPS), character movement steps into small lips, ledges, or stair edges could resolve backwards rather than upwards, creating invisible walls. Incorporates root-motion scaling hooks (researched by ArthurMS15) to smoothly scale step distance when blocked, allowing characters to climb edges naturally just like on console.
@@ -220,6 +221,8 @@ Alternatively, you can launch directly via the CLI runner:
 
 - **GM-0856 / [majin-recompile](https://github.com/GM-0856/majin-recompile):** Original recompilation research and PAL proof-of-concept that served as the initial kickoff inspiration for this project.
 - **ArthurMS15 / [MajinRecomp](https://github.com/ArthurMS15/MajinRecomp):** Research and implementation of physics collision step scaling (`step_fix`), sub-motion animation speed correction (`anim_speed`), frame time smoothing (`frame_timer`), camera FOV scaling, and post-processing toggles.
+- **[ReIGlue Project](https://github.com/FH1-ReImagined/ReIGlue) & [Forza Horizon 1: ReImagined](https://github.com/FH1-ReImagined/ForzaHorizon1-ReImagined):** Custom ReXGlue fork by Dyotson, Sean O'Connor, Scott, and FH1-ReImagined contributors. Developed essential Xenos GPU emulation accuracy fixes, SPIR-V constant-only texture fetch translations, texture cache barriers, and Vulkan presenter improvements that enabled full Vulkan backend rendering.
+- **[Pinyon Shift Project](https://github.com/pinyon-shift):** Presentation and frame submission architecture concepts incorporated in ReIGlue.
 - **[ReXGlue Project](https://github.com/rexglue/rexglue-sdk) & [Xenia Project](https://github.com/xenia-project/xenia):** Static recompilation toolkit, PowerPC intermediate representation, and Xbox 360 Direct3D 12 GPU emulation architecture.
 - **Game Republic & Bandai Namco:** The original developers and publishers of this classic game.
 
@@ -228,4 +231,4 @@ Alternatively, you can launch directly via the CLI runner:
 ## License
 
 This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. You are free to use, modify, and distribute this software under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
-See the [`LICENSE`](LICENSE) file for the full text. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/).
+See the [`LICENSE`](LICENSE) file for the full text. Upstream third-party licenses are preserved in [`LICENSES/`](LICENSES/) (including [`LICENSES/ReIGlue.txt`](LICENSES/ReIGlue.txt) and [`LICENSES/ReXGlue.txt`](LICENSES/ReXGlue.txt)).

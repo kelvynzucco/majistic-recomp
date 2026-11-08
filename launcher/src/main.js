@@ -306,6 +306,11 @@ async function updateGameStatus() {
       elements.statusBinary.className = status.hasExecutable
         ? "font-bold text-[#6da712]"
         : "font-bold text-rose-400";
+
+      // If executable is already present, ensure compile binary checkbox remains unchecked
+      if (status.hasExecutable && elements.chkCompileBinary) {
+        elements.chkCompileBinary.checked = false;
+      }
     }
   } catch (err) {
     console.warn("Failed to check game status:", err);
@@ -394,6 +399,17 @@ elements.btnStartBuild.addEventListener("click", async () => {
   }
 
   const compileBinary = elements.chkCompileBinary.checked;
+  if (compileBinary) {
+    const confirmCompile = confirm(
+      "Recompiling the game binary requires Visual Studio 2022 with C++ x64 tools installed on this PC.\n\n" +
+      "If you only want to extract and play using the included precompiled executable (majin.exe), click Cancel and leave this checkbox unchecked.\n\n" +
+      "Proceed with C++ source compilation?"
+    );
+    if (!confirmCompile) {
+      elements.chkCompileBinary.checked = false;
+      return;
+    }
+  }
 
   elements.btnStartBuild.disabled = true;
   elements.btnStartBuild.classList.add("opacity-50");

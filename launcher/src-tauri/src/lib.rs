@@ -271,8 +271,9 @@ fn check_game_status() -> Result<GameStatus, String> {
     let has_unpacked_image = game_data_dir.join("unpacked/loaded-image.bin").exists()
         || root.join("prototype-usa/private/loaded-image.bin").exists();
     let exe_unified = game_data_dir.join("bin/majin.exe");
-    let exe_prototype = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
-    let has_executable = exe_unified.exists() || exe_prototype.exists();
+    let exe_proto_usa = root.join("prototype-usa/out/build/win-amd64-release/majin.exe");
+    let exe_proto_pal = root.join("prototype/out/build/win-amd64-release/majin.exe");
+    let has_executable = exe_unified.exists() || exe_proto_usa.exists() || exe_proto_pal.exists();
     let is_ready = has_game_data && has_executable;
 
     let display_game_data_path = if let Ok(rel) = game_data_dir.strip_prefix(&root) {
@@ -287,6 +288,8 @@ fn check_game_status() -> Result<GameStatus, String> {
         } else {
             "game-data/bin/majin.exe".to_string()
         }
+    } else if exe_proto_pal.exists() {
+        "prototype/out/build/win-amd64-release/majin.exe".to_string()
     } else {
         "prototype-usa/out/build/win-amd64-release/majin.exe".to_string()
     };

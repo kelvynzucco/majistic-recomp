@@ -4,16 +4,22 @@
 
 # Majistic Recomp
 
-**An advanced, high-performance static recompilation of Majin and the Forsaken Kingdom (Xbox 360) for modern Windows x64 PC.**
+**Native PC port and static recompilation of Majin and the Forsaken Kingdom (Xbox 360) for modern Windows x64 PC.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6.svg)]()
 [![C++23](https://img.shields.io/badge/Standard-C%2B%2B23-00599C.svg)]()
 [![Direct3D 12](https://img.shields.io/badge/Graphics-Direct3D%2012-107C10.svg)]()
 
-Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Threaded PSO Caching · Fast-Forward Cutscene Pacing · Multi-Language Support
+Early Prototype (WIP) · Native C++23 · Direct3D 12 · 60 FPS Target · Custom Launcher
 
 </div>
+
+---
+
+> [!WARNING]
+> **EARLY DEVELOPMENT & EXPERIMENTAL PROTOTYPE:**
+> This project is currently in an **early stage of development (work-in-progress)**. While foundational game systems, rendering, and gameplay sequences are functional, **expect bugs, edge-case graphical artifacts, audio glitches, and potential crashes**. It is actively being researched and improved, and is not yet a polished or final release.
 
 ---
 
@@ -35,14 +41,14 @@ Native C++23 · Direct3D 12 · 60 FPS Locked · Native Resolving · Multi-Thread
 
 **Majistic Recomp** is an open-source static recompilation of the classic 2010 action-adventure game **Majin and the Forsaken Kingdom** (originally developed by Game Republic and published by Bandai Namco for the Xbox 360). It translates original PowerPC machine code into native, optimized C++23, running on modern Windows x64 hardware via the **ReXGlue SDK (0.10.0)** and a specialized **Direct3D 12** graphics runtime derived from Xenia.
 
-By translating game logic into native CPU instructions and mapping the Xbox 360 Xenos GPU commands into modern Direct3D 12 graphics pipelines, the project achieves:
-- **Full 60 FPS gameplay** with verified delta-time normalization.
-- **Multi-threaded startup PSO compilation**, eliminating runtime shader compilation stutter.
-- **Native Host Render Target (RTV) rendering**, delivering full 3D visual fidelity without relying on slow Rasterizer-Ordered View (ROV) interlocks.
+By translating game logic into native CPU instructions and mapping Xbox 360 GPU calls through a Direct3D 12 runtime, the project currently implements:
+- **60 FPS gameplay target** with experimental delta-time normalization hooks.
+- **Multi-threaded startup PSO compilation**, significantly reducing runtime shader stuttering.
+- **Native Host Render Target (RTV) rendering**, providing direct Direct3D 12 execution without requiring slow ROV interlocks.
 - **Synchronized fast-forward** for in-game dialogues and cutscenes with dynamic audio frequency scaling.
-- **Multi-language support** with full in-game text and localized voiceover selection (English, Spanish, French, German, Italian, Korean, and Japanese).
+- **Multi-language support** with selectable in-game text and localized voiceover (English, Spanish, French, German, Italian, Korean, and Japanese).
 - **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, and **FXAA** upscalers.
-- **Modern Desktop Launcher** powered by Tauri v2 and Tailwind CSS, featuring full configuration controls, automatic build pipelines, and portable game-data management.
+- **Desktop Launcher** powered by Tauri v2 and Tailwind CSS, featuring configuration controls, automatic build pipelines, and portable game-data management.
 
 ---
 
@@ -50,8 +56,8 @@ By translating game logic into native CPU instructions and mapping the Xbox 360 
 
 | Region / Edition | Executable Version | Title ID | Media ID | Support Status |
 | :--- | :---: | :---: | :---: | :---: |
-| **American / NTSC-U** | `0.0.0.2` | `4E4D0816` | `76FDB642` | **Fully Supported** (`prototype-usa/`) |
-| **European / PAL** | `0.0.0.3` | `4E4D0816` | `67BD87EF` | **Supported** (`prototype/`) |
+| **American / NTSC-U** | `0.0.0.2` | `4E4D0816` | `76FDB642` | **Playable Prototype (WIP)** (`prototype-usa/`) |
+| **European / PAL** | `0.0.0.3` | `4E4D0816` | `67BD87EF` | **Experimental Prototype (WIP)** (`prototype/`) |
 
 ### Deterministic Shift Law (USA 0.0.0.2)
 Analysis of the executable revealed that between the `.text` entry (`0x82150000`) and `0x821C0000`, 100% of function addresses match 1:1 between European and American releases. Above `0x821C0000`, every function is shifted by exactly **`-0x70` bytes (`-112` bytes / 28 PowerPC instructions)** due to an alignment padding variation in the PAL compiler toolchain.
@@ -60,17 +66,17 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 
 ---
 
-## Key Technical Enhancements
+## Key Technical Highlights
 
-### 1. Direct3D 12 Native Performance (60 FPS Locked)
-- **99.93% Frametime Consistency:** Benchmarked on modern GPUs (e.g., RTX 3060 Ti) maintaining steady 16.6ms frame intervals without GPU spikes or stalling.
+### 1. Direct3D 12 Renderer & Frame Pacing (60 FPS Target)
+- **Frametime Pacing:** Benchmarked on modern GPUs (e.g., RTX 3060 Ti) targeting steady 16.6ms frame intervals.
 - **Default Host Render Target (RTV) Mode:** Restored CPU-side vertex height estimation in `draw_extent_estimator.cpp`, preventing 2D clears from claiming all 2048 EDRAM tiles and resolving the black 3D screen regression in non-ROV mode.
 - **UI Presenter Loop Fix:** Resolved an architectural regression where toast dialogs kept the presenter trapped in uncapped UI repaints, restoring true cadence presentation (`PaintMode::kGuestOutputThreadImmediately`).
 - **GPU Bandwidth Tuning:** Emulates gamma render targets with 32bpp (`R8G8B8A8_UNORM`) saving 50% VRAM bandwidth over 64bpp, restored native anisotropic filtering, and disabled synchronous GPU-to-CPU memexport readbacks.
 
 ### 2. Multi-Threaded Startup Pipeline Pre-Compilation
-- Compiles over 250+ Direct3D 12 graphics pipeline state objects (PSOs) across background worker threads during engine initialization.
-- In-game shader stuttering is completely eliminated.
+- Compiles Direct3D 12 graphics pipeline state objects (PSOs) across background worker threads during engine initialization.
+- Substantially reduces in-game shader compilation stuttering during gameplay.
 
 ### 3. Synchronized Cutscene & Dialogue Fast-Forward
 - Holding `Select`/`Back` (controller) or `Tab` (keyboard) during in-game cutscenes and dialogues triggers clean fast-forward (`2x`, `4x`, `6x`, `8x`).

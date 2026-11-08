@@ -5,7 +5,7 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
-    [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'bilinear',
+    [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
     [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,

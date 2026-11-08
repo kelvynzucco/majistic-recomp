@@ -77,7 +77,7 @@ $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
 $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
 
-$renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { '' }
+$renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { 'rtv' }
 $vulkanTargetPath = 'fbo'
 $allowInvalid = 'true'
 $logDir = Join-Path $sessionRoot 'logs'
@@ -112,11 +112,7 @@ if ($isVulkan) {
     $launchArgs += "--render_target_path_d3d12=$renderTarget"
 }
 if (-not $isVulkan) {
-    if ($isVSync) {
-        $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=false'
-    } else {
-        $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=true'
-    }
+    $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=true'
 }
 
 $mnk = ($InputMode -eq 'KeyboardMouse').ToString().ToLowerInvariant()

@@ -172,6 +172,21 @@ class MajinApp : public rex::ReXApp {
       // targets + transfer render passes) and FSI (fragment shader interlock
       // subpass dependencies) use Xenia's native VkRenderPass pipeline path.
       rex::cvar::SetFlagByName("vulkan_dynamic_rendering", "false");
+    } else if (backend == "d3d12" || backend.empty()) {
+      auto rt_path = rex::cvar::GetFlagByName("render_target_path_d3d12");
+      if (rt_path.empty()) {
+        rex::cvar::SetFlagByName("render_target_path_d3d12", "rtv");
+      }
+      rex::cvar::SetFlagByName("d3d12_allow_variable_refresh_rate_and_tearing", "true");
+      if (rex::cvar::GetFlagSource("gamma_render_target_as_unorm16") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("gamma_render_target_as_unorm16", "false");
+      }
+      if (rex::cvar::GetFlagSource("anisotropic_override") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("anisotropic_override", "-1");
+      }
+      if (rex::cvar::GetFlagSource("readback_memexport") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("readback_memexport", "false");
+      }
     }
     const bool vsync = rex::cvar::Query<bool>("vsync");
     if (vsync) {

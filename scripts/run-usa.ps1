@@ -5,13 +5,13 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
-    [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
+    [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'bilinear',
     [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI')][string]$RenderingPath = 'Default',
-    [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'KeyboardMouse',
+    [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
     $IncludeHardware = $false,
-    [ValidateSet('Original','30','60','Uncapped')][string]$FrameRateMode = '60',
+    [ValidateSet('Original','30','60','Uncapped')][string]$FrameRateMode = '30',
     $SkipCutscenes = $true,
     [ValidateRange(1,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
@@ -54,8 +54,10 @@ if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
 }
 
 $unifiedExe = Join-Path $GameDataRoot 'bin\majin.exe'
-$build = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
-$prototypeExe = Join-Path $build 'majin.exe'
+$buildUsa = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
+$buildPal = Join-Path $projectRoot ('prototype\out\build\win-amd64-' + $Configuration.ToLower())
+$prototypeExe = if (Test-Path (Join-Path $buildPal 'majin.exe')) { Join-Path $buildPal 'majin.exe' } else { Join-Path $buildUsa 'majin.exe' }
+$build = if (Test-Path $buildPal) { $buildPal } else { $buildUsa }
 
 $exe = if (Test-Path $unifiedExe) { $unifiedExe } elseif (Test-Path $prototypeExe) { $prototypeExe } else { $unifiedExe }
 if (-not (Test-Path $exe)) {

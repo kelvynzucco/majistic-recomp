@@ -4,14 +4,14 @@ import { check } from "@tauri-apps/plugin-updater";
 
 // Default configuration structure
 const defaultSettings = {
-  WindowSize: "1920x1080",
+  WindowSize: "1280x720",
   Fullscreen: false,
-  RenderScale: 2,
+  RenderScale: 1,
   RenderingPath: "Default",
-  FrameRateMode: "60",
+  FrameRateMode: "30",
   VSync: true,
-  PostEffect: "fxaa",
-  Upscaler: "fsr",
+  PostEffect: "none",
+  Upscaler: "bilinear",
   SkipIntroLogos: true,
   SkipCutscenes: true,
   CutsceneSpeed: 4,
@@ -183,13 +183,13 @@ function safeInt(val, fallback) {
 // Settings Management
 // ==========================================
 function populateForm(settings) {
-  if (elements.windowSize) elements.windowSize.value = settings.WindowSize || "1920x1080";
+  if (elements.windowSize) elements.windowSize.value = settings.WindowSize || "1280x720";
   if (elements.fullscreen) elements.fullscreen.value = String(!!settings.Fullscreen);
-  if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 2);
-  if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "60";
+  if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
+  if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "30";
   if (elements.renderingPath) elements.renderingPath.value = settings.RenderingPath || "Default";
-  if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "fsr";
-  if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "fxaa";
+  if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
+  if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
@@ -224,14 +224,14 @@ function populateForm(settings) {
 
 function readForm() {
   return {
-    WindowSize: elements.windowSize?.value || "1920x1080",
+    WindowSize: elements.windowSize?.value || "1280x720",
     Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
-    RenderScale: safeInt(elements.renderScale?.value, 2),
+    RenderScale: safeInt(elements.renderScale?.value, 1),
     RenderingPath: elements.renderingPath?.value || "Default",
-    FrameRateMode: elements.frameRateMode?.value || "60",
+    FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : true,
-    PostEffect: elements.postEffect?.value || "fxaa",
-    Upscaler: elements.upscaler?.value || "fsr",
+    PostEffect: elements.postEffect?.value || "none",
+    Upscaler: elements.upscaler?.value || "bilinear",
     SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
     SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
     CutsceneSpeed: safeInt(elements.cutsceneSpeed?.value, 4),

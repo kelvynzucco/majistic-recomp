@@ -49,7 +49,9 @@ inline constexpr uint32_t kMediaIdPal = 0x67BD87EF;
 #define MAJIN_IMP_SAVE_FLOW_C __imp__sub_826D3C20
 
 namespace majin::offsets {
-inline constexpr uint32_t kScenarioRootPtr = 0x82BA7440;
+// Scenario root pointer in .data is identical across both USA and PAL editions (0x82BA73D0).
+// In PPC asm: lis r31, -32070 (0x82BA0000) -> lwz r11, 29648(r31) (0x82BA73D0).
+inline constexpr uint32_t kScenarioRootPtr = 0x82BA73D0;
 inline constexpr uint32_t kLogoEndFlagCallLR = 0x821CECE0;
 }  // namespace majin::offsets
 

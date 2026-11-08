@@ -141,7 +141,7 @@ bool IsBackOrTabHeld() {
           SHORT sThumbRX;
           SHORT sThumbRY;
         } Gamepad;
-      } state;
+      } state{};
       for (DWORD i = 0; i < 4; ++i) {
         if (pfnGetState(i, &state) == 0) {
           if ((state.Gamepad.wButtons & 0x0020) != 0) {
@@ -159,6 +159,19 @@ float UpdateCutsceneTurbo(uint8_t* base) {
   float multiplier = 1.0f;
   float remaining = 0.0f;
   const bool button_held = IsBackOrTabHeld();
+
+  static bool s_was_button_held = false;
+  if (button_held && !s_was_button_held && Enabled()) {
+    DemoProgress demo{};
+    const bool demo_present = ReadDemoPlayer(base, kDemoNodeOffset, demo);
+    if (demo_present) {
+      REXLOG_INFO("[Majin Cutscene] button pressed during DEMO (frame {:.1f}/{:.1f}, step {:.2f}, {})",
+                  demo.current, demo.end, demo.step, MAJIN_EDITION_NAME);
+    } else {
+      REXLOG_DEBUG("[Majin Cutscene] button pressed, but no DEMO active ({})", MAJIN_EDITION_NAME);
+    }
+  }
+  s_was_button_held = button_held;
 
   // Button release latch: if turbo was previously forced off while the button
   // was held, the user must release the button before turbo can be re-engaged.

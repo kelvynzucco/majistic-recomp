@@ -275,7 +275,7 @@
                   id="windowSize"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="1280x720">1280x720 (720p)</option>
+                  <option value="1280x720" selected>1280x720 (720p - Native)</option>
                   <option value="1920x1080">1920x1080 (1080p)</option>
                   <option value="2560x1440">2560x1440 (1440p)</option>
                   <option value="3840x2160">3840x2160 (4K)</option>
@@ -290,7 +290,7 @@
                   id="fullscreen"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="false">Windowed</option>
+                  <option value="false" selected>Windowed</option>
                   <option value="true">Fullscreen</option>
                 </select>
               </div>
@@ -305,8 +305,8 @@
                   id="renderScale"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="1">1x - Native (720p)</option>
-                  <option value="2">2x - 1440p (Recommended)</option>
+                  <option value="1" selected>1x - Native (720p)</option>
+                  <option value="2">2x - 1440p</option>
                   <option value="3">3x - 4K High</option>
                 </select>
               </div>
@@ -319,7 +319,7 @@
                   id="frameRateMode"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="30">30 FPS (Original Physics)</option>
+                  <option value="30" selected>30 FPS (Original Physics)</option>
                   <option value="60">60 FPS (Fluid Patched)</option>
                   <option value="Uncapped">Uncapped (Experimental)</option>
                 </select>
@@ -335,7 +335,7 @@
                   id="renderingPath"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="Default">D3D12 (Native RTV - Recommended)</option>
+                  <option value="Default" selected>D3D12 (Native RTV - Recommended)</option>
                   <option value="ROV">D3D12 (ROV Interlock)</option>
                   <option value="RTV">D3D12 (RTV Direct)</option>
                   <option value="Vulkan">Vulkan (FBO - Recommended)</option>
@@ -349,8 +349,8 @@
                   id="upscaler"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
+                  <option value="bilinear" selected>Bilinear</option>
                   <option value="fsr">AMD FSR</option>
-                  <option value="bilinear">Bilinear</option>
                   <option value="cas">AMD CAS</option>
                 </select>
               </div>
@@ -363,9 +363,9 @@
                   id="postEffect"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
+                  <option value="none" selected>Off</option>
                   <option value="fxaa">FXAA Fast</option>
                   <option value="fxaa_extreme">FXAA High</option>
-                  <option value="none">Off</option>
                 </select>
               </div>
             </div>

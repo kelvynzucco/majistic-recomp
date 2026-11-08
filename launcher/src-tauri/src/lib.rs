@@ -6,11 +6,11 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 fn default_window_size() -> String {
-    "1920x1080".into()
+    "1280x720".into()
 }
 
 fn default_render_scale() -> u32 {
-    2
+    1
 }
 
 fn default_rendering_path() -> String {
@@ -18,15 +18,15 @@ fn default_rendering_path() -> String {
 }
 
 fn default_frame_rate_mode() -> String {
-    "60".into()
+    "30".into()
 }
 
 fn default_post_effect() -> String {
-    "fxaa".into()
+    "none".into()
 }
 
 fn default_upscaler() -> String {
-    "fsr".into()
+    "bilinear".into()
 }
 
 fn default_cutscene_speed() -> u32 {
@@ -82,7 +82,7 @@ where
     D: serde::Deserializer<'de>,
 {
     let opt = Option::<u32>::deserialize(deserializer)?;
-    Ok(opt.unwrap_or(2))
+    Ok(opt.unwrap_or(1))
 }
 
 fn deserialize_nullable_bool_true<'de, D>(deserializer: D) -> Result<bool, D::Error>

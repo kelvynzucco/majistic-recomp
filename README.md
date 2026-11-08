@@ -10,8 +10,9 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6.svg)]()
 [![C++23](https://img.shields.io/badge/Standard-C%2B%2B23-00599C.svg)]()
 [![Direct3D 12](https://img.shields.io/badge/Graphics-Direct3D%2012-107C10.svg)]()
+[![Vulkan](https://img.shields.io/badge/Graphics-Vulkan-E62117.svg)]()
 
-Early Prototype (WIP) · Native C++23 · Direct3D 12 · 60 FPS Target · Custom Launcher
+Early Prototype (WIP) · Native C++23 · Direct3D 12 & Vulkan · 60 FPS Target · Custom Launcher
 
 </div>
 

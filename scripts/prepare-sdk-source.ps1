@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $source = Join-Path $root 'tools\source\rexglue-sdk'
 $patchRoot = Join-Path $root 'patches\rexglue-0.10.0'
-$revision = 'f5337cdc947ff6d4c4196737e2c807a48f2a1fc2'
+$revision = '546a082a4356173635f6c40510a41ff53e518b5a'
 
 function Check-Native($step) {
     if ($LASTEXITCODE -ne 0) { throw "$step failed (exit $LASTEXITCODE)." }
@@ -149,4 +149,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Built-in FSR 1 / CAS patch application'
 }
 
-Write-Host "[1.1 - 1.7] ReXGlue SDK v0.10.0 source cloned, 14 submodules initialized, and all patches applied successfully!"
+# 1.8: Apply Vulkan command processor and render target fixes
+$vulkanPatch = Join-Path $patchRoot 'vulkan-command-processor-fixes.patch'
+git -C $source apply --reverse --check $vulkanPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanPatch
+    Check-Native 'Vulkan command processor patch check'
+    git -C $source apply $vulkanPatch
+    Check-Native 'Vulkan command processor patch application'
+}
+
+Write-Host "[1.1 - 1.8] ReXGlue SDK v0.10.1 source checked out, 14 submodules initialized, and all patches applied successfully!"

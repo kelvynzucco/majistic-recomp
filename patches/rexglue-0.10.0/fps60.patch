@@ -1,8 +1,22 @@
 diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
-index 8f2fcb0..d673d0b 100644
+index 8f2fcb0..9ee3639 100644
 --- a/src/graphics/graphics_system.cpp
 +++ b/src/graphics/graphics_system.cpp
-@@ -157,11 +157,16 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+@@ -31,6 +31,13 @@
+ #include <rex/ui/window.h>
+ #include <rex/ui/windowed_app_context.h>
+ 
++#if REX_PLATFORM_WIN32
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#endif
++
+ REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
+     .allowed({"none", "fxaa", "fxaa_extreme"})
+     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+@@ -157,17 +164,62 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
          uint64_t vsync_interval_ticks =
              std::max(uint64_t(1), uint64_t(double(guest_tick_frequency) / refresh_rate_hz));
          uint64_t no_vsync_interval_ticks = std::max(uint64_t(1), guest_tick_frequency / 1000);
@@ -10,91 +24,82 @@ index 8f2fcb0..d673d0b 100644
 +        const uint64_t mode_60_interval_ticks =
 +            std::max(uint64_t(1), guest_tick_frequency / uint64_t(120));
 +        if (mode_60) REXGPU_INFO("[Majin 60 FPS] guest_vblank_hz=120; guest/audio clocks unchanged");
++        (void)no_vsync_interval_ticks;
++#if REX_PLATFORM_WIN32
++        HANDLE vblank_timer = CreateWaitableTimerExW(
++            nullptr, nullptr, 0x00000002 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */,
++            TIMER_MODIFY_STATE | SYNCHRONIZE);
++        if (!vblank_timer) {
++          vblank_timer =
++              CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_MODIFY_STATE | SYNCHRONIZE);
++        }
++#endif
          uint64_t last_frame_time = chrono::Clock::QueryGuestTickCount();
          while (vsync_worker_running_) {
++          const uint64_t interval_ticks = mode_60 ? mode_60_interval_ticks : vsync_interval_ticks;
++          const uint64_t target_time = last_frame_time + interval_ticks;
            uint64_t current_time = chrono::Clock::QueryGuestTickCount();
-           uint64_t interval_ticks =
+-          uint64_t interval_ticks =
 -              REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks;
-+              mode_60 ? mode_60_interval_ticks :
-+              (REXCVAR_GET(vsync) ? vsync_interval_ticks : no_vsync_interval_ticks);
-           while (current_time - last_frame_time >= interval_ticks) {
-             MarkVblank();
-             last_frame_time += interval_ticks;
+-          while (current_time - last_frame_time >= interval_ticks) {
+-            MarkVblank();
+-            last_frame_time += interval_ticks;
++          if (current_time < target_time) {
++            const uint64_t remaining_ticks = target_time - current_time;
++            const uint64_t remaining_ns100 =
++                (remaining_ticks * 10000000ULL) / guest_tick_frequency;
++#if REX_PLATFORM_WIN32
++            if (remaining_ns100 > 6000) {
++              LARGE_INTEGER due;
++              due.QuadPart = -static_cast<int64_t>(remaining_ns100 - 4500);
++              if (vblank_timer &&
++                  SetWaitableTimer(vblank_timer, &due, 0, nullptr, nullptr, FALSE)) {
++                WaitForSingleObject(vblank_timer, 20);
++              } else {
++                rex::thread::MaybeYield();
++              }
++            } else {
++              rex::thread::MaybeYield();
++            }
++#else
++            if (remaining_ns100 > 10000) {
++              rex::thread::Sleep(std::chrono::microseconds(remaining_ns100 / 10 - 500));
++            } else {
++              rex::thread::MaybeYield();
++            }
++#endif
++            continue;
++          }
++          MarkVblank();
++          last_frame_time = target_time;
++          if (current_time - last_frame_time >= interval_ticks) {
++            last_frame_time = current_time;
+           }
+-          rex::thread::Sleep(std::chrono::milliseconds(1));
+         }
++#if REX_PLATFORM_WIN32
++        if (vblank_timer) {
++          CloseHandle(vblank_timer);
++        }
++#endif
+         return 0;
+       }));
+   // TODO: set_can_debugger_suspend not yet ported
 diff --git a/src/ui/d3d12/d3d12_presenter.cpp b/src/ui/d3d12/d3d12_presenter.cpp
-index 306118e..4cd1e40 100644
+index 306118e..4de65bf 100644
 --- a/src/ui/d3d12/d3d12_presenter.cpp
 +++ b/src/ui/d3d12/d3d12_presenter.cpp
-@@ -23,6 +23,15 @@
- #include <rex/ui/d3d12/d3d12_provider.h>
- #include <rex/ui/d3d12/d3d12_util.h>
- #include <rex/ui/surface_win.h>
-+#include "frame_deadline.h"
-+#include <rex/chrono/clock.h>
-+#include <thread>
-+#if defined(_WIN32)
-+#ifndef NOMINMAX
-+#define NOMINMAX
-+#endif
-+#include <windows.h>
-+#endif
- 
- #if defined(REX_HAS_FIDELITYFX_RUNTIME) && REX_HAS_FIDELITYFX_RUNTIME
- #include <ffx_api/dx12/ffx_api_dx12.h>
-@@ -35,6 +44,53 @@ REXCVAR_DEFINE_BOOL(d3d12_allow_variable_refresh_rate_and_tearing, true, "UI/D3D
- 
- namespace rex::ui::d3d12 {
- 
-+namespace {
-+class MajinFramePacer {
-+ public:
-+  ~MajinFramePacer() {
-+#if defined(_WIN32)
-+    if (timer_) CloseHandle(timer_);
-+#endif
-+  }
-+  void Wait() {
-+    if (!rex::cvar::Query<bool>("majin_60fps")) return;
-+    constexpr uint32_t fps = 60;
-+    const auto frequency = rex::chrono::Clock::QueryHostTickFrequency();
-+    auto now = rex::chrono::Clock::QueryHostTickCount();
-+    const auto target = deadline_.Next(now, frequency, fps);
-+#if defined(_WIN32)
-+    if (!initialized_) {
-+      initialized_ = true;
-+      timer_ = CreateWaitableTimerExW(nullptr, nullptr, 0x00000002,
-+                                     TIMER_MODIFY_STATE | SYNCHRONIZE);
-+      if (!timer_) timer_ = CreateWaitableTimerExW(nullptr, nullptr, 0,
-+                                     TIMER_MODIFY_STATE | SYNCHRONIZE);
-+      REXLOG_INFO("[Majin 60 FPS] D3D12 presenter swap_limit={} waitable_timer={}", fps, bool(timer_));
-+    }
-+#endif
-+    while (now < target) {
-+      const auto remaining = target - now;
-+#if defined(_WIN32)
-+      LARGE_INTEGER due;
-+      due.QuadPart = -int64_t(std::max(uint64_t(1), remaining * 10000000 / frequency));
-+      if (timer_ && SetWaitableTimer(timer_, &due, 0, nullptr, nullptr, FALSE))
-+        WaitForSingleObject(timer_, 40);
-+      else
-+#endif
-+        std::this_thread::sleep_for(std::chrono::microseconds(
-+            std::max(uint64_t(1), remaining * 1000000 / frequency)));
-+      now = rex::chrono::Clock::QueryHostTickCount();
-+    }
-+  }
-+ private:
-+  majin::timing::SwapDeadline deadline_;
-+#if defined(_WIN32)
-+  HANDLE timer_ = nullptr;
-+  bool initialized_ = false;
-+#endif
-+};
-+} // namespace
-+
- // Generated with `xb buildshaders`.
- namespace shaders {
- #include "ui/shaders/bytecode/d3d12_5_1/guest_output_bilinear_dither_ps.h"
-@@ -1147,17 +1203,23 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
+@@ -450,6 +450,9 @@ D3D12Presenter::ConnectOrReconnectPaintingToSurfaceFromUIThread(Surface& new_sur
+     paint_context_.swap_chain_height = new_swap_chain_height;
+     paint_context_.swap_chain_allows_tearing =
+         (swap_chain_desc.Flags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) != 0;
++    REXLOG_INFO("D3D12Presenter: Swap chain created (width={}, height={}, tearing={})",
++                new_swap_chain_width, new_swap_chain_height,
++                paint_context_.swap_chain_allows_tearing);
+     for (uint32_t i = 0; i < PaintContext::kSwapChainBufferCount; ++i) {
+       if (FAILED(paint_context_.swap_chain->GetBuffer(
+               i, IID_PPV_ARGS(&paint_context_.swap_chain_buffers[i])))) {
+@@ -1147,17 +1150,20 @@ Presenter::PaintResult D3D12Presenter::PaintAndPresentImpl(bool execute_ui_drawe
      ui_submission_tracker_.NextSubmission();
    }
    paint_context_.paint_submission_tracker.NextSubmission();
@@ -110,21 +115,18 @@ index 306118e..4cd1e40 100644
 -      0, DXGI_PRESENT_RESTART |
 -             (paint_context_.swap_chain_allows_tearing ? DXGI_PRESENT_ALLOW_TEARING : 0));
 +
++  // Present using standard DXGI Flip Model semantics without DXGI_PRESENT_RESTART.
++  // Passing DXGI_PRESENT_RESTART on every continuous frame causes display controllers
++  // using Multiplane Overlays (MPO) on DisplayPort to constantly thrash and discard
++  // hardware presentation planes, causing erratic GPU utilization spikes.
 +  const bool vsync = rex::cvar::Query<bool>("vsync");
-+  const UINT sync_interval = vsync ? 1 : 0;
++  UINT sync_interval = 0;
 +  UINT present_flags = 0;
-+  if (!vsync) {
-+    // When vsync is off, pace via software timer and allow tearing if enabled.
-+    static MajinFramePacer frame_pacer;
-+    frame_pacer.Wait();
-+    present_flags |= DXGI_PRESENT_RESTART;
-+    if (paint_context_.swap_chain_allows_tearing) {
-+      present_flags |= DXGI_PRESENT_ALLOW_TEARING;
-+    }
++  if (vsync) {
++    sync_interval = 1;
++  } else if (paint_context_.swap_chain_allows_tearing) {
++    present_flags |= DXGI_PRESENT_ALLOW_TEARING;
 +  }
-+
-+  // When vsync is on, Present(1, 0) naturally synchronizes with the display
-+  // refresh in the DXGI flip model without tearing or 100% burst spikes.
 +  HRESULT present_result = paint_context_.swap_chain->Present(sync_interval, present_flags);
    // Even if presentation has failed, work might have been enqueued anyway
    // internally before the failure according to Jesse Natalie from the DirectX

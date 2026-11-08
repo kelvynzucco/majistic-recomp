@@ -6,7 +6,7 @@ param(
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'bilinear',
-    [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI')][string]$RenderingPath = 'Default',
+    [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,
@@ -70,7 +70,7 @@ if (-not (Test-Path $sessionRoot) -and (Test-Path (Join-Path $projectRoot 'priva
 }
 New-Item -ItemType Directory -Force -Path $sessionRoot | Out-Null
 
-$isVulkan = ($RenderingPath -eq 'Vulkan' -or $RenderingPath -eq 'Vulkan_FSI')
+$isVulkan = ($RenderingPath -eq 'Vulkan' -or $RenderingPath -eq 'Vulkan_FSI' -or $RenderingPath -eq 'Vulkan_FBO')
 $gpuBackend = if ($isVulkan) { 'vulkan' } else { 'd3d12' }
 $cacheKey = $gpuBackend + '-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
 $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
@@ -111,8 +111,12 @@ if ($isVulkan) {
 } else {
     $launchArgs += "--render_target_path_d3d12=$renderTarget"
 }
-if ($isVSync -and -not $isVulkan) {
-    $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=false'
+if (-not $isVulkan) {
+    if ($isVSync) {
+        $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=false'
+    } else {
+        $launchArgs += '--d3d12_allow_variable_refresh_rate_and_tearing=true'
+    }
 }
 
 $mnk = ($InputMode -eq 'KeyboardMouse').ToString().ToLowerInvariant()

@@ -59,8 +59,8 @@ void PreciseWait(int64_t ns) {
 }
 #endif
 
-// Target frame interval for 60 FPS: 16,666,666 ns
-constexpr int64_t kTargetFrameIntervalNs = 16'666'666;
+// Target frame interval for 60 FPS: 16,666,666 ns; for 30 FPS: 33,333,333 ns
+std::atomic<VkPresentModeKHR> g_active_present_mode{VK_PRESENT_MODE_FIFO_KHR};
 std::atomic<std::chrono::steady_clock::time_point> g_last_present_time{std::chrono::steady_clock::now()};
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchain(
@@ -68,6 +68,7 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchain(
     const VkSwapchainCreateInfoKHR* create_info,
     const VkAllocationCallbacks* allocator,
     VkSwapchainKHR* swapchain) {
+  g_active_present_mode.store(create_info->presentMode, std::memory_order_relaxed);
   REXLOG_INFO("[Vulkan Hooks] Swapchain created: {}x{}, format={}, presentMode={}",
       create_info->imageExtent.width, create_info->imageExtent.height,
       uint32_t(create_info->imageFormat), uint32_t(create_info->presentMode));
@@ -77,11 +78,23 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateSwapchain(
 VKAPI_ATTR VkResult VKAPI_CALL QueuePresent(
     VkQueue queue,
     const VkPresentInfoKHR* present_info) {
-  if (REXCVAR_GET(majin_vulkan_pacing)) {
+  // If presentation mode is FIFO (VSync active), presentation is hardware synchronized
+  // to vertical blanking. Calling PreciseWait right before vkQueuePresentKHR in FIFO mode
+  // causes missed VBlank deadlines and severe presentation stutter.
+  // When running non-FIFO (immediate/mailbox) or if pacing is explicitly forced,
+  // pace according to the active target framerate (30 vs 60 FPS).
+  const auto present_mode = g_active_present_mode.load(std::memory_order_relaxed);
+  const bool is_fifo = (present_mode == VK_PRESENT_MODE_FIFO_KHR ||
+                        present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
+
+  if (REXCVAR_GET(majin_vulkan_pacing) && !is_fifo) {
+    const bool is_60fps = rex::cvar::Query<bool>("majin_60fps");
+    const int64_t target_interval_ns = is_60fps ? 16'666'666 : 33'333'333;
+
     const auto now = std::chrono::steady_clock::now();
     const auto last = g_last_present_time.load(std::memory_order_relaxed);
     const int64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last).count();
-    const int64_t delay_ns = kTargetFrameIntervalNs - elapsed_ns;
+    const int64_t delay_ns = target_interval_ns - elapsed_ns;
 
     if (delay_ns > 200'000) {  // only wait if more than 0.2 ms remains
       PreciseWait(delay_ns);

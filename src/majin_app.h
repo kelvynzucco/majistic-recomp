@@ -89,9 +89,6 @@ class MajinApp : public rex::ReXApp {
     // Must be called AFTER LoadGpuPlugin so CVars registered inside
     // rexgpu-xenos.dll exist in the global CVar registry.
     const auto backend = rex::cvar::GetFlagByName("gpu_backend");
-    if (backend == "d3d12") {
-      rex::cvar::SetFlagByName("d3d12_allow_variable_refresh_rate_and_tearing", "false");
-    }
     if (backend == "vulkan") {
       auto rt_path = rex::cvar::GetFlagByName("render_target_path_vulkan");
       if (rt_path.empty()) {
@@ -102,10 +99,18 @@ class MajinApp : public rex::ReXApp {
       // subpass dependencies) use Xenia's native VkRenderPass pipeline path.
       rex::cvar::SetFlagByName("vulkan_dynamic_rendering", "false");
     }
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "false");
-    rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "true");
+    const bool vsync = rex::cvar::Query<bool>("vsync");
+    if (vsync) {
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "false");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "false");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "false");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "true");
+    } else {
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_immediate", "true");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_mailbox", "true");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_relaxed", "true");
+      rex::cvar::SetFlagByName("vulkan_allow_present_mode_fifo_latest_ready", "false");
+    }
     rex::cvar::SetFlagByName("vulkan_async_skip_incomplete_frames", "false");
     rex::cvar::SetFlagByName("async_shader_compilation", "true");
     if (rex::cvar::GetFlagByName("present_effect").empty()) {

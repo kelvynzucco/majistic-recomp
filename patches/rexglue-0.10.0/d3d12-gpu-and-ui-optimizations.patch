@@ -2,7 +2,21 @@ diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor
 index a744375..cc9b117 100644
 --- a/src/graphics/command_processor.cpp
 +++ b/src/graphics/command_processor.cpp
-@@ -116,7 +116,7 @@ REXCVAR_DEFINE_BOOL(readback_resolve_half_pixel_offset, false, "GPU",
+@@ -35,6 +35,13 @@
+ #include <rex/system/kernel_state.h>
+ #include <rex/system/user_module.h>
+ 
++#if REX_PLATFORM_WIN32
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#include <windows.h>
++#endif
++
+ REXCVAR_DEFINE_BOOL(vsync, true, "GPU", "Enable vertical sync");
+ 
+ REXCVAR_DEFINE_BOOL(clear_memory_page_state, true, "GPU",
+@@ -59,7 +66,7 @@ REXCVAR_DEFINE_BOOL(readback_resolve_half_pixel_offset, false, "GPU",
                      "scaled block during resolve readback downscale")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
@@ -11,6 +25,78 @@ index a744375..cc9b117 100644
                      "Enable CPU readback of shader memexport writes for guest memory "
                      "coherency (can reduce correctness issues, but may add GPU/CPU sync cost)")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
+@@ -608,7 +615,9 @@ void CommandProcessor::MakeCoherent() {
+   regs_volatile[XE_GPU_REG_COHER_STATUS_HOST] = 0;
+ }
+ 
+-void CommandProcessor::PrepareForWait() {}
++void CommandProcessor::PrepareForWait() {
++  OnPrimaryBufferEnd();
++}
+ 
+ void CommandProcessor::ReturnFromWait() {}
+ 
+@@ -990,6 +999,7 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
+   bool is_memory = (wait_info & 0x10) != 0;
+ 
+   bool matched = false;
++  uint32_t wait_spin_count = 0;
+   do {
+     uint32_t value = 0;
+     if (is_memory) {
+@@ -1030,14 +1040,47 @@ bool CommandProcessor::ExecutePacketType3_WAIT_REG_MEM(memory::RingBuffer* reade
+         break;
+     }
+     if (!matched) {
+-      // Wait.
++      // Flush any open GPU submission immediately so the GPU can execute queued
++      // draws in the background while the command processor waits.
++      PrepareForWait();
+       if (wait >= 0x100) {
+-        PrepareForWait();
+-        if (!REXCVAR_GET(vsync)) {
+-          // User wants it fast and dangerous.
++        if (++wait_spin_count <= 64) {
+           rex::thread::MaybeYield();
+         } else {
+-          rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
++#if REX_PLATFORM_WIN32
++          struct HighResWaitTimer {
++            HANDLE handle = nullptr;
++            HighResWaitTimer() {
++              handle = CreateWaitableTimerExW(
++                  nullptr, nullptr, 0x00000002 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */,
++                  TIMER_MODIFY_STATE | SYNCHRONIZE);
++              if (!handle) {
++                handle = CreateWaitableTimerExW(nullptr, nullptr, 0,
++                                                TIMER_MODIFY_STATE | SYNCHRONIZE);
++              }
++            }
++            ~HighResWaitTimer() {
++              if (handle) {
++                CloseHandle(handle);
++              }
++            }
++          };
++          thread_local HighResWaitTimer wait_timer;
++          LARGE_INTEGER due;
++          due.QuadPart = -2000;  // 200 us relative wait
++          if (wait_timer.handle &&
++              SetWaitableTimer(wait_timer.handle, &due, 0, nullptr, nullptr, FALSE)) {
++            WaitForSingleObject(wait_timer.handle, 5);
++          } else {
++            rex::thread::MaybeYield();
++          }
++#else
++          if (!REXCVAR_GET(vsync)) {
++            rex::thread::MaybeYield();
++          } else {
++            rex::thread::Sleep(std::chrono::milliseconds(wait / 0x100));
++          }
++#endif
+         }
+         rex::thread::SyncMemory();
+         ReturnFromWait();
 diff --git a/src/graphics/flags.cpp b/src/graphics/flags.cpp
 index e2983a4..4498f1b 100644
 --- a/src/graphics/flags.cpp

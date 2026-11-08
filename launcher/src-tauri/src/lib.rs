@@ -157,14 +157,14 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            window_size: "1920x1080".into(),
+            window_size: "1280x720".into(),
             fullscreen: false,
-            render_scale: 2,
+            render_scale: 1,
             rendering_path: "Default".into(),
-            frame_rate_mode: "60".into(),
+            frame_rate_mode: "30".into(),
             vsync: true,
-            post_effect: "fxaa".into(),
-            upscaler: "fsr".into(),
+            post_effect: "none".into(),
+            upscaler: "bilinear".into(),
             skip_intro_logos: true,
             skip_cutscenes: true,
             cutscene_speed: 4,

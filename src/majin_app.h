@@ -16,6 +16,7 @@
 #include "window_layout.h"
 #include "vulkan_hooks.h"
 #include "scene_resolution.h"
+#include "edition_offsets.h"
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -144,6 +145,7 @@ class MajinApp : public rex::ReXApp {
       ApplyGpuPluginDefaults();
     }
     majin::InitSceneResolution();
+    REXLOG_INFO("[Majin] Active target edition: {}", MAJIN_EDITION_NAME);
   }
 
   void OnPostSetup() override {

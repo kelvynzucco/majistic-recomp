@@ -57,7 +57,7 @@ By translating game logic into native CPU instructions and mapping Xbox 360 GPU 
 | Region / Edition | Executable Version | Title ID | Media ID | Support Status |
 | :--- | :---: | :---: | :---: | :---: |
 | **American / NTSC-U** | `0.0.0.2` | `4E4D0816` | `76FDB642` | **Playable Prototype (WIP)** (`prototype-usa/`) |
-| **European / PAL** | `0.0.0.3` | `4E4D0816` | `67BD87EF` | **Experimental Prototype (WIP)** (`prototype/`) |
+| **European / PAL** | `0.0.0.3` | `4E4D0816` | `67BD87EF` | **Playable Prototype (WIP)** (`prototype/`) |
 
 ### Deterministic Shift Law (USA 0.0.0.2)
 Analysis of the executable revealed that between the `.text` entry (`0x82150000`) and `0x821C0000`, 100% of function addresses match 1:1 between European and American releases. Above `0x821C0000`, every function is shifted by exactly **`-0x70` bytes (`-112` bytes / 28 PowerPC instructions)** due to an alignment padding variation in the PAL compiler toolchain.
@@ -109,7 +109,9 @@ Majin Recomp/
 ├── Majistic Launcher.exe       # Portable desktop launcher executable
 ├── branding/                   # Official logo & high-resolution icons
 ├── launcher/                   # Launcher source code (Tauri v2 + Tailwind CSS)
-├── prototype-usa/              # Recompiled USA game source & translation tables
+├── prototype/                  # PAL (0.0.0.3) codegen manifests & translation units
+├── prototype-usa/              # USA (0.0.0.2) codegen manifests & translation units
+├── src/                        # Unified C++ source code & QoL hooks (shared)
 ├── scripts/                    # Automation scripts (extraction, build, run)
 └── game-data/                  # Self-contained game directory
     ├── bin/                    # Compiled native game binary (majin.exe)

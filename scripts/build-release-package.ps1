@@ -82,6 +82,12 @@ Get-ChildItem -Path $srcPalProto -Exclude 'out' | ForEach-Object {
 }
 Write-Host "[4b/7] Copied prototype (PAL source & manifest)"
 
+# 4c. Copy shared unified source
+$destSrc = Join-Path $releaseDir 'src'
+New-Item -ItemType Directory -Path $destSrc -Force | Out-Null
+Copy-Item (Join-Path $root 'src\*') $destSrc -Recurse -Force
+Write-Host "[4c/7] Copied shared unified source (src/)"
+
 # 5. Copy branding & licenses
 $destBranding = Join-Path $releaseDir 'branding'
 New-Item -ItemType Directory -Path $destBranding -Force | Out-Null

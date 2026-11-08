@@ -1,5 +1,7 @@
+// Majistic Recomp - Unified Scene Resolution & D3D9 Present Telemetry
 #include "scene_resolution.h"
 #include "generated/default/majin_pch.h"
+#include "edition_offsets.h"
 
 #include <atomic>
 #include <cstdlib>
@@ -25,8 +27,8 @@ namespace majin {
 void InitSceneResolution() {
   const int32_t scene_scale = REXCVAR_GET(majin_scene_scale);
   const bool native_ui = REXCVAR_GET(majin_native_ui);
-  REXLOG_INFO("majin: Scene resolution initialized (majin_scene_scale={}, majin_native_ui={})",
-              scene_scale, native_ui);
+  REXLOG_INFO("majin: Scene resolution initialized (majin_scene_scale={}, majin_native_ui={}, edition={})",
+              scene_scale, native_ui, MAJIN_EDITION_NAME);
 }
 
 int32_t GetEffectiveSceneScale() {
@@ -51,35 +53,16 @@ bool IsNativeUiActive() {
 }  // namespace majin
 
 // ============================================================================
-// Guest D3D9 / UI Render Frame Telemetry Hooks
+// D3DDevice_Present Hook (PAL: sub_824757B8 / USA: sub_82475748)
 // ============================================================================
-// Verified Xbox 360 D3D9 / Engine symbols in majin_recomp:
-//   - sub_82475748 : D3DDevice_Present (end-of-frame swap/present)
-//   - sub_824684F0 : D3DDevice_Resolve (EDRAM -> texture resolve + clear)
-//   - sub_8246C4F0 : D3DDevice_SetViewport (writes D3DVIEWPORT9 to r3 + 12824..12844)
-//   - sub_8246BAC0 : D3DDevice_SetScissorRect (clamps scissor against Viewport.X/Y/W/H)
-//   - sub_82985580 : CGameProject::RenderUI (2D UI / HUD render entry point)
-//
-// NOTE:
-// Do NOT overwrite r3 + 12824 / r3 + 12828 in sub_8246BAC0 (those are Viewport.X
-// and Viewport.Y, not Width/Height; setting them to 1280x720 collapses the
-// clamped PA_SC_WINDOW_SCISSOR to a 0x0 rectangle and causes a black screen).
-// Do NOT force r4 + 8 / r4 + 12 to 1280x720 in sub_8246C4F0 (breaks shadow maps
-// and sub-resolution post-processing passes), and do NOT overwrite f1 in
-// sub_824684F0 (corrupts ClearZ during D3DDevice_Resolve).
-// ReXGlue's draw_util::GetHostViewportInfo natively scales both 3D viewports
-// (vport_xy_scale_enable = true) and 2D screen-space UI passes
-// (vport_xy_scale_enable = false) alongside PA_SC_WINDOW_SCISSOR.
+REX_EXTERN(MAJIN_IMP_D3D_PRESENT);
 
-REX_EXTERN(__imp__sub_82475748);
-
-// D3DDevice_Present (Frame End)
-REX_EXTERN(sub_82475748) {
+REX_EXTERN(MAJIN_FN_D3D_PRESENT) {
   static std::atomic<uint32_t> s_present_count{0};
   const uint32_t count = ++s_present_count;
   if (count == 1 || (count % 600) == 0) {
-    REXLOG_INFO("majin: D3DDevice_Present frame={} (effective_scale={}x)", count,
-                majin::GetEffectiveSceneScale());
+    REXLOG_INFO("majin: D3DDevice_Present frame={} (effective_scale={}x, {})", count,
+                majin::GetEffectiveSceneScale(), MAJIN_EDITION_NAME);
   }
-  __imp__sub_82475748(ctx, base);
+  MAJIN_IMP_D3D_PRESENT(ctx, base);
 }

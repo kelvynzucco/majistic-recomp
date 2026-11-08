@@ -1,0 +1,95 @@
+# Diagnostic and gameplay mid-asm hooks for European / PAL (0.0.0.3)
+# Converted from prototype-usa/probes.toml via Deterministic Shift Law:
+# VA_PAL = VA_USA (for VA < 0x821C0000)
+# VA_PAL = VA_USA + 0x70 (for VA >= 0x821C0000)
+
+# Presentation interval & frame timing
+[[midasm_hook]]
+address = 0x82162360
+name = "Majin_FrameDt"
+registers = ["f0"]
+after_instruction = false
+
+# Character move (sub_82345008 in PAL / sub_82344F98 in USA): root-motion target at r1+0x58..0x60, character in r28.
+# Scaled up when the character was blocked last frame to allow climbing small edges at 60+ FPS.
+[[midasm_hook]]
+address = 0x82345114
+name = "Majin_MoveStep"
+registers = ["r1", "r28"]
+after_instruction = false
+
+# Field of view (camera_fov.cpp): scaling camera FOV (+0x268) for culling and projection.
+[[midasm_hook]]
+address = 0x829FC828
+name = "Majin_FovFrustumA"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FC84C
+name = "Majin_FovFrustumB"
+registers = ["f12"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FD518
+name = "Majin_FovProjection"
+registers = ["f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FE37C
+name = "Majin_FovProjection"
+registers = ["f13"]
+after_instruction = true
+
+# Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.
+[[midasm_hook]]
+address = 0x821A0530
+name = "Majin_PauseBlurEnabled"
+registers = ["r11"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x821A0578
+name = "Majin_DofEnabled"
+registers = ["r11"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x821A05E4
+name = "Majin_BloomEnabled"
+registers = ["r11"]
+after_instruction = false
+
+# Partial animations (anim_speed.cpp): sub_822BC228 in PAL (sub_822BBEB8 in USA) advances sub-motion slots.
+[[midasm_hook]]
+address = 0x822BC214
+name = "Majin_SubMotionStep"
+registers = ["f13"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822BC2AC
+name = "Majin_SubMotionStep"
+registers = ["f0"]
+after_instruction = false
+
+# World object animations (anim_speed.cpp): sub_82242238 in PAL (sub_822421C8 in USA) and sub_822BCF00 in PAL (sub_822BCE90 in USA).
+[[midasm_hook]]
+address = 0x82242254
+name = "Majin_ObjectMotionStepBegin"
+registers = ["r31"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822BCF44
+name = "Majin_MotionStepTime"
+registers = ["f12"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822BCF6C
+name = "Majin_MotionStepTotal"
+registers = ["f13"]
+after_instruction = false

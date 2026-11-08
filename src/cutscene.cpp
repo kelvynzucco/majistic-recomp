@@ -1,30 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Majin and the Forsaken Kingdom (USA 0.0.0.2)
-// In-game 3D Cutscene (DEMO) Fast-Forward
+// Majistic Recomp - Unified In-game 3D Cutscene (DEMO) Fast-Forward
 //
 // Fast-forward is driven purely by the state of the engine's DEMO player, read
 // once per frame from the main timing hook (timing.cpp). It is NOT driven by
 // script-command polling (DEMO_END_CHECK / CHECK_END_MESSAGE), because those are
-// also polled while the player is in control (gameplay dialogue, event cameras),
-// which is what leaked the speed-up into gameplay.
-//
-// Guest structures (verified against the USA 0.0.0.2 recompiled code):
-//   *(0x82BA73D0)                 scenario root (lis -32070 / lwz 29648)
-//   root + 0x15144                -> demo manager
-//   demo_mgr + 120                -> current DEMO node        (0 when none)
-//   demo_mgr + 124                -> current DEMO_CAMERA node (0 when none)
-//   node + 20                     -> motion player
-//   player + 80  (float)          current frame (clamped to end)  sub_8235A490
-//   player + 88  (float)          frames advanced this tick       sub_82359AE0
-//   player + 92  (int)            request: 1 play, 2 hold, 3 stop sub_82359D08
-//   player + 96  (int)            state:   1/2 = playing          sub_82359D58
-//   player + 156                  -> motion resource
-//   resource + 96 / +100 (int)    start / end frame               sub_82359E10
+// also polled while the player is in control (gameplay dialogue, event cameras).
+
 #include <windows.h>
 #include <atomic>
 #include <bit>
 #include <cmath>
 #include "generated/default/majin_pch.h"
+#include "edition_offsets.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/audio/audio_driver.h>
@@ -43,7 +30,7 @@ REXCVAR_DEFINE_BOOL(majin_cutscene_ff_camera_demos, false, "Gameplay",
 
 namespace {
 
-constexpr uint32_t kScenarioRootPtr = 0x82BA73D0;
+constexpr uint32_t kScenarioRootPtr = majin::offsets::kScenarioRootPtr;
 constexpr uint32_t kDemoManagerOffset = 0x15144;
 constexpr uint32_t kDemoNodeOffset = 120;
 constexpr uint32_t kDemoCameraNodeOffset = 124;
@@ -109,8 +96,6 @@ bool ReadDemoPlayer(uint8_t* base, uint32_t slot, DemoProgress& out) {
 }
 
 // True while a DEMO is playing and is still far enough from its last frame.
-// The guard band grows with the per-tick step so that even at 16x the final
-// seconds (and the hand-off back to gameplay) always run at normal speed.
 bool DemoAllowsTurbo(uint8_t* base, uint32_t slot, float& remaining_out) {
   DemoProgress demo;
   if (!ReadDemoPlayer(base, slot, demo)) return false;
@@ -156,10 +141,10 @@ bool IsBackOrTabHeld() {
           SHORT sThumbRX;
           SHORT sThumbRY;
         } Gamepad;
-      } state{};
+      } state;
       for (DWORD i = 0; i < 4; ++i) {
         if (pfnGetState(i, &state) == 0) {
-          if (state.Gamepad.wButtons & 0x0020) { // XINPUT_GAMEPAD_BACK (Select)
+          if ((state.Gamepad.wButtons & 0x0020) != 0) {
             return true;
           }
         }
@@ -170,9 +155,6 @@ bool IsBackOrTabHeld() {
   return false;
 }
 
-// Called once per frame from the main timing hook (timing.cpp), on the game
-// thread, right after the engine has computed the frame time ratio.
-// Returns the multiplier to apply to the frame ratio (1.0 = normal speed).
 float UpdateCutsceneTurbo(uint8_t* base) {
   float multiplier = 1.0f;
   float remaining = 0.0f;
@@ -202,10 +184,10 @@ float UpdateCutsceneTurbo(uint8_t* base) {
   if (was_active != active) {
     rex::audio::SetPlaybackFrequencyRatio(active ? multiplier : 1.0f);
     if (active) {
-      REXLOG_INFO("[Majin Cutscene] fast-forward x{} ({} frames left)",
-                  static_cast<int>(multiplier), static_cast<int>(remaining));
+      REXLOG_INFO("[Majin Cutscene] fast-forward x{} ({} frames left, {})",
+                  static_cast<int>(multiplier), static_cast<int>(remaining), MAJIN_EDITION_NAME);
     } else {
-      REXLOG_INFO("[Majin Cutscene] fast-forward off");
+      REXLOG_INFO("[Majin Cutscene] fast-forward off ({})", MAJIN_EDITION_NAME);
       // If turbo stopped while the button is still held (end margin reached or cutscene ended),
       // lock out turbo so it never affects gameplay even if held continuously.
       if (button_held) {

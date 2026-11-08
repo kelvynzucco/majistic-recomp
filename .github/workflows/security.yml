@@ -13,10 +13,16 @@ jobs:
           persist-credentials: false
       - name: Scan all reachable history with pinned Gitleaks
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $zip = Join-Path $env:RUNNER_TEMP 'gitleaks.zip'
           $tool = Join-Path $env:RUNNER_TEMP 'gitleaks'
-          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $zip
+          try {
+            gh release download v8.30.1 --repo gitleaks/gitleaks --pattern "*windows_x64.zip" --output $zip --clobber
+          } catch {
+            Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $zip
+          }
           if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e') { throw 'Scanner checksum mismatch' }
           Expand-Archive -LiteralPath $zip -DestinationPath $tool
           & "$tool/gitleaks.exe" git . '--log-opts=--all' '--redact=100' --no-banner

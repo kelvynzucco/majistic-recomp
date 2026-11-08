@@ -187,7 +187,10 @@ function populateForm(settings) {
   if (elements.fullscreen) elements.fullscreen.value = String(!!settings.Fullscreen);
   if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
   if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "30";
-  if (elements.renderingPath) elements.renderingPath.value = settings.RenderingPath || "Default";
+  if (elements.renderingPath) {
+    const rp = settings.RenderingPath || "Default";
+    elements.renderingPath.value = (rp === "Vulkan_FSI") ? "Vulkan" : rp;
+  }
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;

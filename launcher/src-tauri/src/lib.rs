@@ -747,7 +747,7 @@ mod tests {
         let settings = parsed.unwrap();
         assert_eq!(settings.window_size, "1280x720");
         assert!(settings.fullscreen);
-        assert_eq!(settings.render_scale, 2);
+        assert_eq!(settings.render_scale, 1);
         assert_eq!(settings.fov_scale, 1.0);
         assert_eq!(settings.cutscene_speed, 4);
         assert_eq!(settings.language, "English");

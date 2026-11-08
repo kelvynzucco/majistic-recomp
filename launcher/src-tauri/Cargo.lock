@@ -1834,12 +1834,14 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 name = "majistic-launcher"
 version = "0.1.1"
 dependencies = [
+ "flate2",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-updater",
  "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]
@@ -4861,6 +4863,7 @@ checksum = "df3845f734baabdd02de353a20580e30ceccd03897def44a4eb8e9654992e294"
 dependencies = [
  "constant_time_eq",
  "crc32fast",
+ "flate2",
  "getrandom 0.4.3",
  "indexmap 2.14.2",
  "libc",

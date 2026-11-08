@@ -35,6 +35,11 @@ reports/
 *.mp4
 *.mkv
 *.zip
+*.sig
+release*/
+updater-staging/
+latest.json
+RELEASE_NOTES*.md
 *.7z
 .env
 .env.*

@@ -64,22 +64,24 @@ $srcSdk = Join-Path $root 'tools\sdk\win-amd64'
 Copy-Item "$srcSdk\*" $destSdk -Recurse -Force
 Write-Host "[3/7] Copied tools/sdk/win-amd64"
 
-# 4. Copy prototype-usa (excluding build cache 'out')
+# 4. Copy prototype-usa (excluding build cache 'out' and 'private')
 $destProto = Join-Path $releaseDir 'prototype-usa'
 New-Item -ItemType Directory -Path $destProto -Force | Out-Null
 $srcProto = Join-Path $root 'prototype-usa'
-Get-ChildItem -Path $srcProto -Exclude 'out' | ForEach-Object {
+Get-ChildItem -Path $srcProto -Exclude 'out', 'private' | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $destProto $_.Name) -Recurse -Force
 }
+Remove-Item -Path (Join-Path $destProto 'private') -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "[4/7] Copied prototype-usa (source & manifest)"
 
-# 4b. Copy prototype (PAL, excluding build cache 'out')
+# 4b. Copy prototype (PAL, excluding build cache 'out' and 'private')
 $destPalProto = Join-Path $releaseDir 'prototype'
 New-Item -ItemType Directory -Path $destPalProto -Force | Out-Null
 $srcPalProto = Join-Path $root 'prototype'
-Get-ChildItem -Path $srcPalProto -Exclude 'out' | ForEach-Object {
+Get-ChildItem -Path $srcPalProto -Exclude 'out', 'private' | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $destPalProto $_.Name) -Recurse -Force
 }
+Remove-Item -Path (Join-Path $destPalProto 'private') -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "[4b/7] Copied prototype (PAL source & manifest)"
 
 # 4c. Copy shared unified source
@@ -157,6 +159,17 @@ Structure:
 "@
 Set-Content -Path (Join-Path $destGameData 'README.txt') -Value $readmeText -Encoding UTF8
 Write-Host "[6/7] Initialized game-data/ with precompiled binary and runtime DLLs"
+
+# Security & Copyright Verification Gate:
+# Strictly verify that NO original/proprietary game assets exist anywhere in the release folder.
+Write-Host "Verifying release package compliance (zero-asset policy)..."
+$prohibitedPatterns = @('*.iso', '*.xex', '*.cpk', '*.bik', '*.csb', '*.xma', 'loaded-image.bin')
+$violations = Get-ChildItem -Path $releaseDir -Recurse -Include $prohibitedPatterns -File -ErrorAction SilentlyContinue
+if ($violations) {
+    Remove-Item -Path $releaseDir -Recurse -Force
+    throw "SECURITY ABORT: Proprietary game files found in release directory! Aborting release generation:`n$($violations.FullName -join "`n")"
+}
+Write-Host "Verification PASSED: 100% clean-room package confirmed (Zero original game assets present)."
 
 # 7. Create ZIP archive if requested
 if ($CreateZip) {

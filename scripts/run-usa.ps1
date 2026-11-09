@@ -20,9 +20,9 @@ param(
     $AnimSpeedFix = $true,
     $DtSmoothing = $false,
     [ValidateRange(0.5, 2.0)][double]$FovScale = 1.0,
-    $PauseBlur = $true,
-    $DepthOfField = $true,
-    $Bloom = $true,
+    $PauseBlur = $false,
+    $DepthOfField = $false,
+    $Bloom = $false,
     $AutoCapture = $false,
     [string]$GameDataRoot = 'game-data',
     [switch]$Preview

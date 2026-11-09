@@ -171,8 +171,8 @@ if ($violations) {
 }
 Write-Host "Verification PASSED: 100% clean-room package confirmed (Zero original game assets present)."
 
-# Purge any residual debug captures, screenshots, or reports from release distribution
-Get-ChildItem -Path $releaseDir -Recurse -Include 'capture_*.bmp' -File -ErrorAction SilentlyContinue | Remove-Item -Force
+# Purge any residual debug captures, screenshots, reports, or launcher logs from release distribution
+Get-ChildItem -Path $releaseDir -Recurse -Include 'capture_*.bmp', 'launcher-debug.log', 'launcher-chromium.log', 'Majistic Launcher (Dev).exe' -File -ErrorAction SilentlyContinue | Remove-Item -Force
 Get-ChildItem -Path $releaseDir -Recurse -Filter 'reports' -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 
 

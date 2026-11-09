@@ -13,17 +13,17 @@
       {
         "label": "main",
         "title": "Majistic Recomp - Launcher",
-        "width": 940,
-        "height": 600,
-        "minWidth": 800,
-        "minHeight": 520,
+        "width": 980,
+        "height": 710,
+        "minWidth": 840,
+        "minHeight": 540,
         "resizable": true,
         "center": true,
         "decorations": false,
         "shadow": false,
         "visible": true,
         "backgroundColor": "#0f172a",
-        "additionalBrowserArgs": "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
+        "additionalBrowserArgs": "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity --disable-webgpu --disable-features=CalculateNativeWinOcclusion,OptimizationGuideModelDownloading,OptimizationHints,Dawn,Graphite --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
         "devtools": true
       }
     ],

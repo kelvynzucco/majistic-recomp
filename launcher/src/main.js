@@ -89,9 +89,9 @@ const defaultSettings = {
   WindowSize: "1280x720",
   Fullscreen: false,
   RenderScale: 1,
-  RenderingPath: "Default",
+  RenderingPath: "Vulkan",
   FrameRateMode: "30",
-  VSync: true,
+  VSync: false,
   PostEffect: "none",
   Upscaler: "bilinear",
   SkipIntroLogos: true,
@@ -99,7 +99,7 @@ const defaultSettings = {
   CutsceneSpeed: 4,
   InputMode: "Controller",
   MouseSensitivity: 1.0,
-  RecordPerformance: true,
+  RecordPerformance: false,
   GameDataRoot: "game-data",
   Configuration: "Release",
   Language: "English",
@@ -107,9 +107,9 @@ const defaultSettings = {
   AnimSpeedFix: true,
   DtSmoothing: false,
   FovScale: 1.0,
-  PauseBlur: true,
-  DepthOfField: true,
-  Bloom: true,
+  PauseBlur: false,
+  DepthOfField: false,
+  Bloom: false,
 };
 
 let currentSettings = { ...defaultSettings };
@@ -165,6 +165,8 @@ const elements = {
   vsync: document.getElementById("vsync"),
   inputMode: document.getElementById("inputMode"),
   cutsceneSpeed: document.getElementById("cutsceneSpeed"),
+  mouseSensitivity: document.getElementById("mouseSensitivity"),
+  mouseSensitivityVal: document.getElementById("mouseSensitivityVal"),
   skipCutscenes: document.getElementById("skipCutscenes"),
   skipIntroLogos: document.getElementById("skipIntroLogos"),
   gameDataRoot: document.getElementById("gameDataRoot"),
@@ -270,14 +272,21 @@ function populateForm(settings) {
   if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
   if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "30";
   if (elements.renderingPath) {
-    const rp = settings.RenderingPath || "Default";
+    const rp = settings.RenderingPath || "Vulkan";
     elements.renderingPath.value = (rp === "Vulkan_FSI") ? "Vulkan" : rp;
   }
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
-  if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;
+  if (elements.vsync) elements.vsync.checked = settings.VSync ?? false;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
+  if (elements.mouseSensitivity) {
+    const sens = safeFloat(settings.MouseSensitivity, 1.0);
+    elements.mouseSensitivity.value = String(sens);
+    if (elements.mouseSensitivityVal) {
+      elements.mouseSensitivityVal.textContent = sens.toFixed(1) + "x";
+    }
+  }
   if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? true;
   if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? true;
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data";
@@ -302,9 +311,9 @@ function populateForm(settings) {
       elements.fovScale.value = "1.0";
     }
   }
-  if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? true;
-  if (elements.bloom) elements.bloom.checked = settings.Bloom ?? true;
-  if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? true;
+  if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? false;
+  if (elements.bloom) elements.bloom.checked = settings.Bloom ?? false;
+  if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? false;
 }
 
 function readForm() {
@@ -312,17 +321,17 @@ function readForm() {
     WindowSize: elements.windowSize?.value || "1280x720",
     Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
     RenderScale: safeInt(elements.renderScale?.value, 1),
-    RenderingPath: elements.renderingPath?.value || "Default",
+    RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
-    VSync: elements.vsync ? elements.vsync.checked : true,
+    VSync: elements.vsync ? elements.vsync.checked : false,
     PostEffect: elements.postEffect?.value || "none",
     Upscaler: elements.upscaler?.value || "bilinear",
     SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
     SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
     CutsceneSpeed: safeInt(elements.cutsceneSpeed?.value, 4),
     InputMode: elements.inputMode?.value || "Controller",
-    MouseSensitivity: safeFloat(currentSettings.MouseSensitivity, 1.0),
-    RecordPerformance: currentSettings.RecordPerformance ?? true,
+    MouseSensitivity: elements.mouseSensitivity ? safeFloat(elements.mouseSensitivity.value, 1.0) : safeFloat(currentSettings.MouseSensitivity, 1.0),
+    RecordPerformance: currentSettings.RecordPerformance ?? false,
     GameDataRoot: elements.gameDataRoot?.value ? elements.gameDataRoot.value.trim() : "game-data",
     Configuration: "Release",
     Language: elements.language?.value || currentSettings.Language || "English",
@@ -330,9 +339,9 @@ function readForm() {
     AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : true,
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
-    DepthOfField: elements.depthOfField ? elements.depthOfField.checked : true,
-    Bloom: elements.bloom ? elements.bloom.checked : true,
-    PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : true,
+    DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,
+    Bloom: elements.bloom ? elements.bloom.checked : false,
+    PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : false,
   };
 }
 
@@ -480,7 +489,7 @@ elements.btnStartBuild.addEventListener("click", async () => {
     return;
   }
 
-  const compileBinary = elements.chkCompileBinary.checked;
+  const compileBinary = elements.chkCompileBinary ? elements.chkCompileBinary.checked : false;
   if (compileBinary) {
     const confirmCompile = confirm(
       "Recompiling the game binary requires Visual Studio 2022 with C++ x64 tools installed on this PC.\n\n" +
@@ -488,7 +497,9 @@ elements.btnStartBuild.addEventListener("click", async () => {
       "Proceed with C++ source compilation?"
     );
     if (!confirmCompile) {
-      elements.chkCompileBinary.checked = false;
+      if (elements.chkCompileBinary) {
+        elements.chkCompileBinary.checked = false;
+      }
       return;
     }
   }
@@ -627,6 +638,15 @@ if (elements.btnWindowMaximize) {
       await updateMaximizeIcon();
     } catch (err) {
       console.warn("Failed to toggle maximize window:", err);
+    }
+  });
+}
+
+if (elements.mouseSensitivity) {
+  elements.mouseSensitivity.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.mouseSensitivityVal && !isNaN(val)) {
+      elements.mouseSensitivityVal.textContent = val.toFixed(1) + "x";
     }
   });
 }
@@ -877,6 +897,28 @@ if (elements.btnUpdateNow) {
 // ==========================================
 async function init() {
   logToBackend("init() started");
+
+  let isDev = false;
+  try {
+    isDev = await invoke("is_dev_mode");
+  } catch (err) {
+    console.warn("Could not determine dev mode:", err);
+  }
+
+  if (!isDev) {
+    document.querySelectorAll("[data-dev-only]").forEach((el) => el.remove());
+    elements.chkCompileBinary = null;
+  } else {
+    const versionBadge = document.getElementById("launcherVersionBadge");
+    if (versionBadge && !document.getElementById("devModeBadge")) {
+      const devBadge = document.createElement("span");
+      devBadge.id = "devModeBadge";
+      devBadge.className = "text-[9px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono font-bold";
+      devBadge.textContent = "DEV";
+      versionBadge.parentElement.appendChild(devBadge);
+    }
+  }
+
   try {
     const loaded = await invoke("load_settings");
     if (loaded && typeof loaded === "object") {

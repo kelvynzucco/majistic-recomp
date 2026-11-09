@@ -6,3 +6,8 @@ LICENSES/** -text
 
 *.png binary
 *.ico binary
+
+# Exclude PowerShell scripts from GitHub language breakdown statistics
+*.ps1 linguist-detectable=false
+*.psm1 linguist-detectable=false
+*.psd1 linguist-detectable=false

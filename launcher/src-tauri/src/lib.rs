@@ -14,7 +14,7 @@ fn default_render_scale() -> u32 {
 }
 
 fn default_rendering_path() -> String {
-    "Default".into()
+    "Vulkan".into()
 }
 
 fn default_frame_rate_mode() -> String {
@@ -55,6 +55,10 @@ fn default_true() -> bool {
 
 fn default_false() -> bool {
     false
+}
+
+fn default_record_performance() -> bool {
+    cfg!(feature = "dev-mode")
 }
 
 fn default_fov_scale() -> f64 {
@@ -114,7 +118,7 @@ pub struct Settings {
     pub rendering_path: String,
     #[serde(default = "default_frame_rate_mode")]
     pub frame_rate_mode: String,
-    #[serde(rename = "VSync", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(rename = "VSync", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub vsync: bool,
     #[serde(default = "default_post_effect")]
     pub post_effect: String,
@@ -130,7 +134,7 @@ pub struct Settings {
     pub input_mode: String,
     #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub mouse_sensitivity: f64,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_record_performance", deserialize_with = "deserialize_nullable_bool_false")]
     pub record_performance: bool,
     #[serde(default = "default_game_data_root")]
     pub game_data_root: String,
@@ -146,11 +150,11 @@ pub struct Settings {
     pub dt_smoothing: bool,
     #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub fov_scale: f64,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub pause_blur: bool,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub depth_of_field: bool,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub bloom: bool,
 }
 
@@ -160,9 +164,9 @@ impl Default for Settings {
             window_size: "1280x720".into(),
             fullscreen: false,
             render_scale: 1,
-            rendering_path: "Default".into(),
+            rendering_path: "Vulkan".into(),
             frame_rate_mode: "30".into(),
-            vsync: true,
+            vsync: false,
             post_effect: "none".into(),
             upscaler: "bilinear".into(),
             skip_intro_logos: true,
@@ -170,7 +174,7 @@ impl Default for Settings {
             cutscene_speed: 4,
             input_mode: "Controller".into(),
             mouse_sensitivity: 1.0,
-            record_performance: true,
+            record_performance: cfg!(feature = "dev-mode"),
             game_data_root: "game-data".into(),
             configuration: "Release".into(),
             language: "English".into(),
@@ -178,9 +182,9 @@ impl Default for Settings {
             anim_speed_fix: true,
             dt_smoothing: false,
             fov_scale: 1.0,
-            pause_blur: true,
-            depth_of_field: true,
-            bloom: true,
+            pause_blur: false,
+            depth_of_field: false,
+            bloom: false,
         }
     }
 }
@@ -529,14 +533,16 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.game_data_root.trim().to_string()
     };
 
-    let log_file_path = root.join("private/launcher-launch.log");
-    if let Some(parent) = log_file_path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let out_file = fs::File::create(&log_file_path)
-        .map_err(|e| format!("Failed to create launch log: {}", e))?;
-    let err_file = out_file.try_clone()
-        .map_err(|e| format!("Failed to clone file handle: {}", e))?;
+    let is_dev = is_dev_or_debug();
+    let log_file_path = if is_dev {
+        let p = root.join("private/launcher-launch.log");
+        if let Some(parent) = p.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        Some(p)
+    } else {
+        None
+    };
 
     let args = [
         "-NoLogo".to_string(),
@@ -561,6 +567,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.frame_rate_mode,
         "-InputMode".to_string(),
         settings.input_mode,
+        "-MouseSensitivity".to_string(),
+        settings.mouse_sensitivity.to_string(),
         format!("-SkipIntroLogos:${}", settings.skip_intro_logos),
         format!("-SkipCutscenes:${}", settings.skip_cutscenes),
         "-CutsceneSpeed".to_string(),
@@ -582,10 +590,18 @@ fn launch_game(settings: Settings) -> Result<(), String> {
     ];
 
     let mut cmd = Command::new("powershell.exe");
-    cmd.args(&args)
-        .current_dir(&root)
-        .stdout(out_file)
-        .stderr(err_file);
+    cmd.args(&args).current_dir(&root);
+
+    if let Some(ref p) = log_file_path {
+        let out_file = fs::File::create(p)
+            .map_err(|e| format!("Failed to create launch log: {}", e))?;
+        let err_file = out_file
+            .try_clone()
+            .map_err(|e| format!("Failed to clone file handle: {}", e))?;
+        cmd.stdout(out_file).stderr(err_file);
+    } else {
+        cmd.stdout(Stdio::null()).stderr(Stdio::piped());
+    }
 
     #[cfg(windows)]
     {
@@ -602,14 +618,23 @@ fn launch_game(settings: Settings) -> Result<(), String> {
 
     match child.try_wait() {
         Ok(Some(status)) => {
-            let err_content = fs::read_to_string(&log_file_path).unwrap_or_default();
-            let trimmed = err_content.trim();
-            let detail = if !trimmed.is_empty() {
+            let detail = if let Some(ref p) = log_file_path {
+                fs::read_to_string(p).unwrap_or_default()
+            } else if let Some(mut stderr) = child.stderr.take() {
+                use std::io::Read;
+                let mut buf = String::new();
+                let _ = stderr.read_to_string(&mut buf);
+                buf
+            } else {
+                String::new()
+            };
+            let trimmed = detail.trim();
+            let msg = if !trimmed.is_empty() {
                 trimmed
             } else {
                 "PowerShell process terminated unexpectedly."
             };
-            Err(format!("Game failed to start (exit status {}):\n\n{}", status, detail))
+            Err(format!("Game failed to start (exit status {}):\n\n{}", status, msg))
         }
         Ok(None) => {
             std::thread::spawn(|| {
@@ -718,7 +743,25 @@ fn process_failed_kind_to_str(kind: i32) -> &'static str {
     }
 }
 
+pub fn is_dev_or_debug() -> bool {
+    cfg!(feature = "dev-mode")
+        || std::env::args().any(|a| {
+            a.eq_ignore_ascii_case("--debug")
+                || a.eq_ignore_ascii_case("--dev")
+                || a.eq_ignore_ascii_case("-debug")
+                || a.eq_ignore_ascii_case("-dev")
+        })
+}
+
+#[tauri::command]
+fn is_dev_mode() -> bool {
+    is_dev_or_debug()
+}
+
 pub fn write_debug_log(msg: &str) {
+    if !is_dev_or_debug() {
+        return;
+    }
     let path = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
@@ -830,6 +873,9 @@ fn message_box(title: &str, text: &str) {
 
 #[tauri::command]
 fn log_message(msg: String) {
+    if !is_dev_or_debug() {
+        return;
+    }
     let path = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
@@ -1015,6 +1061,7 @@ pub fn run() {
             is_window_maximized,
             start_drag_window,
             log_message,
+            is_dev_mode,
             exit_app
         ])
         .run(tauri::generate_context!())
@@ -1059,7 +1106,7 @@ mod tests {
         let settings = parsed.unwrap();
         assert_eq!(settings.fov_scale, 1.0);
         assert_eq!(settings.mouse_sensitivity, 1.0);
-        assert!(settings.pause_blur);
+        assert!(!settings.pause_blur);
     }
 
     #[test]

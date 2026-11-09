@@ -4,7 +4,20 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+pub fn is_dev_or_debug() -> bool {
+    cfg!(feature = "dev-mode")
+        || std::env::args().any(|a| {
+            a.eq_ignore_ascii_case("--debug")
+                || a.eq_ignore_ascii_case("--dev")
+                || a.eq_ignore_ascii_case("-debug")
+                || a.eq_ignore_ascii_case("-dev")
+        })
+}
+
 pub fn write_log(msg: &str) {
+    if !is_dev_or_debug() {
+        return;
+    }
     let path = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
@@ -134,15 +147,18 @@ fn handle_update_mode() -> bool {
 }
 
 fn main() {
+    let is_dev = is_dev_or_debug();
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
     let chromium_log = exe_dir.join("launcher-chromium.log");
 
-    write_log("==================================================");
-    write_log("=== Majistic Launcher Diagnostic Session Start ===");
-    write_log(&format!("Exe Path: {}", exe_path.display()));
-    write_log(&format!("Working Dir: {}", std::env::current_dir().map(|d| d.display().to_string()).unwrap_or_default()));
-    write_log(&format!("Chromium Log Destination: {}", chromium_log.display()));
+    if is_dev {
+        write_log("==================================================");
+        write_log("=== Majistic Launcher Diagnostic Session Start ===");
+        write_log(&format!("Exe Path: {}", exe_path.display()));
+        write_log(&format!("Working Dir: {}", std::env::current_dir().map(|d| d.display().to_string()).unwrap_or_default()));
+        write_log(&format!("Chromium Log Destination: {}", chromium_log.display()));
+    }
 
     #[cfg(windows)]
     {
@@ -150,7 +166,22 @@ fn main() {
         // This ensures DirectComposition remains fully functional with DWM, while bypassing physical GPU
         // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-        let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
+
+        let full = "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity --disable-webgpu --disable-features=CalculateNativeWinOcclusion,OptimizationGuideModelDownloading,OptimizationHints,Dawn,Graphite --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
+
+        // Chromium engine logging is only enabled if explicitly requested via
+        // MAJISTIC_CHROMIUM_LOG=1 or --chromium-log CLI arg. Passing --enable-logging
+        // causes Edge/Chromium to call AllocConsole(), which spawns an annoying popup
+        // console window titled 'msedgewebview2.exe'.
+        let enable_chromium_log = std::env::var("MAJISTIC_CHROMIUM_LOG").map(|v| v == "1").unwrap_or(false)
+            || std::env::args().any(|a| a.eq_ignore_ascii_case("--chromium-log"));
+
+        let logging = if enable_chromium_log {
+            let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
+            format!(" --enable-logging --log-file={}", log_path_normalized)
+        } else {
+            String::new()
+        };
 
         // Diagnostic mode (issue #6): env MAJISTIC_WEBVIEW_MODE or first line of
         // "webview-mode.txt" next to the exe. Modes:
@@ -167,16 +198,16 @@ fn main() {
             .trim()
             .to_lowercase();
         let mode = if mode.is_empty() { "full".to_string() } else { mode };
-        write_log(&format!("WebView mode: {}", mode));
+        if is_dev {
+            write_log(&format!("WebView mode: {}", mode));
+        }
 
-        let logging = format!("--enable-logging --v=1 --log-file={}", log_path_normalized);
-        let full = "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity              --disable-features=CalculateNativeWinOcclusion              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
         let flags = match mode.as_str() {
-            "none" => logging.clone(),
-            "minimal" => format!("--disable-features=CalculateNativeWinOcclusion {}", logging),
-            "noa11y" => format!("{} --disable-renderer-accessibility --disable-features=UiaProvider {}", full, logging),
-            "nogpu" => format!("{} --disable-gpu {}", full, logging),
-            _ => format!("{} {}", full, logging),
+            "none" => logging.trim().to_string(),
+            "minimal" => format!("--disable-features=CalculateNativeWinOcclusion{}", logging),
+            "noa11y" => format!("{} --disable-renderer-accessibility --disable-features=UiaProvider{}", full, logging),
+            "nogpu" => format!("{} --disable-gpu{}", full, logging),
+            _ => format!("{}{}", full, logging),
         };
         let combined = if existing.is_empty() {
             flags
@@ -184,7 +215,9 @@ fn main() {
             format!("{} {}", flags, existing)
         };
         std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", &combined);
-        write_log(&format!("Set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: {}", combined));
+        if is_dev {
+            write_log(&format!("Set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: {}", combined));
+        }
     }
 
     if handle_update_mode() {
@@ -209,7 +242,11 @@ fn main() {
         }
     }));
 
-    write_log("Calling majistic_launcher_lib::run()...");
+    if is_dev {
+        write_log("Calling majistic_launcher_lib::run()...");
+    }
     majistic_launcher_lib::run();
-    write_log("majistic_launcher_lib::run() finished.");
+    if is_dev {
+        write_log("majistic_launcher_lib::run() finished.");
+    }
 }

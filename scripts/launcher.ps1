@@ -147,13 +147,13 @@ $frameRate = Add-Dropdown $grpPerf 120 23 150 @('60 FPS (Recommended)','Original
 $frameRate.Enabled = $has60
 
 Add-FieldLabel $grpPerf 'VSync:' 285 26 48
-$sync = Add-Dropdown $grpPerf 338 23 136 @('On (Recommended)','Off') 0
+$sync = Add-Dropdown $grpPerf 338 23 136 @('Off (Recommended)','On') 0
 
 Add-FieldLabel $grpPerf 'Rendering path:' 16 60 100
 $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
-    'Direct3D 12 (Default RTV/ROV - Recommended)',
-    'Direct3D 12 (Forced ROV)',
-    'Vulkan (FBO Host - Recommended)'
+    'Vulkan (FBO Host - Recommended)',
+    'Direct3D 12 (Default RTV/ROV)',
+    'Direct3D 12 (Forced ROV)'
 ) 0
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
@@ -302,12 +302,12 @@ if (Test-Path -LiteralPath $settingsPath) {
         $saved = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
         if ($size.Items.Contains([string]$saved.WindowSize)) { $size.SelectedItem = [string]$saved.WindowSize }
         if ($saved.Fullscreen -is [bool]) { $mode.SelectedIndex = if ($saved.Fullscreen) { 1 } else { 0 } }
-        if ($saved.VSync -is [bool]) { $sync.SelectedIndex = if ($saved.VSync) { 0 } else { 1 } }
+        if ($saved.VSync -is [bool]) { $sync.SelectedIndex = if ($saved.VSync) { 1 } else { 0 } }
         if ($saved.RenderScale -in @(1,2,3)) { $scale.SelectedIndex = [int]$saved.RenderScale - 1 }
         if ($has60 -and $saved.FrameRateMode) { $frameRate.SelectedIndex = if ($saved.FrameRateMode -eq 'Original') { 1 } else { 0 } }
-        if ($saved.RenderingPath -eq 'Vulkan' -or $saved.RenderingPath -eq 'Vulkan_FBO' -or $saved.RenderingPath -eq 'Vulkan_FSI') {
+        if ($saved.RenderingPath -eq 'ROV') {
             $renderingPath.SelectedIndex = 2
-        } elseif ($saved.RenderingPath -eq 'ROV') {
+        } elseif ($saved.RenderingPath -eq 'Default' -or $saved.RenderingPath -eq 'RTV') {
             $renderingPath.SelectedIndex = 1
         } else {
             $renderingPath.SelectedIndex = 0
@@ -371,12 +371,12 @@ $play.Add_Click({
             GameDataRoot      = $selectedGameData
             WindowSize        = [string]$size.SelectedItem
             Fullscreen        = ($mode.SelectedIndex -eq 1)
-            VSync             = ($sync.SelectedIndex -eq 0)
+            VSync             = ($sync.SelectedIndex -eq 1)
             RenderScale       = ($scale.SelectedIndex + 1)
             PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
             Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
-            RenderingPath     = (@('Default','ROV','Vulkan')[$renderingPath.SelectedIndex])
+            RenderingPath     = (@('Vulkan','Default','ROV')[$renderingPath.SelectedIndex])
             SkipIntroLogos    = $chkSkipLogos.Checked
             SkipCutscenes     = $cutsceneEnabled.Checked
             CutsceneSpeed     = $speedMap[$cutsceneSpeed.SelectedIndex]

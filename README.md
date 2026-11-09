@@ -46,6 +46,7 @@ By translating game logic into native CPU instructions and mapping Xbox 360 GPU 
 - **60 FPS gameplay target** with experimental delta-time normalization hooks.
 - **Multi-threaded startup PSO compilation**, significantly reducing runtime shader stuttering.
 - **Native Host Render Target (RTV) rendering**, providing direct Direct3D 12 execution without requiring slow ROV interlocks.
+- **Reverse-engineered graphics subsystem**, featuring custom hooks for post-processing effects (`SysKemumaki`), dynamic camera FOV scaling, and Direct3D presentation pacing (analyzed with [REA](https://github.com/morluto/rea)).
 - **Synchronized fast-forward** for in-game dialogues and cutscenes with dynamic audio frequency scaling.
 - **Multi-language support** with selectable in-game text and localized voiceover (English, Spanish, French, German, Italian, Korean, and Japanese).
 - **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, and **FXAA** upscalers.
@@ -98,7 +99,7 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **Collision Edge Step Scaling (`step_fix`):** At high frame rates (60+ FPS), character movement steps into small lips, ledges, or stair edges could resolve backwards rather than upwards, creating invisible walls. Incorporates root-motion scaling hooks (researched by ArthurMS15) to smoothly scale step distance when blocked, allowing characters to climb edges naturally just like on console.
 - **Sub-Motion & Object Animation Speed Normalization (`anim_speed`):** Fixes partial animations (Majin's facial expressions, Tepeu's gesture commands, healing animations) and certain world objects running 2x to 4x too fast above 30 FPS by dynamically scaling them by frame delta-time.
 - **Frame-Time Smoothing (`frame_timer`):** Evens out frame time steps to keep game delta-time in lockstep with real time, avoiding collision jitter.
-- **Camera FOV & Post-Processing Controls:** Configurable field-of-view multiplier (`--majin_fov_scale`) and switches for pause blur (`--majin_pause_blur`), depth of field (`--majin_dof`), and glare/bloom (`--majin_bloom`).
+- **Camera FOV & Post-Processing Controls:** Configurable field-of-view multiplier (`--majin_fov_scale`) and switches for pause blur (`--majin_pause_blur`), depth of field (`--majin_dof`), and glare/bloom (`--majin_bloom`). The underlying graphics routines, post-processing pipeline (`SysKemumaki`), and camera projection matrices were analyzed and mapped with the assistance of [REA](https://github.com/morluto/rea).
 
 ---
 
@@ -222,6 +223,7 @@ Alternatively, you can launch directly via the CLI runner:
 
 - **GM-0856 / [majin-recompile](https://github.com/GM-0856/majin-recompile):** Original recompilation research and PAL proof-of-concept that served as the initial kickoff inspiration for this project.
 - **ArthurMS15 / [MajinRecomp](https://github.com/ArthurMS15/MajinRecomp):** Research and implementation of physics collision step scaling (`step_fix`), sub-motion animation speed correction (`anim_speed`), frame time smoothing (`frame_timer`), camera FOV scaling, and post-processing toggles.
+- **morluto / [REA (Reverse Engineering Assistant)](https://github.com/morluto/rea):** Reverse engineering assistant and toolkit utilized during development to inspect and deconstruct the game's graphics subsystem and rendering pipeline. Specifically aided in analyzing the post-processing effect pipeline (`SysKemumaki`), tracing camera projection matrix calculations and frustum culling structures, and reverse engineering Direct3D presentation routines.
 - **[ReIGlue Project](https://github.com/FH1-ReImagined/ReIGlue) & [Forza Horizon 1: ReImagined](https://github.com/FH1-ReImagined/ForzaHorizon1-ReImagined):** Custom ReXGlue fork by Dyotson, Sean O'Connor, Scott, and FH1-ReImagined contributors. Developed essential Xenos GPU emulation accuracy fixes, SPIR-V constant-only texture fetch translations, texture cache barriers, and Vulkan presenter improvements that enabled full Vulkan backend rendering.
 - **[Pinyon Shift Project](https://github.com/pinyon-shift):** Presentation and frame submission architecture concepts incorporated in ReIGlue.
 - **[ReXGlue Project](https://github.com/rexglue/rexglue-sdk) & [Xenia Project](https://github.com/xenia-project/xenia):** Static recompilation toolkit, PowerPC intermediate representation, and Xbox 360 Direct3D 12 GPU emulation architecture.

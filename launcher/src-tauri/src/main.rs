@@ -222,6 +222,41 @@ fn main() {
         init_job_object();
         cleanup_zombie_instances();
 
+        // Isolate WebView2 User Data Folder per process to prevent LevelDB/SQLite lock collisions
+        // and 0xC0000005 access violations during rapid restarts.
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().to_string());
+        let sessions_dir = PathBuf::from(local_app_data).join("com.majistic.launcher").join("sessions");
+        let _ = std::fs::create_dir_all(&sessions_dir);
+
+        // Clean up old session folders from processes that are no longer running
+        if let Ok(entries) = std::fs::read_dir(&sessions_dir) {
+            for entry in entries.flatten() {
+                if let Ok(file_name) = entry.file_name().into_string() {
+                    if let Some(pid_str) = file_name.strip_prefix("session_") {
+                        if let Ok(old_pid) = pid_str.parse::<u32>() {
+                            if old_pid != std::process::id() {
+                                unsafe {
+                                    use windows_sys::Win32::System::Threading::*;
+                                    let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, old_pid);
+                                    if handle.is_null() {
+                                        let _ = std::fs::remove_dir_all(entry.path());
+                                    } else {
+                                        let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let my_session_dir = sessions_dir.join(format!("session_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&my_session_dir);
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &my_session_dir);
+        write_log(&format!("Set isolated WEBVIEW2_USER_DATA_FOLDER: {}", my_session_dir.display()));
+
         // Use Microsoft WARP (Windows Advanced Rasterization Platform) for the ANGLE backend.
         // This ensures DirectComposition remains fully functional with DWM, while bypassing physical GPU
         // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.
@@ -229,7 +264,7 @@ fn main() {
         let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
         let flags = format!(
             "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity \
-             --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI \
+             --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI \
              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
              --enable-logging=stderr --v=1 --log-file={}",
             log_path_normalized

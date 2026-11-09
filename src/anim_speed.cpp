@@ -32,7 +32,7 @@
 #include <cstdint>
 #include <cstring>
 
-REXCVAR_DEFINE_BOOL(majin_submotion_fix, true, "Majin",
+REXCVAR_DEFINE_BOOL(majin_submotion_fix, false, "Majin",
                     "Play partial animations (Majin's face, Tepeu's gestures, healing) and some "
                     "world objects' animations at their speed above 30 fps");
 

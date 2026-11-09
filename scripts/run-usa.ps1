@@ -17,7 +17,7 @@ param(
     $SkipIntroLogos = $false,
     [ValidateSet('English','Spanish','French','German','Italian','Korean','Japanese','Portuguese')][string]$Language = 'English',
     $StepFix = $false,
-    $AnimSpeedFix = $true,
+    $AnimSpeedFix = $false,
     $DtSmoothing = $false,
     [ValidateRange(0.5, 2.0)][double]$FovScale = 1.0,
     $PauseBlur = $false,

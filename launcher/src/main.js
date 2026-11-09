@@ -104,7 +104,7 @@ const defaultSettings = {
   Configuration: "Release",
   Language: "English",
   StepFix: false,
-  AnimSpeedFix: true,
+  AnimSpeedFix: false,
   DtSmoothing: false,
   FovScale: 1.0,
   PauseBlur: false,
@@ -294,7 +294,7 @@ function populateForm(settings) {
 
   // Fixes form
   if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
-  if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? true;
+  if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? false;
   if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? false;
   if (elements.fovScale) {
     const targetFov = safeFloat(settings.FovScale, 1.0);
@@ -336,7 +336,7 @@ function readForm() {
     Configuration: "Release",
     Language: elements.language?.value || currentSettings.Language || "English",
     StepFix: elements.stepFix ? elements.stepFix.checked : false,
-    AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : true,
+    AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : false,
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
     DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,

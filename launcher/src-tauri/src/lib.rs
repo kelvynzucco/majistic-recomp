@@ -144,7 +144,7 @@ pub struct Settings {
     pub language: String,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub step_fix: bool,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub anim_speed_fix: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub dt_smoothing: bool,
@@ -179,7 +179,7 @@ impl Default for Settings {
             configuration: "Release".into(),
             language: "English".into(),
             step_fix: false,
-            anim_speed_fix: true,
+            anim_speed_fix: false,
             dt_smoothing: false,
             fov_scale: 1.0,
             pause_blur: false,
@@ -1126,7 +1126,7 @@ mod tests {
         assert_eq!(settings.cutscene_speed, 4);
         assert_eq!(settings.language, "English");
         assert!(!settings.step_fix);
-        assert!(settings.anim_speed_fix);
+        assert!(!settings.anim_speed_fix);
     }
 
     #[test]

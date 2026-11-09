@@ -187,11 +187,43 @@ if ($CreateZip) {
     $msg = "Created archive: {0} ({1:N1} MB)" -f $zipPath, $zipSize
     Write-Host $msg
 
-    # Prepare updater package and sign with minisign for Tauri auto-updater (generates latest.json)
-    $updaterScript = Join-Path $PSScriptRoot 'prepare-updater-payload.ps1'
-    if (Test-Path $updaterScript) {
-        Write-Host "Preparing and signing updater payload package..."
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterScript -Version $Version
+    # Sign archive with minisign for Tauri auto-updater and generate latest.json (Strictly UTF-8 without BOM)
+    $keyPath = Join-Path $env:USERPROFILE ".tauri\majistic-launcher.key"
+    if (Test-Path $keyPath) {
+        Write-Host "Signing release archive for in-app updater..."
+        Push-Location (Join-Path $root 'launcher')
+        try {
+            $signOutput = & npm run tauri -- signer sign --private-key-path $keyPath --app-version $Version $zipPath
+            $sigPath = "$zipPath.sig"
+            $sig = if (Test-Path $sigPath) {
+                (Get-Content -Path $sigPath -Raw).Trim()
+            } else {
+                $rawSig = ($signOutput | Out-String).Trim()
+                $sigMatch = [regex]::Match($rawSig, '(?s)(dW50cnVzdGVkIGNvbW1lbnQ6[A-Za-z0-9+/=\r\n]+?)(?:\r?\n\r?\n|$)')
+                if ($sigMatch.Success) { $sigMatch.Groups[1].Value.Trim() } else { $null }
+            }
+            if ($sig) {
+                $latestJson = [ordered]@{
+                    version = $Version
+                    notes = "Majistic Recomp v$Version Update:`n- Separate Dev & Release launcher modes (zero local logs and no dev tools in release)`n- Resolved WebView2 console window popup and lock collision errors on startup`n- Default rendering path set to Vulkan FBO and VSync disabled by default`n- Mouse Sensitivity slider in Gameplay & Controls (0.1x to 10.0x)`n- Post-processing effects disabled by default with descriptive labels`n- Launcher window size increased to 980x710 (resizable)"
+                    pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                    platforms = @{
+                        "windows-x86_64" = @{
+                            signature = $sig
+                            url = "https://github.com/kelvynzucco/majistic-recomp/releases/download/v$Version/Majistic-Recomp-v$Version-Windows-x64.zip"
+                        }
+                    }
+                } | ConvertTo-Json -Depth 5
+                $latestJsonPath = Join-Path $root 'latest.json'
+                $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+                [System.IO.File]::WriteAllText($latestJsonPath, $latestJson, $utf8NoBom)
+                Write-Host "Generated latest.json (UTF-8 without BOM) pointing to unified package ($latestJsonPath)"
+            } else {
+                Write-Warning "Could not extract signature from output: $rawSig"
+            }
+        } finally {
+            Pop-Location
+        }
     }
 }
 

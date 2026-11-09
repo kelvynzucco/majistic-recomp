@@ -110,6 +110,7 @@ const defaultSettings = {
   PauseBlur: false,
   DepthOfField: false,
   Bloom: false,
+  PresentDither: false,
 };
 
 let currentSettings = { ...defaultSettings };
@@ -163,6 +164,7 @@ const elements = {
   upscaler: document.getElementById("upscaler"),
   postEffect: document.getElementById("postEffect"),
   vsync: document.getElementById("vsync"),
+  presentDither: document.getElementById("presentDither"),
   inputMode: document.getElementById("inputMode"),
   cutsceneSpeed: document.getElementById("cutsceneSpeed"),
   mouseSensitivity: document.getElementById("mouseSensitivity"),
@@ -278,6 +280,7 @@ function populateForm(settings) {
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? false;
+  if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
   if (elements.mouseSensitivity) {
@@ -324,6 +327,7 @@ function readForm() {
     RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : false,
+    PresentDither: elements.presentDither ? elements.presentDither.checked : false,
     PostEffect: elements.postEffect?.value || "none",
     Upscaler: elements.upscaler?.value || "bilinear",
     SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,

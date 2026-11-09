@@ -367,15 +367,31 @@
               </div>
             </div>
 
-            <div class="pt-1 flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="vsync"
-                class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-              />
-              <label for="vsync" class="text-xs text-slate-300"
-                >Enable Vertical Synchronization (VSync)</label
-              >
+            <div class="space-y-2 pt-1">
+              <div class="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="vsync"
+                  class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                />
+                <label for="vsync" class="text-xs text-slate-300"
+                  >Enable Vertical Synchronization (VSync)</label
+                >
+              </div>
+
+              <div class="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="presentDither"
+                  class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                />
+                <label
+                  for="presentDither"
+                  class="text-xs text-slate-300"
+                  title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise."
+                  >Enable Output Dithering (present_dither)</label
+                >
+              </div>
             </div>
           </section>
 

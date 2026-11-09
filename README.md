@@ -109,7 +109,8 @@ All decompiled game files, extracted assets, binaries, and runtime caches are cl
 
 ```
 Majin Recomp/
-├── Majistic Launcher.exe       # Portable desktop launcher executable
+├── Majistic Launcher.exe       # Portable desktop launcher (Release)
+├── Majistic Launcher (Dev).exe # Development launcher (with diagnostics & telemetry)
 ├── branding/                   # Official logo & high-resolution icons
 ├── launcher/                   # Launcher source code (Tauri v2 + Tailwind CSS)
 ├── prototype/                  # PAL (0.0.0.3) codegen manifests & translation units
@@ -144,9 +145,10 @@ Majin Recomp/
 | **Throw Mode** | LB | L1 | **F** |
 | **Special Ability** | RB | R1 | **C** |
 | **D-Pad Navigation** | D-Pad | D-Pad | **Arrow Keys** |
-| **Pause Menu** | Start / Menu | Options | **Enter** |
+| **In-Game Settings (Overlay)** | F1 / Esc | F1 / Esc | **F1 / Esc** |
+| **In-Game Status / Pause** | Start / Menu | Options | **Enter** |
 | **Map / Fast-Forward** | Back / View | Share / Touchpad | **Tab** |
-| **Quit Game Prompt** | Guide / Esc | PS / Esc | **Esc** |
+| **Quit Game** | Guide / Esc | PS / Esc | **Esc (via In-Game Overlay)** |
 
 ---
 
@@ -202,11 +204,21 @@ Generates the C++23 source translation via `rexglue codegen` and compiles `game-
 ```
 
 #### 5. Build and Launch via the Desktop Launcher
-To build the lightweight desktop launcher:
+The project provides two launcher builds depending on your workflow:
+- **Release Launcher (`Majistic Launcher.exe`):** A clean, silent, streamlined binary for normal players without debug consoles or local logging overhead.
+- **Development Launcher (`Majistic Launcher (Dev).exe`):** Built with `--features dev-mode`, enabling active process telemetry, verbose startup diagnostics in `launcher-debug.log`, and developer tooling.
+
+To compile the **Release** launcher:
 ```powershell
 .\scripts\build-launcher-usa.ps1
 ```
-Then run `Majistic Launcher.exe`, or develop live with:
+
+To compile the **Development** launcher:
+```powershell
+.\scripts\build-launcher-usa.ps1 -Dev
+```
+
+You can then run `Majistic Launcher.exe` or `Majistic Launcher (Dev).exe`, or develop live with:
 ```powershell
 cd launcher
 npm run tauri dev

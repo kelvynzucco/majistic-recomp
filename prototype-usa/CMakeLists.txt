@@ -27,6 +27,7 @@ set(MAJIN_SOURCES
     ${MAJIN_SHARED_DIR}/frame_timer.cpp
     ${MAJIN_SHARED_DIR}/camera_fov.cpp
     ${MAJIN_SHARED_DIR}/post_effects.cpp
+    ${MAJIN_SHARED_DIR}/in_game_menu.cpp
 )
 
 if(WIN32)

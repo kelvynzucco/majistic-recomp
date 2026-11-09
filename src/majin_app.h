@@ -22,6 +22,7 @@
 #include "vulkan_hooks.h"
 #include "scene_resolution.h"
 #include "edition_offsets.h"
+#include "in_game_menu.h"
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -154,23 +155,16 @@ class MajinApp : public rex::ReXApp {
       const auto backend = rex::cvar::GetFlagByName("gpu_backend");
       CaptureFrame("screenshot_" + backend + ".bmp");
     }
-#if defined(_WIN32)
-    if (event.virtual_key() == rex::ui::VirtualKey::kEscape) {
+    if (event.virtual_key() == rex::ui::VirtualKey::kF1) {
       event.set_handled(true);
-      if (event.prev_state() || exit_prompt_open_) return;
-      exit_prompt_open_ = true;
-      const HHOOK labels = SetWindowsHookExW(WH_CBT, LabelExitButtons, nullptr,
-                                             GetCurrentThreadId());
-      const int answer = MessageBoxExW(GetActiveWindow(),
-          L"Are you sure you want to quit?\n\nProgress since your last save will be lost.",
-          L"Majistic - Quit Game", MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2,
-          MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US));
-      if (labels) UnhookWindowsHookEx(labels);
-      exit_prompt_open_ = false;
-      if (answer == IDYES) { StopTitleTimer(); window()->RequestClose(); }
+      ToggleInGameMenu();
       return;
     }
-#endif
+    if (event.virtual_key() == rex::ui::VirtualKey::kEscape) {
+      event.set_handled(true);
+      ToggleInGameMenu();
+      return;
+    }
     rex::ui::ProcessKeyEvent(event);
   }
 
@@ -220,7 +214,6 @@ class MajinApp : public rex::ReXApp {
     if (rex::cvar::GetFlagByName("present_effect").empty()) {
       rex::cvar::SetFlagByName("present_effect", "fsr");
     }
-    rex::cvar::SetFlagByName("present_dither", "true");
 
     // Texture cache memory tuning (ported from ArthurMS15/MajinRecomp):
     // Prevents continuous cache eviction and re-untiling hitching on room transitions.
@@ -375,6 +368,89 @@ class MajinApp : public rex::ReXApp {
     StopTitleTimer();
 #endif
     return true;
+  }
+
+  rex::ui::ImGuiDrawer* imgui_drawer_ = nullptr;
+  std::unique_ptr<majin::InGameMenuDialog> ingame_menu_;
+
+  void ToggleInGameMenu() {
+    if (ingame_menu_) {
+      CloseInGameMenu();
+    } else {
+      OpenInGameMenu();
+    }
+  }
+
+  void OpenInGameMenu() {
+    if (!imgui_drawer_ || ingame_menu_) return;
+    ingame_menu_ = std::make_unique<majin::InGameMenuDialog>(
+        imgui_drawer_,
+        [this] { CloseInGameMenu(); },
+        [this] {
+          CloseInGameMenu();
+#if defined(_WIN32)
+          StopTitleTimer();
+#endif
+          if (window()) window()->RequestClose();
+        });
+  }
+
+  void CloseInGameMenu() {
+    if (!ingame_menu_) return;
+    ingame_menu_.reset();
+  }
+
+  void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {
+    imgui_drawer_ = drawer;
+    rex::ui::RegisterBind("bind_in_game_menu", "F1", "Toggle Majistic In-Game Settings", [this] {
+      ToggleInGameMenu();
+    });
+  }
+
+  void OnConfigureStyle(ImGuiStyle& style, rex::ui::Style& ui_style) override {
+    (void)ui_style;
+    style.WindowRounding = 8.0f;
+    style.ChildRounding = 6.0f;
+    style.FrameRounding = 5.0f;
+    style.PopupRounding = 6.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding = 4.0f;
+    style.TabRounding = 5.0f;
+    style.WindowBorderSize = 1.0f;
+    style.FrameBorderSize = 1.0f;
+    style.ItemSpacing = ImVec2(8.0f, 6.0f);
+    style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
+    style.WindowPadding = ImVec2(12.0f, 12.0f);
+    style.FramePadding = ImVec2(8.0f, 5.0f);
+
+    ImVec4* colors = style.Colors;
+    colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.55f, 0.60f, 0.68f, 1.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.10f, 0.13f, 0.96f);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.12f, 0.14f, 0.17f, 0.60f);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.10f, 0.11f, 0.14f, 0.98f);
+    colors[ImGuiCol_Border] = ImVec4(0.22f, 0.24f, 0.30f, 0.80f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.17f, 0.21f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.20f, 0.23f, 0.28f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.24f, 0.28f, 0.34f, 1.00f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.15f, 0.19f, 1.00f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.22f, 0.74f, 0.97f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.22f, 0.74f, 0.97f, 0.80f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.35f, 0.82f, 1.00f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.16f, 0.19f, 0.24f, 1.00f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.35f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.22f, 0.74f, 0.97f, 0.60f);
+    colors[ImGuiCol_Header] = ImVec4(0.18f, 0.22f, 0.28f, 0.80f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.25f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.22f, 0.74f, 0.97f, 0.40f);
+    colors[ImGuiCol_Tab] = ImVec4(0.13f, 0.15f, 0.18f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.40f);
+    colors[ImGuiCol_TabActive] = ImVec4(0.18f, 0.22f, 0.27f, 1.00f);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.11f, 0.13f, 0.15f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.15f, 0.17f, 0.21f, 1.00f);
   }
 
   // Override virtual hooks for customization:

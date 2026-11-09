@@ -156,6 +156,8 @@ pub struct Settings {
     pub depth_of_field: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub bloom: bool,
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    pub present_dither: bool,
 }
 
 impl Default for Settings {
@@ -185,6 +187,7 @@ impl Default for Settings {
             pause_blur: false,
             depth_of_field: false,
             bloom: false,
+            present_dither: false,
         }
     }
 }
@@ -585,6 +588,7 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         format!("-PauseBlur:${}", settings.pause_blur),
         format!("-DepthOfField:${}", settings.depth_of_field),
         format!("-Bloom:${}", settings.bloom),
+        format!("-PresentDither:${}", settings.present_dither),
         "-Configuration".to_string(),
         settings.configuration,
     ];
@@ -1127,6 +1131,7 @@ mod tests {
         assert_eq!(settings.language, "English");
         assert!(!settings.step_fix);
         assert!(!settings.anim_speed_fix);
+        assert!(!settings.present_dither);
     }
 
     #[test]
@@ -1176,7 +1181,8 @@ mod tests {
             "FovScale": 1.2,
             "PauseBlur": false,
             "DepthOfField": false,
-            "Bloom": false
+            "Bloom": false,
+            "PresentDither": true
         }"#;
 
         let parsed: Result<Settings, _> = serde_json::from_str(json);
@@ -1195,5 +1201,6 @@ mod tests {
         assert!(!settings.anim_speed_fix);
         assert!(settings.dt_smoothing);
         assert!(!settings.pause_blur);
+        assert!(settings.present_dither);
     }
 }

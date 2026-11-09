@@ -24,6 +24,7 @@ param(
     $DepthOfField = $false,
     $Bloom = $false,
     $AutoCapture = $false,
+    $PresentDither = $false,
     [string]$GameDataRoot = 'game-data',
     [switch]$Preview
 )
@@ -101,6 +102,7 @@ $launchArgs = @(
     "--resolution_scale=$RenderScale",
     "--swap_post_effect=$PostEffect",
     "--present_effect=$Upscaler",
+    "--present_dither=$((ConvertTo-Bool $PresentDither).ToString().ToLowerInvariant())",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )
 if ($isVulkan) {

@@ -23,7 +23,7 @@
         "shadow": false,
         "visible": true,
         "backgroundColor": "#0f172a",
-        "additionalBrowserArgs": "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
+        "additionalBrowserArgs": "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
         "devtools": true
       }
     ],

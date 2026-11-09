@@ -153,9 +153,9 @@ fn main() {
         let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
         let flags = format!(
             "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity \
-             --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI \
+             --disable-features=CalculateNativeWinOcclusion \
              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
-             --enable-logging=stderr --v=1 --log-file={}",
+             --enable-logging --log-file={}",
             log_path_normalized
         );
         let combined = if existing.is_empty() {

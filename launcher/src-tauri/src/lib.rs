@@ -651,9 +651,55 @@ fn is_window_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+/// Moves the window while the left mouse button is held. Tauri's native start_dragging()
+/// returns Ok but does not move the window here (WebView2 keeps the mouse capture), so the
+/// drag is driven manually: poll the cursor and move the window until the button is released.
 #[tauri::command]
 fn start_drag_window(window: tauri::Window) {
-    let _ = window.start_dragging();
+    #[cfg(windows)]
+    {
+        #[repr(C)]
+        struct Pt { x: i32, y: i32 }
+        #[repr(C)]
+        struct Rc { l: i32, t: i32, r: i32, b: i32 }
+        #[link(name = "user32")]
+        extern "system" {
+            fn GetCursorPos(p: *mut Pt) -> i32;
+            fn GetAsyncKeyState(vk: i32) -> i16;
+            fn GetWindowRect(h: isize, r: *mut Rc) -> i32;
+            fn SetWindowPos(h: isize, after: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+        }
+        // Maximized windows are not dragged.
+        if window.is_maximized().unwrap_or(false) {
+            return;
+        }
+        let hwnd = match window.hwnd() {
+            Ok(h) => h.0 as isize,
+            Err(_) => return,
+        };
+        std::thread::spawn(move || unsafe {
+            const VK_LBUTTON: i32 = 0x01;
+            const SWP_NOSIZE_NOZORDER_NOACTIVATE: u32 = 0x0001 | 0x0004 | 0x0010;
+            let mut start = Pt { x: 0, y: 0 };
+            let mut rect = Rc { l: 0, t: 0, r: 0, b: 0 };
+            if GetCursorPos(&mut start) == 0 || GetWindowRect(hwnd, &mut rect) == 0 {
+                return;
+            }
+            let (off_x, off_y) = (rect.l - start.x, rect.t - start.y);
+            // Only drag while the left button is actually down.
+            while (GetAsyncKeyState(VK_LBUTTON) as u16 & 0x8000) != 0 {
+                let mut cur = Pt { x: 0, y: 0 };
+                if GetCursorPos(&mut cur) != 0 {
+                    SetWindowPos(hwnd, 0, cur.x + off_x, cur.y + off_y, 0, 0, SWP_NOSIZE_NOZORDER_NOACTIVATE);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(8));
+            }
+        });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window.start_dragging();
+    }
 }
 
 fn process_failed_kind_to_str(kind: i32) -> &'static str {
@@ -682,6 +728,103 @@ pub fn write_debug_log(msg: &str) {
         let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
         let _ = writeln!(f, "[{}] [RUST] {}", ts, msg);
         let _ = f.flush();
+    }
+}
+
+/// Queries recent Application Error / WER events (last 2 minutes) and writes the
+/// faulting module info into launcher-debug.log. Also records where WebView2 logs live.
+fn collect_crash_events() {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let query = "*[System[(Level=2) and TimeCreated[timediff(@SystemTime) <= 120000]]]";
+        match Command::new("wevtutil")
+            .args(["qe", "Application", &format!("/q:{}", query), "/c:6", "/rd:true", "/f:text"])
+            .creation_flags(0x08000000)
+            .output()
+        {
+            Ok(out) => {
+                let text = String::from_utf8_lossy(&out.stdout);
+                let mut kept = 0;
+                for line in text.lines() {
+                    let l = line.trim();
+                    if l.is_empty() { continue; }
+                    write_debug_log(&format!("[CRASH_EVENT] {}", l));
+                    kept += 1;
+                    if kept > 120 { break; }
+                }
+                if kept == 0 {
+                    write_debug_log("[CRASH_EVENT] No Application error events found in last 2 minutes");
+                }
+            }
+            Err(e) => write_debug_log(&format!("[CRASH_EVENT] wevtutil failed: {}", e)),
+        }
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            write_debug_log(&format!("[CRASH_EVENT] LOCALAPPDATA={} (check <identifier>\\EBWebView for logs/Crashpad dumps)", local));
+        }
+    }
+}
+
+/// Issue #6: overlay hooks (MSI Afterburner / RTSS) crash the WebView2 browser process
+/// right after startup. The WebView cannot be recovered in-process, so either tell the
+/// user how to fix it (overlay detected) or relaunch the launcher a limited number of times.
+fn handle_browser_process_exit() {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        let overlay = ["RTSS.exe", "MSIAfterburner.exe", "RTSSHooksLoader64.exe"].iter().find(|name| {
+            Command::new("tasklist")
+                .args(["/FI", &format!("IMAGENAME eq {}", name), "/NH"])
+                .creation_flags(0x08000000)
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).to_lowercase().contains(&name.to_lowercase()))
+                .unwrap_or(false)
+        });
+
+        if let Some(name) = overlay {
+            write_debug_log(&format!("[RECOVERY] Overlay process detected: {}. Showing guidance.", name));
+            let text = r#"Majistic Launcher was closed because MSI Afterburner / RTSS (RivaTuner Statistics Server) is running and conflicts with the launcher's web UI.
+
+To fix this (one time only):
+1. Open RTSS (tray icon) and click 'Add' to add these two programs:
+   - Majistic Launcher.exe (in the launcher folder)
+   - msedgewebview2.exe (usually at: C:\Program Files (x86)\Microsoft\EdgeWebView\Application\<version>\msedgewebview2.exe)
+2. For each one, set 'Application detection level' to 'None'.
+3. Open the launcher again.
+
+RTSS will still work normally in the game itself; these two exclusions only affect the launcher window.
+
+Alternatively, close MSI Afterburner / RTSS before opening the launcher."#;
+            message_box("Majistic Launcher - RTSS / MSI Afterburner", text);
+            std::process::exit(1);
+        }
+
+        let attempt: u32 = std::env::var("MAJISTIC_RELAUNCH").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+        if attempt >= 2 {
+            write_debug_log("[RECOVERY] Browser process exited again; giving up after 2 relaunches.");
+            message_box(
+                "Majistic Launcher",
+                "The launcher UI failed repeatedly (WebView2 process exited). Close overlay / monitoring software (MSI Afterburner, RTSS, etc.) and try again. See launcher-debug.log for details.",
+            );
+            std::process::exit(1);
+        }
+        write_debug_log(&format!("[RECOVERY] Relaunching launcher (attempt {}/2)...", attempt + 1));
+        if let Ok(exe) = std::env::current_exe() {
+            let _ = Command::new(exe).env("MAJISTIC_RELAUNCH", (attempt + 1).to_string()).spawn();
+        }
+        std::process::exit(0);
+    }
+}
+
+#[cfg(windows)]
+fn message_box(title: &str, text: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONWARNING, MB_OK, MB_TOPMOST};
+    let t: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let m: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        MessageBoxW(std::ptr::null_mut(), m.as_ptr(), t.as_ptr(), MB_ICONWARNING | MB_OK | MB_TOPMOST);
     }
 }
 
@@ -783,6 +926,16 @@ pub fn run() {
                                             "[PROCESS_FAILED] kind={} ({}) exit_code={} desc='{}'",
                                             kind.0, kind_str, exit_code, desc_str
                                         ));
+                                        // Issue #6: capture the Windows Application event log
+                                        // (faulting module / WER data) for this crash.
+                                        std::thread::spawn(|| {
+                                            std::thread::sleep(std::time::Duration::from_secs(3));
+                                            collect_crash_events();
+                                        });
+                                        // Browser process died (kind 0): the WebView is unrecoverable.
+                                        if kind.0 == 0 {
+                                            std::thread::spawn(handle_browser_process_exit);
+                                        }
                                         // Auto-recovery: If renderer (1/2/3) or GPU (6) exited, trigger reload
                                         if kind.0 == 1 || kind.0 == 2 || kind.0 == 3 || kind.0 == 6 {
                                             write_debug_log("[PROCESS_FAILED] Triggering CoreWebView2.Reload() auto-recovery...");

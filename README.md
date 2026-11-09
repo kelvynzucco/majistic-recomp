@@ -217,6 +217,16 @@ Alternatively, you can launch directly via the CLI runner:
 .\scripts\run-usa.ps1 -RenderingPath Default -Resolution 1080p -FrameRate 60
 ```
 
+### Known Issues
+
+**Launcher window closes or goes blank with MSI Afterburner / RTSS running (issue #6)**
+The RivaTuner Statistics Server (RTSS) overlay hook crashes the launcher's WebView2 browser process a few seconds after startup. The launcher detects this and shows a message with the fix:
+1. Open RTSS and click **Add** to add `Majistic Launcher.exe` and `msedgewebview2.exe` (usually in `C:\Program Files (x86)\Microsoft\EdgeWebView\Application\<version>\`).
+2. Set **Application detection level** to **None** for both.
+3. Open the launcher again.
+
+RTSS keeps working normally inside the game; the exclusions only affect the launcher window. Alternatively, close MSI Afterburner / RTSS before opening the launcher.
+
 ---
 
 ## Credits & Acknowledgments

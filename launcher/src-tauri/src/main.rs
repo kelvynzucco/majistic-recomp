@@ -151,13 +151,33 @@ fn main() {
         // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
         let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
-        let flags = format!(
-            "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity \
-             --disable-features=CalculateNativeWinOcclusion \
-             --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
-             --enable-logging --log-file={}",
-            log_path_normalized
-        );
+
+        // Diagnostic mode (issue #6): env MAJISTIC_WEBVIEW_MODE or first line of
+        // "webview-mode.txt" next to the exe. Modes:
+        //   full    (default) all custom flags
+        //   minimal only CalculateNativeWinOcclusion + logging
+        //   none    no custom flags except logging
+        //   noa11y  full + accessibility/UIA disabled
+        //   nogpu   full + --disable-gpu
+        let mode_file = std::fs::read_to_string(exe_dir.join("webview-mode.txt")).unwrap_or_default();
+        let mode = std::env::var("MAJISTIC_WEBVIEW_MODE")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| mode_file.lines().next().unwrap_or("").to_string())
+            .trim()
+            .to_lowercase();
+        let mode = if mode.is_empty() { "full".to_string() } else { mode };
+        write_log(&format!("WebView mode: {}", mode));
+
+        let logging = format!("--enable-logging --v=1 --log-file={}", log_path_normalized);
+        let full = "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity              --disable-features=CalculateNativeWinOcclusion              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
+        let flags = match mode.as_str() {
+            "none" => logging.clone(),
+            "minimal" => format!("--disable-features=CalculateNativeWinOcclusion {}", logging),
+            "noa11y" => format!("{} --disable-renderer-accessibility --disable-features=UiaProvider {}", full, logging),
+            "nogpu" => format!("{} --disable-gpu {}", full, logging),
+            _ => format!("{} {}", full, logging),
+        };
         let combined = if existing.is_empty() {
             flags
         } else {

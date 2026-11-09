@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { check } from "@tauri-apps/plugin-updater";
+import { initCustomSelects } from "./customSelect.js";
 
 function logToBackend(msg) {
   invoke("log_message", { msg: String(msg) }).catch(() => {});
@@ -885,6 +886,7 @@ async function init() {
     console.warn("Could not load settings:", err);
     logToBackend("Could not load settings: " + err);
   }
+  initCustomSelects();
   populateForm(currentSettings);
   await updateGameStatus();
   await updateMaximizeIcon();

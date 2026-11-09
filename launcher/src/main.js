@@ -14,6 +14,11 @@ window.addEventListener("unhandledrejection", (e) => {
   logToBackend(`UNHANDLED_REJECTION: ${e.reason?.stack || e.reason}`);
 });
 
+// Diagnostic telemetry on startup
+logToBackend(
+  `JS Init: innerSize=${window.innerWidth}x${window.innerHeight}, screen=${screen.width}x${screen.height}, dpr=${window.devicePixelRatio}, ua=${navigator.userAgent}`
+);
+
 // Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen.
 // An active DOM/style mutation is required so Chromium's cc/Viz does not skip empty damage rects.
 const heartbeatEl = document.createElement("div");
@@ -23,17 +28,41 @@ heartbeatEl.style.cssText =
 document.body.appendChild(heartbeatEl);
 
 let heartbeatTick = false;
+let heartbeatCounter = 0;
 setInterval(() => {
   heartbeatTick = !heartbeatTick;
+  heartbeatCounter++;
   heartbeatEl.style.transform = heartbeatTick ? "translateZ(0)" : "translateZ(1px)";
+  if (heartbeatCounter % 3 === 0) {
+    logToBackend(
+      `JS Heartbeat #${heartbeatCounter} (${heartbeatCounter}s): visibility=${document.visibilityState}, active=<${document.activeElement?.tagName || "none"}>`
+    );
+  }
 }, 1000);
 
 // Watchdog: manual reload keyboard shortcut (F5 or Ctrl+R)
 window.addEventListener("keydown", (e) => {
+  logToBackend(`JS KeyDown: key='${e.key}' code='${e.code}' ctrl=${e.ctrlKey} alt=${e.altKey}`);
   if (e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")) {
     e.preventDefault();
     logToBackend("Manual reload triggered via keyboard shortcut");
     window.location.reload();
+  }
+});
+
+// User Click Diagnostic Logging
+window.addEventListener("click", (e) => {
+  logToBackend(`User Click at (${e.clientX}, ${e.clientY}) on <${e.target?.tagName || "unknown"}> id='${e.target?.id || ""}'`);
+});
+
+// Header double-click emergency recovery
+document.addEventListener("DOMContentLoaded", () => {
+  const header = document.getElementById("appHeader");
+  if (header) {
+    header.addEventListener("dblclick", () => {
+      logToBackend("Header double-click emergency recovery: reload()");
+      window.location.reload();
+    });
   }
 });
 

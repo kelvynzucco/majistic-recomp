@@ -655,15 +655,46 @@ fn start_drag_window(window: tauri::Window) {
     let _ = window.start_dragging();
 }
 
+fn process_failed_kind_to_str(kind: i32) -> &'static str {
+    match kind {
+        0 => "BROWSER_PROCESS_EXITED",
+        1 => "RENDER_PROCESS_EXITED",
+        2 => "RENDER_PROCESS_UNRESPONSIVE",
+        3 => "FRAME_RENDER_PROCESS_EXITED",
+        4 => "UTILITY_PROCESS_EXITED",
+        5 => "SANDBOX_HELPER_PROCESS_EXITED",
+        6 => "GPU_PROCESS_EXITED",
+        7 => "PPAPI_PLUGIN_PROCESS_EXITED",
+        8 => "PPAPI_BROKER_PROCESS_EXITED",
+        9 => "UNKNOWN_PROCESS_EXITED",
+        _ => "OTHER",
+    }
+}
+
+pub fn write_debug_log(msg: &str) {
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
+        .unwrap_or_else(|| std::path::PathBuf::from("launcher-debug.log"));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let _ = writeln!(f, "[{}] [RUST] {}", ts, msg);
+        let _ = f.flush();
+    }
+}
+
 #[tauri::command]
 fn log_message(msg: String) {
     let path = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
-        .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
+        .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
+        .unwrap_or_else(|| std::path::PathBuf::from("launcher-debug.log"));
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
         use std::io::Write;
-        let _ = writeln!(f, "[JS] {}", msg);
+        let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let _ = writeln!(f, "[{}] [JS] {}", ts, msg);
+        let _ = f.flush();
     }
 }
 
@@ -677,34 +708,58 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let log_path = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
-                .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                use std::io::Write;
-                let _ = writeln!(f, "setup() hook reached successfully!");
-            }
+            write_debug_log("=== Setup Hook Entered ===");
+            write_debug_log(&format!("OS Architecture: {}", std::env::consts::ARCH));
 
             #[cfg(windows)]
             {
                 use tauri::Manager;
                 if let Some(main_window) = app.get_webview_window("main") {
-                    let log_path_clone = log_path.clone();
+                    write_debug_log("Main WebviewWindow found. Initializing telemetry and listeners...");
+
+                    // Watchdog thread: checks window state periodically
+                    let window_for_watchdog = main_window.clone();
+                    std::thread::spawn(move || {
+                        let mut tick: u64 = 0;
+                        loop {
+                            std::thread::sleep(std::time::Duration::from_secs(3));
+                            tick += 1;
+                            let is_visible = window_for_watchdog.is_visible().unwrap_or(false);
+                            let is_minimized = window_for_watchdog.is_minimized().unwrap_or(false);
+                            let is_focused = window_for_watchdog.is_focused().unwrap_or(false);
+                            if tick % 4 == 0 || !is_visible || is_minimized {
+                                write_debug_log(&format!(
+                                    "[Watchdog Heartbeat #{} ({}s)] window: visible={} minimized={} focused={}",
+                                    tick, tick * 3, is_visible, is_minimized, is_focused
+                                ));
+                            }
+                        }
+                    });
+
                     let _ = main_window.with_webview(move |webview| {
                         unsafe {
                             use webview2_com::Microsoft::Web::WebView2::Win32::*;
-                            use webview2_com::ProcessFailedEventHandler;
+                            use webview2_com::{ProcessFailedEventHandler, AcceleratorKeyPressedEventHandler, NavigationCompletedEventHandler};
                             use windows_core::Interface;
 
                             let controller = webview.controller();
+                            let environment = webview.environment();
+
+                            let mut ver = windows_core::PWSTR::null();
+                            if environment.BrowserVersionString(&mut ver).is_ok() && !ver.is_null() {
+                                write_debug_log(&format!("CoreWebView2 Runtime Version: {}", ver.to_string().unwrap_or_default()));
+                            }
+
                             if let Ok(core) = controller.CoreWebView2() {
                                 let core_for_reload = core.clone();
-                                let lp = log_path_clone.clone();
+                                let core_for_f5 = core.clone();
+
+                                // 1. ProcessFailed Listener (covers all processes: GPU, Renderer, Utility, etc.)
                                 let handler = ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
                                     if let Some(args) = args {
                                         let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND(0);
                                         let _ = args.ProcessFailedKind(&mut kind);
+                                        let kind_str = process_failed_kind_to_str(kind.0);
                                         let mut exit_code = 0i32;
                                         let mut desc_str = String::new();
                                         if let Ok(args2) = args.cast::<ICoreWebView2ProcessFailedEventArgs2>() {
@@ -716,29 +771,61 @@ pub fn run() {
                                                 desc_str = desc.to_string().unwrap_or_default();
                                             }
                                         }
-                                        let msg = format!(
-                                            "[WebView2 ProcessFailed] kind={} exit_code={} desc='{}'",
-                                            kind.0, exit_code, desc_str
-                                        );
-                                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&lp) {
-                                            use std::io::Write;
-                                            let _ = writeln!(f, "{}", msg);
-                                        }
-                                        // Auto-recovery: If renderer process exited or was unresponsive, trigger reload
-                                        // COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED = 1
-                                        // COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE = 2
-                                        if kind.0 == 1 || kind.0 == 2 {
-                                            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&lp) {
-                                                use std::io::Write;
-                                                let _ = writeln!(f, "[WebView2 Auto-Recovery] Triggering CoreWebView2.Reload() after renderer failure");
-                                            }
-                                            let _ = core_for_reload.Reload();
+                                        write_debug_log(&format!(
+                                            "[PROCESS_FAILED] kind={} ({}) exit_code={} desc='{}'",
+                                            kind.0, kind_str, exit_code, desc_str
+                                        ));
+                                        // Auto-recovery: If renderer (1/2/3) or GPU (6) exited, trigger reload
+                                        if kind.0 == 1 || kind.0 == 2 || kind.0 == 3 || kind.0 == 6 {
+                                            write_debug_log("[PROCESS_FAILED] Triggering CoreWebView2.Reload() auto-recovery...");
+                                            let res = core_for_reload.Reload();
+                                            write_debug_log(&format!("[PROCESS_FAILED] Reload() returned: {:?}", res));
                                         }
                                     }
                                     Ok(())
                                 }));
                                 let mut token = 0i64;
                                 let _ = core.add_ProcessFailed(&handler, &mut token);
+
+                                // 2. AcceleratorKeyPressed (Native Win32 key interception inside webview)
+                                let acc_handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_ctrl, args| {
+                                    if let Some(args) = args {
+                                        let mut vk = 0u32;
+                                        let _ = args.VirtualKey(&mut vk);
+                                        let mut key_event = COREWEBVIEW2_KEY_EVENT_KIND(0);
+                                        let _ = args.KeyEventKind(&mut key_event);
+                                        // KeyDown is 0, SysKeyDown is 2
+                                        if key_event.0 == 0 || key_event.0 == 2 {
+                                            write_debug_log(&format!("[NATIVE_KEY] KeyDown vk=0x{:X} ({})", vk, vk));
+                                            if vk == 0x74 { // VK_F5
+                                                write_debug_log("[NATIVE_KEY] F5 key detected! Forcing native CoreWebView2.Reload()...");
+                                                let res = core_for_f5.Reload();
+                                                write_debug_log(&format!("[NATIVE_KEY] Reload() returned: {:?}", res));
+                                                let _ = args.SetHandled(true);
+                                            }
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                                let mut acc_token = 0i64;
+                                let _ = controller.add_AcceleratorKeyPressed(&acc_handler, &mut acc_token);
+
+                                // 3. NavigationCompleted Listener
+                                let nav_handler = NavigationCompletedEventHandler::create(Box::new(move |_sender, args| {
+                                    if let Some(args) = args {
+                                        let mut is_success = windows_core::BOOL(0);
+                                        let _ = args.IsSuccess(&mut is_success);
+                                        let mut status = COREWEBVIEW2_WEB_ERROR_STATUS(0);
+                                        let _ = args.WebErrorStatus(&mut status);
+                                        write_debug_log(&format!(
+                                            "[NAVIGATION_COMPLETED] is_success={} status={}",
+                                            is_success.as_bool(), status.0
+                                        ));
+                                    }
+                                    Ok(())
+                                }));
+                                let mut nav_token = 0i64;
+                                let _ = core.add_NavigationCompleted(&nav_handler, &mut nav_token);
                             }
                         }
                     });

@@ -7,14 +7,16 @@ use std::path::{Path, PathBuf};
 pub fn write_log(msg: &str) {
     let path = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
-        .unwrap_or_else(|| PathBuf::from("launcher.log"));
+        .and_then(|p| p.parent().map(|d| d.join("launcher-debug.log")))
+        .unwrap_or_else(|| PathBuf::from("launcher-debug.log"));
     if let Ok(mut f) = OpenOptions::new()
         .create(true)
         .append(true)
         .open(&path)
     {
-        let _ = writeln!(f, "{}", msg);
+        let ts = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let _ = writeln!(f, "[{}] [MAIN] {}", ts, msg);
+        let _ = f.flush();
     }
 }
 
@@ -132,22 +134,37 @@ fn handle_update_mode() -> bool {
 }
 
 fn main() {
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
+    let chromium_log = exe_dir.join("launcher-chromium.log");
+
+    write_log("==================================================");
+    write_log("=== Majistic Launcher Diagnostic Session Start ===");
+    write_log(&format!("Exe Path: {}", exe_path.display()));
+    write_log(&format!("Working Dir: {}", std::env::current_dir().map(|d| d.display().to_string()).unwrap_or_default()));
+    write_log(&format!("Chromium Log Destination: {}", chromium_log.display()));
+
     #[cfg(windows)]
     {
         // Disable GPU hardware acceleration and DirectComposition in WebView2 to prevent D3D11 swapchain device-loss,
         // MPO surface drops, and idle white/black/blue screens on AMD Radeon GPUs and hybrid graphics setups.
-        // Also disable native window occlusion and renderer code integrity to prevent frameless window suspend and DLL hook kills.
+        // Also enable Chromium diagnostic logging to launcher-chromium.log.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-        let flags = "--disable-gpu --disable-gpu-compositing --disable-direct-composition --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
+        let flags = format!(
+            "--disable-gpu --disable-gpu-compositing --disable-direct-composition \
+             --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+             --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
+             --enable-logging --v=1 --log-file=\"{}\"",
+            chromium_log.display()
+        );
         let combined = if existing.is_empty() {
-            flags.to_string()
+            flags
         } else {
             format!("{} {}", flags, existing)
         };
-        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", combined);
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", &combined);
+        write_log(&format!("Set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: {}", combined));
     }
-
-    write_log("=== Launcher Started ===");
 
     if handle_update_mode() {
         return;

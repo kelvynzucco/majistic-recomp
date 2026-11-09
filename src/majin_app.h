@@ -117,16 +117,31 @@ class MajinApp : public rex::ReXApp {
     }
   }
 
+  static std::string ResolveCapturePath(const std::string& filename) {
+    if (std::filesystem::is_directory("reports")) {
+      return "reports/" + filename;
+    }
+    if (std::filesystem::is_directory("../../reports")) {
+      return "../../reports/" + filename;
+    }
+    if (std::filesystem::is_directory("../reports")) {
+      return "../reports/" + filename;
+    }
+    if (std::filesystem::exists("../../game-data")) {
+      return "../../reports/" + filename;
+    }
+    return "reports/" + filename;
+  }
+
   void CaptureFrame(const std::string& filename) {
     if (runtime() && runtime()->graphics_system()) {
       auto* p = runtime()->graphics_system()->presenter();
       if (p) {
         rex::ui::RawImage img;
         if (p->CaptureGuestOutput(img)) {
-          SaveRawImageToBmp(img, "reports/" + filename);
-          SaveRawImageToBmp(img, "../../reports/" + filename);
-          SaveRawImageToBmp(img, "../reports/" + filename);
-          REXLOG_INFO("[Majin Capture] Frame captured: {} ({}x{})", filename, img.width, img.height);
+          const std::string save_path = ResolveCapturePath(filename);
+          SaveRawImageToBmp(img, save_path);
+          REXLOG_INFO("[Majin Capture] Frame captured: {} ({}x{})", save_path, img.width, img.height);
         } else {
           REXLOG_WARN("[Majin Capture] CaptureGuestOutput failed");
         }
@@ -288,12 +303,14 @@ class MajinApp : public rex::ReXApp {
 
   void RefreshTitle() {
     if (!window()) return;
-    static int capture_ticks = 0;
-    capture_ticks++;
-    // Capture at 7s (tick 14), 11s (tick 22), 15s (tick 30)
-    if (capture_ticks == 14 || capture_ticks == 22 || capture_ticks == 30) {
-      const auto backend = rex::cvar::GetFlagByName("gpu_backend");
-      CaptureFrame("capture_" + backend + "_" + std::to_string(capture_ticks / 2) + "s.bmp");
+    if (rex::cvar::Query<bool>("majin_auto_capture")) {
+      static int capture_ticks = 0;
+      capture_ticks++;
+      // Developer benchmark capture at 7s (tick 14), 11s (tick 22), 15s (tick 30)
+      if (capture_ticks == 14 || capture_ticks == 22 || capture_ticks == 30) {
+        const auto backend = rex::cvar::GetFlagByName("gpu_backend");
+        CaptureFrame("capture_" + backend + "_" + std::to_string(capture_ticks / 2) + "s.bmp");
+      }
     }
     if (window()->IsFullscreen()) {
       window()->SetTitle("Majistic Recomp");

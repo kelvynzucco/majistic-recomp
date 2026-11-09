@@ -10,6 +10,9 @@ REXCVAR_DEFINE_BOOL(majin_record_performance, true, "Diagnostics",
 REXCVAR_DEFINE_BOOL(majin_window_fps, false, "Diagnostics",
                     "Show live guest FPS in the window title only");
 
+REXCVAR_DEFINE_BOOL(majin_auto_capture, false, "Diagnostics",
+                    "Enable automated benchmark frame captures at 7s, 11s, 15s (developer only)");
+
 REXCVAR_DEFINE_STRING(gpu_backend, "d3d12", "GPU",
                       "GPU backend on Windows: vulkan or d3d12")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);

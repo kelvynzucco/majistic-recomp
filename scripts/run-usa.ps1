@@ -23,6 +23,7 @@ param(
     $PauseBlur = $true,
     $DepthOfField = $true,
     $Bloom = $true,
+    $AutoCapture = $false,
     [string]$GameDataRoot = 'game-data',
     [switch]$Preview
 )
@@ -180,6 +181,11 @@ $launchArgs += "--majin_dof=$($isDof.ToString().ToLowerInvariant())"
 
 $isBloom = ConvertTo-Bool $Bloom
 $launchArgs += "--majin_bloom=$($isBloom.ToString().ToLowerInvariant())"
+
+$isAutoCapture = ConvertTo-Bool $AutoCapture
+if ($isAutoCapture) {
+    $launchArgs += "--majin_auto_capture=true"
+}
 
 if ($Preview) {
     Write-Output "PREVIEW OK: $exe $($launchArgs -join ' ')"

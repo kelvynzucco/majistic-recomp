@@ -643,6 +643,7 @@ fn toggle_maximize_window(window: tauri::Window) {
 #[tauri::command]
 fn close_window(window: tauri::Window) {
     let _ = window.close();
+    std::process::exit(0);
 }
 
 #[tauri::command]
@@ -707,6 +708,13 @@ fn exit_app() {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed = event {
+                if window.label() == "main" {
+                    std::process::exit(0);
+                }
+            }
+        })
         .setup(|app| {
             write_debug_log("=== Setup Hook Entered ===");
             write_debug_log(&format!("OS Architecture: {}", std::env::consts::ARCH));
@@ -780,6 +788,9 @@ pub fn run() {
                                             write_debug_log("[PROCESS_FAILED] Triggering CoreWebView2.Reload() auto-recovery...");
                                             let res = core_for_reload.Reload();
                                             write_debug_log(&format!("[PROCESS_FAILED] Reload() returned: {:?}", res));
+                                        } else if kind.0 == 0 {
+                                            write_debug_log("[PROCESS_FAILED] Fatal: Browser process exited. Terminating launcher to prevent zombie locks.");
+                                            std::process::exit(1);
                                         }
                                     }
                                     Ok(())
@@ -831,18 +842,6 @@ pub fn run() {
                                 let mut nav_token = 0i64;
                                 let _ = core.add_NavigationCompleted(&nav_handler, &mut nav_token);
                             }
-                        }
-                    });
-
-                    // Wake-up pulse for DWM compositor to bind surface on borderless window
-                    let window_for_pulse = main_window.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(600));
-                        if let Ok(size) = window_for_pulse.inner_size() {
-                            let _ = window_for_pulse.set_size(tauri::PhysicalSize::new(size.width, size.height + 1));
-                            std::thread::sleep(std::time::Duration::from_millis(50));
-                            let _ = window_for_pulse.set_size(size);
-                            write_debug_log("[RUST] DWM compositor wake-up pulse completed.");
                         }
                     });
                 }

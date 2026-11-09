@@ -133,6 +133,39 @@ fn handle_update_mode() -> bool {
     std::process::exit(0);
 }
 
+#[cfg(windows)]
+fn cleanup_zombie_instances() {
+    unsafe {
+        use windows_sys::Win32::System::Diagnostics::ToolHelp::*;
+        use windows_sys::Win32::System::Threading::*;
+
+        let my_pid = std::process::id();
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot != windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
+            let mut entry: PROCESSENTRY32 = std::mem::zeroed();
+            entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+            if Process32First(snapshot, &mut entry) != 0 {
+                loop {
+                    let name = std::ffi::CStr::from_ptr(entry.szExeFile.as_ptr() as *const i8)
+                        .to_string_lossy();
+                    if name.eq_ignore_ascii_case("Majistic Launcher.exe") && entry.th32ProcessID != my_pid {
+                        write_log(&format!("Terminating orphaned launcher instance (PID: {}) to release EBWebView locks", entry.th32ProcessID));
+                        let handle = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
+                        if !handle.is_null() {
+                            let _ = TerminateProcess(handle, 0);
+                            let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
+                        }
+                    }
+                    if Process32Next(snapshot, &mut entry) == 0 {
+                        break;
+                    }
+                }
+            }
+            let _ = windows_sys::Win32::Foundation::CloseHandle(snapshot);
+        }
+    }
+}
+
 fn main() {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
@@ -146,16 +179,19 @@ fn main() {
 
     #[cfg(windows)]
     {
+        cleanup_zombie_instances();
+
         // Use Microsoft WARP (Windows Advanced Rasterization Platform) for the ANGLE backend.
         // This ensures DirectComposition remains fully functional with DWM, while bypassing physical GPU
         // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+        let log_path_normalized = chromium_log.to_string_lossy().replace('\\', "/");
         let flags = format!(
-            "--use-angle=warp --disable-direct-composition-video-overlays \
-             --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+            "--use-angle=warp --disable-direct-composition-video-overlays --disable-gpu-watchdog --disable-renderer-code-integrity \
+             --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI \
              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
-             --enable-logging --v=1 --log-file=\"{}\"",
-            chromium_log.display()
+             --enable-logging=stderr --v=1 --log-file={}",
+            log_path_normalized
         );
         let combined = if existing.is_empty() {
             flags

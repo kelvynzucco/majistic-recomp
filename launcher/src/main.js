@@ -11,7 +11,11 @@ window.addEventListener("error", (e) => {
   logToBackend(`GLOBAL_ERROR: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
 });
 window.addEventListener("unhandledrejection", (e) => {
-  logToBackend(`UNHANDLED_REJECTION: ${e.reason?.stack || e.reason}`);
+  const reasonStr = String(e.reason?.stack || e.reason || "");
+  if (reasonStr.includes("start_dragging")) {
+    return; // Ignore benign drag race
+  }
+  logToBackend(`UNHANDLED_REJECTION: ${reasonStr}`);
 });
 
 // Diagnostic telemetry on startup

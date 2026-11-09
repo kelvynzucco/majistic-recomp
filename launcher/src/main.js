@@ -20,12 +20,21 @@ logToBackend(
 );
 
 // Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen.
-// An active DOM/style mutation is required so Chromium's cc/Viz does not skip empty damage rects.
+// A canvas 2D draw guarantees that Chromium's cc/Viz damage tracker registers dirty rects every second.
 const heartbeatEl = document.createElement("div");
 heartbeatEl.id = "compositor-heartbeat";
 heartbeatEl.style.cssText =
   "position:fixed;bottom:0;right:0;width:1px;height:1px;pointer-events:none;opacity:0.01;z-index:99999;transform:translateZ(0);";
 document.body.appendChild(heartbeatEl);
+
+const keepAliveCanvas = document.createElement("canvas");
+keepAliveCanvas.id = "compositor-canvas-keepalive";
+keepAliveCanvas.width = 1;
+keepAliveCanvas.height = 1;
+keepAliveCanvas.style.cssText =
+  "position:fixed;bottom:0;right:0;width:1px;height:1px;pointer-events:none;opacity:0.01;z-index:99999;";
+document.body.appendChild(keepAliveCanvas);
+const keepAliveCtx = keepAliveCanvas.getContext("2d");
 
 let heartbeatTick = false;
 let heartbeatCounter = 0;
@@ -33,6 +42,10 @@ setInterval(() => {
   heartbeatTick = !heartbeatTick;
   heartbeatCounter++;
   heartbeatEl.style.transform = heartbeatTick ? "translateZ(0)" : "translateZ(1px)";
+  if (keepAliveCtx) {
+    keepAliveCtx.fillStyle = heartbeatTick ? "#0f172a" : "#0f172b";
+    keepAliveCtx.fillRect(0, 0, 1, 1);
+  }
   if (heartbeatCounter % 3 === 0) {
     logToBackend(
       `JS Heartbeat #${heartbeatCounter} (${heartbeatCounter}s): visibility=${document.visibilityState}, active=<${document.activeElement?.tagName || "none"}>`

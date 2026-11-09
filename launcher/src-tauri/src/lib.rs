@@ -811,6 +811,7 @@ pub fn run() {
                                 let _ = controller.add_AcceleratorKeyPressed(&acc_handler, &mut acc_token);
 
                                 // 3. NavigationCompleted Listener
+                                let controller_for_nav = controller.clone();
                                 let nav_handler = NavigationCompletedEventHandler::create(Box::new(move |_sender, args| {
                                     if let Some(args) = args {
                                         let mut is_success = windows_core::BOOL(0);
@@ -821,12 +822,27 @@ pub fn run() {
                                             "[NAVIGATION_COMPLETED] is_success={} status={}",
                                             is_success.as_bool(), status.0
                                         ));
+                                        // Synchronize controller bounds and visibility with DWM swapchain
+                                        let _ = controller_for_nav.NotifyParentWindowPositionChanged();
+                                        let _ = controller_for_nav.SetIsVisible(true);
                                     }
                                     Ok(())
                                 }));
                                 let mut nav_token = 0i64;
                                 let _ = core.add_NavigationCompleted(&nav_handler, &mut nav_token);
                             }
+                        }
+                    });
+
+                    // Wake-up pulse for DWM compositor to bind surface on borderless window
+                    let window_for_pulse = main_window.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(600));
+                        if let Ok(size) = window_for_pulse.inner_size() {
+                            let _ = window_for_pulse.set_size(tauri::PhysicalSize::new(size.width, size.height + 1));
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                            let _ = window_for_pulse.set_size(size);
+                            write_debug_log("[RUST] DWM compositor wake-up pulse completed.");
                         }
                     });
                 }

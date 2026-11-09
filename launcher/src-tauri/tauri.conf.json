@@ -20,9 +20,10 @@
         "resizable": true,
         "center": true,
         "decorations": false,
+        "shadow": false,
         "visible": true,
         "backgroundColor": "#0f172a",
-        "additionalBrowserArgs": "--disable-gpu --disable-gpu-compositing --disable-direct-composition --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
+        "additionalBrowserArgs": "--use-angle=warp --disable-direct-composition-video-overlays --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding",
         "devtools": true
       }
     ],

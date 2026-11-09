@@ -146,12 +146,12 @@ fn main() {
 
     #[cfg(windows)]
     {
-        // Disable GPU hardware acceleration and DirectComposition in WebView2 to prevent D3D11 swapchain device-loss,
-        // MPO surface drops, and idle white/black/blue screens on AMD Radeon GPUs and hybrid graphics setups.
-        // Also enable Chromium diagnostic logging to launcher-chromium.log.
+        // Use Microsoft WARP (Windows Advanced Rasterization Platform) for the ANGLE backend.
+        // This ensures DirectComposition remains fully functional with DWM, while bypassing physical GPU
+        // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
         let flags = format!(
-            "--disable-gpu --disable-gpu-compositing --disable-direct-composition \
+            "--use-angle=warp --disable-direct-composition-video-overlays \
              --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection \
              --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding \
              --enable-logging --v=1 --log-file=\"{}\"",

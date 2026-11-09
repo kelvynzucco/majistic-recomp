@@ -133,79 +133,6 @@ fn handle_update_mode() -> bool {
     std::process::exit(0);
 }
 
-#[cfg(windows)]
-fn init_job_object() {
-    unsafe {
-        use windows_sys::Win32::System::JobObjects::*;
-        use windows_sys::Win32::System::Threading::*;
-
-        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-        if !job.is_null() {
-            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
-            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-
-            let res = SetInformationJobObject(
-                job,
-                JobObjectExtendedLimitInformation,
-                &info as *const _ as *const std::ffi::c_void,
-                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            );
-
-            if res != 0 {
-                let current_process = GetCurrentProcess();
-                let _ = AssignProcessToJobObject(job, current_process);
-                write_log("Windows Job Object assigned with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.");
-            }
-        }
-    }
-}
-
-#[cfg(windows)]
-fn cleanup_zombie_instances() {
-    unsafe {
-        use windows_sys::Win32::System::Diagnostics::ToolHelp::*;
-        use windows_sys::Win32::System::Threading::*;
-
-        let my_pid = std::process::id();
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snapshot != windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE {
-            let mut entry: PROCESSENTRY32 = std::mem::zeroed();
-            entry.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
-            if Process32First(snapshot, &mut entry) != 0 {
-                loop {
-                    let name = std::ffi::CStr::from_ptr(entry.szExeFile.as_ptr() as *const i8)
-                        .to_string_lossy();
-                    if name.eq_ignore_ascii_case("Majistic Launcher.exe") && entry.th32ProcessID != my_pid {
-                        write_log(&format!("Terminating orphaned launcher instance (PID: {}) to release EBWebView locks", entry.th32ProcessID));
-                        let handle = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
-                        if !handle.is_null() {
-                            let _ = TerminateProcess(handle, 0);
-                            let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
-                        }
-                    } else if name.eq_ignore_ascii_case("msedgewebview2.exe") {
-                        // If parent process is dead, this msedgewebview2 is an orphan holding locks
-                        let parent_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ParentProcessID);
-                        if parent_handle.is_null() {
-                            write_log(&format!("Terminating orphaned msedgewebview2 process (PID: {}, Parent: {}) to release locks", entry.th32ProcessID, entry.th32ParentProcessID));
-                            let handle = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
-                            if !handle.is_null() {
-                                let _ = TerminateProcess(handle, 0);
-                                let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
-                            }
-                        } else {
-                            let _ = windows_sys::Win32::Foundation::CloseHandle(parent_handle);
-                        }
-                    }
-                    if Process32Next(snapshot, &mut entry) == 0 {
-                        break;
-                    }
-                }
-            }
-            let _ = windows_sys::Win32::Foundation::CloseHandle(snapshot);
-        }
-    }
-}
-
 fn main() {
     let exe_path = std::env::current_exe().unwrap_or_default();
     let exe_dir = exe_path.parent().unwrap_or(Path::new("."));
@@ -219,44 +146,6 @@ fn main() {
 
     #[cfg(windows)]
     {
-        init_job_object();
-        cleanup_zombie_instances();
-
-        // Isolate WebView2 User Data Folder per process to prevent LevelDB/SQLite lock collisions
-        // and 0xC0000005 access violations during rapid restarts.
-        let local_app_data = std::env::var("LOCALAPPDATA")
-            .unwrap_or_else(|_| std::env::temp_dir().to_string_lossy().to_string());
-        let sessions_dir = PathBuf::from(local_app_data).join("com.majistic.launcher").join("sessions");
-        let _ = std::fs::create_dir_all(&sessions_dir);
-
-        // Clean up old session folders from processes that are no longer running
-        if let Ok(entries) = std::fs::read_dir(&sessions_dir) {
-            for entry in entries.flatten() {
-                if let Ok(file_name) = entry.file_name().into_string() {
-                    if let Some(pid_str) = file_name.strip_prefix("session_") {
-                        if let Ok(old_pid) = pid_str.parse::<u32>() {
-                            if old_pid != std::process::id() {
-                                unsafe {
-                                    use windows_sys::Win32::System::Threading::*;
-                                    let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, old_pid);
-                                    if handle.is_null() {
-                                        let _ = std::fs::remove_dir_all(entry.path());
-                                    } else {
-                                        let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let my_session_dir = sessions_dir.join(format!("session_{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&my_session_dir);
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &my_session_dir);
-        write_log(&format!("Set isolated WEBVIEW2_USER_DATA_FOLDER: {}", my_session_dir.display()));
-
         // Use Microsoft WARP (Windows Advanced Rasterization Platform) for the ANGLE backend.
         // This ensures DirectComposition remains fully functional with DWM, while bypassing physical GPU
         // driver crashes, MPO plane drops, and idle renderer freezes on AMD Radeon GPUs.

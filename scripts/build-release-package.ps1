@@ -187,42 +187,11 @@ if ($CreateZip) {
     $msg = "Created archive: {0} ({1:N1} MB)" -f $zipPath, $zipSize
     Write-Host $msg
 
-    # Sign archive with minisign for Tauri auto-updater and generate latest.json
-    $keyPath = Join-Path $env:USERPROFILE ".tauri\majistic-launcher.key"
-    if (Test-Path $keyPath) {
-        Write-Host "Signing unified archive for in-app updater..."
-        Push-Location (Join-Path $root 'launcher')
-        try {
-            $signOutput = & npm run tauri -- signer sign --private-key-path $keyPath --app-version $Version $zipPath
-            $sigPath = "$zipPath.sig"
-            $sig = if (Test-Path $sigPath) {
-                (Get-Content -Path $sigPath -Raw).Trim()
-            } else {
-                $rawSig = ($signOutput | Out-String).Trim()
-                $sigMatch = [regex]::Match($rawSig, '(?s)(dW50cnVzdGVkIGNvbW1lbnQ6[A-Za-z0-9+/=\r\n]+?)(?:\r?\n\r?\n|$)')
-                if ($sigMatch.Success) { $sigMatch.Groups[1].Value.Trim() } else { $null }
-            }
-            if ($sig) {
-                $latestJson = @{
-                    version = $Version
-                    notes = "Majistic Recomp v$Version Release`n- Unified single-ZIP release distribution`n- Fixed WebView2 idle black/white screen freeze on AMD Radeon GPUs`n- Preserves user game data, ISO, and saves during automatic updates"
-                    pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-                    platforms = @{
-                        "windows-x86_64" = @{
-                            signature = $sig
-                            url = "https://github.com/kelvynzucco/majistic-recomp/releases/download/v$Version/Majistic-Recomp-v$Version-Windows-x64.zip"
-                        }
-                    }
-                } | ConvertTo-Json -Depth 5
-                $latestJsonPath = Join-Path $root 'latest.json'
-                Set-Content -Path $latestJsonPath -Value $latestJson -Encoding UTF8
-                Write-Host "Generated latest.json pointing to unified package ($latestJsonPath)"
-            } else {
-                Write-Warning "Could not extract signature from output: $rawSig"
-            }
-        } finally {
-            Pop-Location
-        }
+    # Prepare updater package and sign with minisign for Tauri auto-updater (generates latest.json)
+    $updaterScript = Join-Path $PSScriptRoot 'prepare-updater-payload.ps1'
+    if (Test-Path $updaterScript) {
+        Write-Host "Preparing and signing updater payload package..."
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $updaterScript -Version $Version
     }
 }
 

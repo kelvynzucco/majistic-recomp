@@ -45,3 +45,43 @@ if ($method -ne 0) {
 
 $zipItem = Get-Item $zip
 Write-Host "Created updater zip (Method 0 - Store verified): $($zipItem.FullName) ($([math]::Round($zipItem.Length / 1MB, 1)) MB)"
+
+# Sign archive with minisign for Tauri auto-updater and generate latest.json
+$keyPath = Join-Path $env:USERPROFILE ".tauri\majistic-launcher.key"
+if (Test-Path $keyPath) {
+    Write-Host "Signing updater package for in-app updater..."
+    Push-Location (Join-Path $root 'launcher')
+    try {
+        $signOutput = & npm run tauri -- signer sign --private-key-path $keyPath --app-version $Version $zip
+        $sigPath = "$zip.sig"
+        $sig = if (Test-Path $sigPath) {
+            (Get-Content -Path $sigPath -Raw).Trim()
+        } else {
+            $rawSig = ($signOutput | Out-String).Trim()
+            $sigMatch = [regex]::Match($rawSig, '(?s)(dW50cnVzdGVkIGNvbW1lbnQ6[A-Za-z0-9+/=\r\n]+?)(?:\r?\n\r?\n|$)')
+            if ($sigMatch.Success) { $sigMatch.Groups[1].Value.Trim() } else { $null }
+        }
+        if ($sig) {
+            $latestJson = [ordered]@{
+                version = $Version
+                notes = "Majistic Recomp v$Version Update:`n- Separate Dev & Release launcher modes (zero local logs and no dev tools in release)`n- Resolved WebView2 console window popup and lock collision errors on startup`n- Default rendering path set to Vulkan FBO and VSync disabled by default`n- Mouse Sensitivity slider in Gameplay & Controls (0.1x to 10.0x)`n- Post-processing effects disabled by default with descriptive labels`n- Launcher window size increased to 980x710 (resizable)"
+                pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+                platforms = @{
+                    "windows-x86_64" = @{
+                        signature = $sig
+                        url = "https://github.com/kelvynzucco/majistic-recomp/releases/download/v$Version/Majistic-Launcher-v$Version-windows-x64.zip"
+                    }
+                }
+            } | ConvertTo-Json -Depth 5
+            $latestJsonPath = Join-Path $root 'latest.json'
+            Set-Content -Path $latestJsonPath -Value $latestJson -Encoding UTF8
+            Write-Host "Generated latest.json pointing to updater package ($latestJsonPath)"
+        } else {
+            throw "Could not extract signature from output: $signOutput"
+        }
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Warning "Minisign key not found at $keyPath. Skipping signing."
+}

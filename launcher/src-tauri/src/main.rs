@@ -134,6 +134,33 @@ fn handle_update_mode() -> bool {
 }
 
 #[cfg(windows)]
+fn init_job_object() {
+    unsafe {
+        use windows_sys::Win32::System::JobObjects::*;
+        use windows_sys::Win32::System::Threading::*;
+
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if !job.is_null() {
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+            let res = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+
+            if res != 0 {
+                let current_process = GetCurrentProcess();
+                let _ = AssignProcessToJobObject(job, current_process);
+                write_log("Windows Job Object assigned with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.");
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
 fn cleanup_zombie_instances() {
     unsafe {
         use windows_sys::Win32::System::Diagnostics::ToolHelp::*;
@@ -154,6 +181,19 @@ fn cleanup_zombie_instances() {
                         if !handle.is_null() {
                             let _ = TerminateProcess(handle, 0);
                             let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
+                        }
+                    } else if name.eq_ignore_ascii_case("msedgewebview2.exe") {
+                        // If parent process is dead, this msedgewebview2 is an orphan holding locks
+                        let parent_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ParentProcessID);
+                        if parent_handle.is_null() {
+                            write_log(&format!("Terminating orphaned msedgewebview2 process (PID: {}, Parent: {}) to release locks", entry.th32ProcessID, entry.th32ParentProcessID));
+                            let handle = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
+                            if !handle.is_null() {
+                                let _ = TerminateProcess(handle, 0);
+                                let _ = windows_sys::Win32::Foundation::CloseHandle(handle);
+                            }
+                        } else {
+                            let _ = windows_sys::Win32::Foundation::CloseHandle(parent_handle);
                         }
                     }
                     if Process32Next(snapshot, &mut entry) == 0 {
@@ -179,6 +219,7 @@ fn main() {
 
     #[cfg(windows)]
     {
+        init_job_object();
         cleanup_zombie_instances();
 
         // Use Microsoft WARP (Windows Advanced Rasterization Platform) for the ANGLE backend.

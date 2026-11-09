@@ -789,7 +789,16 @@ pub fn run() {
                                             let res = core_for_reload.Reload();
                                             write_debug_log(&format!("[PROCESS_FAILED] Reload() returned: {:?}", res));
                                         } else if kind.0 == 0 {
-                                            write_debug_log("[PROCESS_FAILED] Fatal: Browser process exited. Terminating launcher to prevent zombie locks.");
+                                            write_debug_log("[PROCESS_FAILED] Browser process exited.");
+                                            let already_relaunched = std::env::var("MAJISTIC_RELAUNCHED").is_ok();
+                                            if !already_relaunched {
+                                                write_debug_log("[PROCESS_FAILED] Attempting single clean relaunch...");
+                                                if let Ok(exe) = std::env::current_exe() {
+                                                    let mut cmd = std::process::Command::new(exe);
+                                                    cmd.env("MAJISTIC_RELAUNCHED", "1");
+                                                    let _ = cmd.spawn();
+                                                }
+                                            }
                                             std::process::exit(1);
                                         }
                                     }

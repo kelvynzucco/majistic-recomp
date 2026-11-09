@@ -14,11 +14,28 @@ window.addEventListener("unhandledrejection", (e) => {
   logToBackend(`UNHANDLED_REJECTION: ${e.reason?.stack || e.reason}`);
 });
 
-// Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen
-function compositorHeartbeat() {
-  requestAnimationFrame(compositorHeartbeat);
-}
-requestAnimationFrame(compositorHeartbeat);
+// Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen.
+// An active DOM/style mutation is required so Chromium's cc/Viz does not skip empty damage rects.
+const heartbeatEl = document.createElement("div");
+heartbeatEl.id = "compositor-heartbeat";
+heartbeatEl.style.cssText =
+  "position:fixed;bottom:0;right:0;width:1px;height:1px;pointer-events:none;opacity:0.01;z-index:99999;transform:translateZ(0);";
+document.body.appendChild(heartbeatEl);
+
+let heartbeatTick = false;
+setInterval(() => {
+  heartbeatTick = !heartbeatTick;
+  heartbeatEl.style.transform = heartbeatTick ? "translateZ(0)" : "translateZ(1px)";
+}, 1000);
+
+// Watchdog: manual reload keyboard shortcut (F5 or Ctrl+R)
+window.addEventListener("keydown", (e) => {
+  if (e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")) {
+    e.preventDefault();
+    logToBackend("Manual reload triggered via keyboard shortcut");
+    window.location.reload();
+  }
+});
 
 // Default configuration structure
 const defaultSettings = {

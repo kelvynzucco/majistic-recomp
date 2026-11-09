@@ -676,15 +676,75 @@ fn exit_app() {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .setup(|_app| {
-            let path = std::env::current_exe()
+        .setup(|app| {
+            let log_path = std::env::current_exe()
                 .ok()
                 .and_then(|p| p.parent().map(|d| d.join("launcher.log")))
                 .unwrap_or_else(|| std::path::PathBuf::from("launcher.log"));
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
                 use std::io::Write;
                 let _ = writeln!(f, "setup() hook reached successfully!");
             }
+
+            #[cfg(windows)]
+            {
+                use tauri::Manager;
+                if let Some(main_window) = app.get_webview_window("main") {
+                    let log_path_clone = log_path.clone();
+                    let _ = main_window.with_webview(move |webview| {
+                        unsafe {
+                            use webview2_com::Microsoft::Web::WebView2::Win32::*;
+                            use webview2_com::ProcessFailedEventHandler;
+                            use windows_core::Interface;
+
+                            let controller = webview.controller();
+                            if let Ok(core) = controller.CoreWebView2() {
+                                let core_for_reload = core.clone();
+                                let lp = log_path_clone.clone();
+                                let handler = ProcessFailedEventHandler::create(Box::new(move |_sender, args| {
+                                    if let Some(args) = args {
+                                        let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND(0);
+                                        let _ = args.ProcessFailedKind(&mut kind);
+                                        let mut exit_code = 0i32;
+                                        let mut desc_str = String::new();
+                                        if let Ok(args2) = args.cast::<ICoreWebView2ProcessFailedEventArgs2>() {
+                                            let mut code = 0i32;
+                                            let _ = args2.ExitCode(&mut code);
+                                            exit_code = code;
+                                            let mut desc = windows_core::PWSTR::null();
+                                            if args2.ProcessDescription(&mut desc).is_ok() && !desc.is_null() {
+                                                desc_str = desc.to_string().unwrap_or_default();
+                                            }
+                                        }
+                                        let msg = format!(
+                                            "[WebView2 ProcessFailed] kind={} exit_code={} desc='{}'",
+                                            kind.0, exit_code, desc_str
+                                        );
+                                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&lp) {
+                                            use std::io::Write;
+                                            let _ = writeln!(f, "{}", msg);
+                                        }
+                                        // Auto-recovery: If renderer process exited or was unresponsive, trigger reload
+                                        // COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED = 1
+                                        // COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE = 2
+                                        if kind.0 == 1 || kind.0 == 2 {
+                                            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&lp) {
+                                                use std::io::Write;
+                                                let _ = writeln!(f, "[WebView2 Auto-Recovery] Triggering CoreWebView2.Reload() after renderer failure");
+                                            }
+                                            let _ = core_for_reload.Reload();
+                                        }
+                                    }
+                                    Ok(())
+                                }));
+                                let mut token = 0i64;
+                                let _ = core.add_ProcessFailed(&handler, &mut token);
+                            }
+                        }
+                    });
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

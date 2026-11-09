@@ -134,11 +134,11 @@ fn handle_update_mode() -> bool {
 fn main() {
     #[cfg(windows)]
     {
-        // Disable GPU hardware acceleration in WebView2 to prevent D3D11 swapchain device-loss
-        // and idle white/black screens on AMD Radeon GPUs and hybrid graphics setups.
-        // Also disable native window occlusion to prevent frameless window suspend.
+        // Disable GPU hardware acceleration and DirectComposition in WebView2 to prevent D3D11 swapchain device-loss,
+        // MPO surface drops, and idle white/black/blue screens on AMD Radeon GPUs and hybrid graphics setups.
+        // Also disable native window occlusion and renderer code integrity to prevent frameless window suspend and DLL hook kills.
         let existing = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-        let flags = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
+        let flags = "--disable-gpu --disable-gpu-compositing --disable-direct-composition --disable-features=CalculateNativeWinOcclusion,RendererCodeIntegrity,msWebOOUI,msPdfOOUI,msSmartScreenProtection --disable-backgrounding-occluded-windows --disable-background-timer-throttling --disable-renderer-backgrounding";
         let combined = if existing.is_empty() {
             flags.to_string()
         } else {

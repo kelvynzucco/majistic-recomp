@@ -77,20 +77,68 @@ flowchart TD
 
 ## 2. Medição Controlada de Pré-Compilação Paralela com Driver a Frio
 
-Para sanar a dúvida sobre o custo real de uma pré-compilação no boot para um jogador novo (sem depender de cache de driver aquecido), foi realizado um teste controlado isolado:
-- O diretório de cache do driver NVIDIA (`GLCache`) foi redirecionado via `__GL_SHADER_DISK_CACHE_PATH` para uma pasta vazia e limpa.
-- O wrapper de `.vkpc` foi desativado (`--vulkan_store_pipeline_cache=false`).
-- O motor executou o aquecimento de inicialização para os 342 PSOs conhecidos em 6 threads de trabalho.
+### 2.1 Método de Isolamento no Windows e Ressalva de `__GL_SHADER_DISK_CACHE_PATH`
 
-### Resultados da Medição a Frio (RTX 3060 Ti, 6 threads)
+> [!WARNING]
+> **Risco Metodológico Identificado e Corrigido**: A variável de ambiente `__GL_SHADER_DISK_CACHE_PATH` é documentada e respeitada pelo driver proprietário da NVIDIA no Linux, porém no Windows o driver OpenGL/Vulkan da NVIDIA ignora essa variável e armazena o cache obrigatoriamente no diretório `%LOCALAPPDATA%\NVIDIA\GLCache`. Testes que definem apenas essa variável de ambiente no Windows correm com cache parcialmente quente.
+>
+> Para garantir isolamento 100% frio e reprodutibilidade científica no Windows, a pasta `%LOCALAPPDATA%\NVIDIA\GLCache` foi temporariamente movida para backup e recriada vazia antes do teste, garantindo que o driver NVIDIA não possuísse nenhuma instrução SASS pré-compilada.
 
-| Etapa do Aquecimento | Tempo Decorrido (ms) | Custo Unitário de Relógio (Wall-Clock) | Custo Unitário por Thread |
-| :--- | ---: | ---: | ---: |
-| **Tradução Host de 239 Shaders (SPIR-V)** | **`280 ms`** | `1,17 ms / shader` | `1,17 ms / shader` (1 thread) |
-| **Compilação Paralela de 342 PSOs em SASS** | **`5.699 ms`** | **`16,66 ms / PSO`** (paralelo em 6 threads) | **`~100 ms / PSO`** por thread |
-| **Tempo Total do Warm-Up a Frio** | **`5.979 ms`** (`~5,98 s`) | — | — |
+O comando exato executado para o teste foi:
 
-*Conclusão da Medição:* Para um jogador novato (driver completamente frio), pré-compilar 342 PSOs leva **aproximadamente 6 segundos** em paralelo. Isso confirma que os números de sub-segundo vistos na D3 aplicam-se apenas a sessões com driver já aquecido, e que uma pré-compilação fria exige uma estratégia consciente de tempo de carregamento no boot.
+```powershell
+# 1. Isolamento completo do cache do driver no Windows
+$gl = "$env:LOCALAPPDATA\NVIDIA\GLCache"
+$backup = "$env:LOCALAPPDATA\NVIDIA\GLCache_backup"
+Move-Item -Path $gl -Destination $backup
+New-Item -ItemType Directory -Path $gl
+
+# 2. Execução controlada via majin.exe com --shader_prebuild_only=true e --vulkan_store_pipeline_cache=false
+$exe = "C:\Users\kelvy\Desktop\Majin Recomp\game-data\bin\majin.exe"
+$launchArgs = @(
+    '--gpu_plugin', 'xenos',
+    '--gpu_backend=vulkan',
+    '--game_data_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data',
+    '--user_data_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\user',
+    '--cache_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\cache\vulkan-vulkan\release',
+    '--metadata_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\metadata\vulkan-vulkan\release',
+    '--log_file', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\logs\d4-cold-warmup-pass1.log',
+    '--window_width=1280',
+    '--window_height=720',
+    '--fullscreen=false',
+    '--render_target_path_vulkan=fbo',
+    '--vulkan_dynamic_rendering=false',
+    '--vulkan_async_skip_incomplete_frames=false',
+    '--vulkan_store_pipeline_cache=false',
+    '--shader_prebuild_only=true'
+)
+$quotedArgs = @($launchArgs | ForEach-Object { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' })
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\bin' -Wait -PassThru
+```
+
+### 2.2 Resultados Empíricos Medidos (RTX 3060 Ti, Driver 621.14, 6 Threads de Trabalho)
+
+Os resultados controlados entre a execução limpa a frio (Pass 1) e o re-teste imediato com cache aquecido (Pass 2) estão registrados em [`game-data/runtime/logs/d4-cold-warmup-pass1.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/d4-cold-warmup-pass1.log#L166-L225) e [`game-data/runtime/logs/d4-warm-warmup-pass2.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/d4-warm-warmup-pass2.log#L166-L225):
+
+| Etapa do Aquecimento de Inicialização | Pass 1: Driver Frio (`GLCache` Limpo) | Pass 2: Driver Quente (Re-execução Imediata) | Delta / Speedup do Cache | Custo Unitário a Frio (Relógio - Dado Firme) | Custo Normalizado por Thread (Derivado) |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| **Tradução Host de 239 Shaders (SPIR-V)** | **`431 ms`** | **`257 ms`** | `1,7x` | `1,80 ms / shader` (1 thread) | `1,80 ms / shader` |
+| **Compilação Paralela de 342 PSOs em SASS** | **`10.228 ms`** | **`17 ms`** | **`601,6x mais rápido`** | **`29,91 ms / PSO`** (wall-clock firme) | **`~179,4 ms / PSO`** (6 workers nominais) |
+| **Tempo Total do Warm-Up (`SHADER_WARMUP`)** | **`10.659 ms` (`~10,66 s`)** | **`274 ms` (`~0,27 s`)** | **`38,9x mais rápido`** | — | — |
+| **Dados Gravados no Driver (`%LOCALAPPDATA%\NVIDIA\GLCache`)** | **`14.500.994 B` (`~14,5 MB`)** | `0 B` novos | — | — | — |
+
+### 2.3 Conclusões de Dimensionamento para o Primeiro Boot
+
+1. **Dado Firme vs. Normalização por Thread**:
+   - A métrica empírica firme é o tempo de relógio: **`29,91 ms / PSO` wall-clock** (`10,23 s` de compilação pura para 342 PSOs em RTX 3060 Ti).
+   - O valor de **`~179,4 ms / PSO` por thread** é um derivado teórico que assume ocupação total de 6 workers durante todo o intervalo. Ele é coerente com a faixa empírica de **`45 a 205 ms / PSO`** da D2.
+   - *Hipótese relevante para D8:* Como os logs da D2 provinham de sessões de desenvolvimento (onde o driver já poderia conter partes de shaders compilados anteriormente), um jogador novato com driver 100% frio pode enfrentar custos médios por PSO no teto da faixa (~180 ms), tornando o stutter de draw time ainda mais severo e reforçando a necessidade do pré-aquecimento. A validação final dessa hipótese será realizada na D8 (baseline de jogo com cache limpo).
+2. **Dimensionamento do Primeiro Boot (Projeção Linear de ~30 s para ~1.000 PSOs)**:
+   - Para os **`342` PSOs** conhecidos das fases iniciais, o tempo de relógio medido é de **`10,66 segundos`**.
+   - Para uma população estimada em **`~1.000` PSOs** na campanha inteira (estimativa de D3), a **projeção linear direta** ($10,66\text{ s} \times 1.000 / 342 \approx 31\text{ s}$) indica aproximadamente **`~30 segundos`** de pré-aquecimento a frio nesta GPU.
+3. **Consequência para o Launcher e a UI**:
+   - Um bloqueio silencioso de **10 a 30 segundos** no primeiro boot causaria a impressão de travamento (*hang/freeze*).
+   - Portanto, a inclusão de uma **barra de progresso no launcher** (ou na tela de inicialização do jogo consumindo os eventos de progresso `SHADER_WARMUP: Vulkan progress X/Y` já existentes no motor) é **indispensável** para a primeira execução limpa do jogador.
 
 ---
 

@@ -6,7 +6,7 @@
 > **Preceding Reference Document**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md)  
 > **Discovery Evidentiary Corpus**: [`docs/discovery/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/) (Phases D1 through D8)  
 > **Target Hardware & Driver Environment**: Windows 11 AMD64, NVIDIA GeForce RTX 3060 Ti (driver `621.14`, Vulkan `1.4.357`, DirectX 12 Agility / Feature Level 12_1).  
-> **Legal & Compliance Boundary**: Zero distribution of copyrighted game assets, guest shader microcode, `.xsh` dumps, pre-compiled binary driver caches (`.vkpc`, `GLCache`, `DXCache`), or commercial binaries. All transformations, extractions, and compilations execute locally on the user's PC from legally owned game files. The prebuild pipeline list (`.xpl`) contains strictly 64-bit cryptographic hashes and standard integer render-state enums.
+> **Legal & Compliance Boundary**: Absolute clean-room zero-distribution principle. Zero distribution of copyrighted game assets, guest shader microcode, `.xsh` dumps, binary driver caches (`.vkpc`, `GLCache`, `DXCache`), prebuild pipeline manifests (`.xpl`), hash lists, state lists, or commercial binaries. All transformations, extractions, and compilations execute exclusively on the player's PC from their legally owned game copy. The first-playthrough cold stutter mitigation MUST succeed independently without any distributed cache, hash database, or shipped pipeline manifest.
 
 ---
 
@@ -18,8 +18,8 @@ During a first-time player's cold launch on modern hardware, frame times collaps
 
 Following exhaustive architectural review of the discovery findings, RexGlue source code (`command_processor.cpp`, `pipeline_cache.cpp`), and binary caches (`4E4D0816.fbo.vk.xpso` and `4E4D0816.rtv.d3d12.xpso`), this implementation plan addresses seven critical architectural realities:
 
-1. **The VS/PS Coupling Constraint on GPL**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` depends on the paired pixel shader's input mask (`pixel_shader->GetInterpolatorInputMask(...)`). Consequently, a vertex shader cannot be translated to SPIR-V or compiled into a `VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT` library at ucode registration time in isolation. Pre-rasterization and fragment libraries are keyed by `(vsHash, vsMod)` and `(psHash, psMod)`. Without an ahead-of-time pair list, GPL at draw time reduces compilation tasks by only ~28.7% (244 libraries vs 342 PSOs) and does *not* eliminate first-encounter cold stutters.
-2. **Milestone M1.5 (Pipeline Prebuild Manifest `.xpl`)**: To enable precompilation before gameplay, the project delivers a portable metadata manifest (`4E4D0816.fbo.vk.xpl`) utilizing RexGlue's existing `pipeline_prebuild_file` infrastructure. The manifest contains strictly non-copyrightable 64-bit hashes and state bitfield bytes. At startup, background worker threads consume this manifest to compile all 244 libraries (Vulkan) or 295 PSOs (D3D12) before gameplay begins.
+1. **The VS/PS Coupling Constraint & Draw-Time GPL Fast-Linking**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` depends on the paired pixel shader's input mask (`pixel_shader->GetInterpolatorInputMask(...)`). Consequently, a vertex shader cannot be translated to SPIR-V or compiled into a `VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT` library at ucode registration time in isolation. Instead, pre-rasterization and fragment libraries are keyed by `(vsHash, vsMod)` and `(psHash, psMod)`. When an unlinked pair is first encountered at draw time, `VK_EXT_graphics_pipeline_library` executes a **fast-link in `< 1.0 ms`** (measured at 0.20–0.50 ms), which fits completely inside the 16.6 ms (60 FPS) or 33.3 ms (30 FPS) frame budget without missing a single frame.
+2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M1.5) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. The critical path for a pristine cold launch operates 100% autonomously via runtime GPL fast-linking and restricted async.
 3. **Rigorous M2a Validation Spike**: The M2a spike is expanded beyond a trivial fast-link test. It measures: (a) cold library creation for VS and PS with GLCache purged, (b) fast-link latency, (c) GPU runtime draw-call execution overhead of linked vs monolithic pipelines, and (d) validation across the full distribution of all 342 discovered in-game PSOs.
 4. **Correction of M1 Justification & `kStale` Redundancy**: The `+7.82 ms / PSO` overhead documented in D2 is attributed to CPU overhead in the temporary per-pipeline `VkPipelineCache` wrapper (`vkCreatePipelineCache(seed)`, `vkGetPipelineCacheData`, and FNV-1a checksumming of a 2 MB blob), not synchronous disk writes. Disabling `.vkpc` (`--vulkan_store_pipeline_cache=false`) eliminates this entire codepath, making `Outcome::kStale` handling automatically redundant.
 5. **Two-Layer Restricted Async (39.8% Ceiling & Category 6B Validation)**:
@@ -49,34 +49,35 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
 |   - Automatically bypasses Outcome::kStale driver cache recycling codepath.                                            |
 |   - Re-port d3d12-blocking-pso-precompile.patch: parallel worker threads cut D3D12 startup from 75-81 to 6.5-12 ms/PSO.|
 |                                                                                                                       |
-|   LAYER 2: Prebuild Pipeline Manifest & Shipped Pair List (Milestone M1.5)                                            |
-|   ========================================================================                                            |
-|   - Deliver scripts/export-pipeline-manifest.mjs to generate 4E4D0816.fbo.vk.xpl and 4E4D0816.rtv.d3d12.xpl.          |
-|   - Pure metadata dictionary (64-bit hashes + render states; zero copyrighted microcode or game assets).              |
-|   - Enables boot-time library precompilation (M2) and D3D12 startup multi-threaded precompilation (M1).               |
-|                                                                                                                       |
-|   LAYER 3: Empirical Validation Spike (Milestone M2a)                                                                 |
-|   ===================================================                                                                 |
+|   LAYER 2: Empirical Validation Spike (Milestone M2a - De-risking Gate)                                               |
+|   =====================================================================                                               |
 |   - Standalone test harness across all 342 discovered PSOs on RTX 3060 Ti:                                            |
 |       1. Cold creation latency of VS and PS libraries with GLCache purged.                                            |
 |       2. Fast-link latency distribution (verifying < 1.0 ms).                                                         |
 |       3. GPU runtime execution cost: linked pipeline vs monolithic SASS draw-call time.                               |
 |       4. Full distribution compatibility and link error verification.                                                 |
 |                                                                                                                       |
-|   LAYER 4: Core Engine GPL & Extended Dynamic State (Milestone M2)                                                    |
+|   LAYER 3: Core Engine GPL & Extended Dynamic State (Milestone M2)                                                    |
 |   ================================================================                                                    |
 |   - 4-part VkPipelineLibrary architecture indexed by (vsHash, vsMod) and (psHash, psMod).                             |
-|   - Consumes M1.5 prebuild manifest on boot to compile libraries ahead of gameplay.                                  |
+|   - Sub-millisecond draw-time fast-linking eliminates cold SASS compilation stalls on first encounter.                |
 |   - Implement Extended Dynamic State (1, 2, 3) to collapse 94 fixed-function states down to 9 render passes.          |
 |   - Implement explicit 5-tier hardware fallback matrix with objective acceptance criteria.                            |
 |                                                                                                                       |
-|   LAYER 5: Narrow Restricted Async with Two-Layer Defense-in-Depth (Milestone M3)                                     |
+|   LAYER 4: Narrow Restricted Async with Two-Layer Defense-in-Depth (Milestone M3)                                     |
 |   ================================================================================                                    |
 |   - Layer 1 (PSO): Strict positive allowlist (depth_write == 0, RP 0x8c, Additive VFX). Excludes quads, post-fx, UI.  |
 |   - Layer 2 (Draw): IssueDraw guards host_draw_vertex_count <= 6 to unconditionally protect screen quads.             |
 |   - Category 6A (44 PSOs, 12.9%): Safe additive sparks/dust. 0% visual corruption.                                    |
 |   - Category 6B (92 PSOs, 26.9%): Provisional; contingent on fxb0 shader name audit (exclude water/fog/glass).       |
 |   - Presentation Gate: Non-critical VFX bypass skip_present_due_async_placeholder; zero frame-hold stalls.            |
+|                                                                                                                       |
+|   LAYER 5: Client-Side Local Manifest & Tooling (Milestones M1.5 & M4 - Optional / Non-Distributed)                   |
+|   ================================================================================================                    |
+|   - M1.5 (Local Session Prebuild): Local client exports discovered tuples to user cache for subsequent boots.          |
+|   - M4.1 (Local Shader Pre-translation): Offline parser converts local fxb0 packages to SPIR-V/DXBC at install time.   |
+|   - M4.2 (Launcher UI Feedback): Optional progress bar for players on fallback hardware choosing full boot warm-up.   |
+|   - Absolute compliance: Zero .xpl manifests, microcodes, or hashes distributed with project releases.                |
 |                                                                                                                       |
 +-----------------------------------------------------------------------------------------------------------------------+
 ```
@@ -98,28 +99,33 @@ flowchart TD
         D8["D8: Baseline fixed: P99.9 = 443.8 ms cold -> 30.4 ms warm (-93.1%)"]
     end
 
-    subgraph PhasedExecution ["Revised Implementation Order"]
+    subgraph CoreCriticalPath ["Core Critical Path (Primes Cold Run Without Shipped Cache)"]
         M0["Milestone M0: Telemetry Fixes + analyze-performance-csv.mjs CLI + Baseline Recapture"]
         M1["Milestone M1: Pure Bypass .vkpc (1-line) + D3D12 Parallel Patch"]
-        M15["Milestone M1.5: Prebuild Pipeline Manifest (.xpl) & Export Tooling"]
         M2a["Milestone M2a: Empirical Validation Spike (Cold Lib, Link, GPU Cost, 342 PSOs)"]
-        M2["Milestone M2: Full GPL 4-Part Libraries + EDS (1/2/3) + 5-Tier Fallback"]
+        M2["Milestone M2: Core Engine GPL 4-Part Libraries + EDS (1/2/3) + 5-Tier Fallback"]
         M3["Milestone M3: Two-Layer Restricted Async + Cat 6B Shader Name Audit + Pres Gate"]
-        M4["Milestone M4 (Optional Backlog): Offline fxb0 Pre-translation & Launcher UI"]
+    end
+
+    subgraph LocalAuxiliaryTooling ["Client-Side Local Tooling (Non-Distributed / Optional)"]
+        M41["Milestone M4.1: Local Session Manifest (.xpl) & Local Cache Pre-warming"]
+        M42["Milestone M4.2/M4.3: Offline Local fxb0 Pre-translation & Launcher UI"]
     end
 
     D1 --> M0
     D8 --> M0
     D2B --> M1
     M0 --> M1
-    M1 --> M15
-    M15 --> M2a
+    M1 --> M2a
     D2A --> M2a
     D7 --> M2a
     M2a --> M2
     D4 --> M2
     D5 --> M2
     D6 --> M3
+    M2 --> M3
+    M2 -.-> M41
+    M1 -.-> M42
 ```
 
 ---
@@ -211,31 +217,6 @@ flowchart TD
 
 ---
 
-### Milestone M1.5: Shipped Pipeline Prebuild Manifest (`.xpl`) & Extraction Tooling
-
-> **Goal**: Establish the concrete data mechanism for the pipeline list on first boot. Deliver `scripts/export-pipeline-manifest.mjs` to serialize the 342 discovered Vulkan PSOs and 295 D3D12 PSOs into standard `.xpl` manifests, enabling boot-time precompilation without distributing copyrighted game bytecode.  
-> **Estimated Effort**: 1–2 Days  
-> **Target Branch**: `feat/pipeline-prebuild-manifest`
-
-#### M1.5.1 Legal & Technical Architecture of `.xpl` Manifests
-- **File Format**: Standard RexGlue binary format defined in [`include/rex/graphics/pipeline_prebuild_file.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/pipeline_prebuild_file.h):
-  - Header: 40 bytes (`magic = 'XEPL'`, `format = 1`, title ID, description version, modification version).
-  - Records: 96 bytes per entry:
-    - `vertex_shader_hash` (8 bytes uint64)
-    - `vertex_shader_modification` (8 bytes uint64)
-    - `pixel_shader_hash` (8 bytes uint64)
-    - `pixel_shader_modification` (8 bytes uint64)
-    - Fixed-function state fields: 1 byte per field (RenderPassKey, culling, polygon mode, depth write/compare, stencil ops, blend factors, color write mask).
-- **Compliance Boundary**: An `.xpl` file contains **zero guest shader microcode, zero SPIR-V, zero DXBC, and zero proprietary game assets**. It is strictly a metadata dictionary of 64-bit hashes and standard graphics API integer enums, fully compliant with legal distribution constraints.
-
-#### M1.5.2 Tooling & Runtime Ingestion
-- **Exporter Script (`scripts/export-pipeline-manifest.mjs`)**:
-  Parses verified runtime cache files (`4E4D0816.fbo.vk.xpso` and `4E4D0816.rtv.d3d12.xpso`) and serializes the 342 Vulkan records into `game-data/runtime/cache/shaders/prebuild/4E4D0816.fbo.vk.xpl` and the 295 D3D12 records into `4E4D0816.rtv.d3d12.xpl`.
-- **Runtime Ingestion**:
-  In [`pipeline_cache.cpp:1017`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1017), RexGlue's existing `ImportShaderPrebuild` reads this `.xpl` manifest at startup. Coupled with the guest shaders extracted from the player's installed game packages (`fxb0` local translation), background worker threads compile all 244 libraries (or D3D12 PSOs) ahead of gameplay.
-
----
-
 ### Milestone M2a: Empirical Validation Spike — Full Distribution GPL Benchmarking
 
 > **Goal**: De-risk Milestone M2 before committing 5–8 days of architectural refactoring. Build an empirical spike harness measuring cold library compilation, fast-link latency, GPU runtime draw cost, and distribution-wide compatibility across all 342 real game PSOs on the maintainer's RTX 3060 Ti.  
@@ -260,7 +241,7 @@ flowchart TD
    - Audit interface compatibility: verify that NVIDIA driver 621.14 accepts libraries where the pre-rasterization library outputs match the fragment library inputs directly via `(vsHash, vsMod)` and `(psHash, psMod)`.
 - **Pass / Gate Criteria for M2a**:
   - **Success**: $\ge 95\%$ of PSOs fast-link in $< 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 validation errors. **PROCEED TO M2**.
-  - **Failure / Warning**: Linking exceeds $1.0\text{ ms}$ or GPU overhead $\ge 5\%$. **TRIGGER CONTINGENCY R1** (rely on M1.5 prebuild warmup + M3 Restricted Async).
+  - **Failure / Warning**: Linking exceeds $1.0\text{ ms}$ or GPU overhead $\ge 5\%$. **TRIGGER CONTINGENCY R1** (rely on EDS permutation collapse [Tier T3/T4] + M3 Restricted Async).
 
 ---
 
@@ -286,11 +267,11 @@ flowchart TD
 
 | Tier | Hardware Capabilities Detected | Compilation & Linking Strategy | Objective Acceptance Criteria |
 | :---: | :--- | :--- | :--- |
-| **T1** | `GPL = true` + `fastLinking = true`<br>*(NVIDIA $\ge 515$, AMD $\ge 23.3$, Intel Arc)* | **Primary Path**: 4-part library fast-linking on command processor thread. Pre-compiled via M1.5 manifest. | Cold P99.9 $< 35.0\text{ ms}$; **0 stalls $> 100\text{ ms}$**; excess spike rate $< 50\text{ ms}/1\text{k}$. |
+| **T1** | `GPL = true` + `fastLinking = true`<br>*(NVIDIA $\ge 515$, AMD $\ge 23.3$, Intel Arc)* | **Primary Path**: 4-part library fast-linking on command processor thread (< 1.0 ms) on first draw. Zero reliance on shipped manifest; operates 100% autonomously on a pristine cold install. | Cold P99.9 $< 35.0\text{ ms}$; **0 stalls $> 100\text{ ms}$**; excess spike rate $< 50\text{ ms}/1\text{k}$. |
 | **T2** | `GPL = true` + `fastLinking = false`<br>*(Early GPL driver releases)* | **GPL + Narrow Async**: Slower link (~1.5–3 ms) offloaded for allowlisted VFX; synchronous for critical passes. | Cold P99.9 $< 40.0\text{ ms}$; **$\le 1$ stall $> 100\text{ ms}$**; 0 visual glitches. |
 | **T3** | `GPL = false` + `EDS 1, 2, 3 = true`<br>*(Vulkan 1.3 GPUs lacking GPL)* | **Monolithic PSO + Dynamic Blend & Depth**: Dynamic states collapse 94 blocks down to **9 states**. | Misses reduced by **36.0% (123 misses)**; stalls $> 100\text{ ms} \le 5$. |
 | **T4** | `GPL = false` + `EDS 1 & 2 = true`<br>*(Vulkan 1.2+ GPUs with basic dynamic state)* | **Monolithic PSO + Dynamic Depth/Cull**: Collapses 94 blocks down to **28 states**. | Misses reduced by **26.9% (92 misses)**; stalls $> 100\text{ ms} \le 8$. |
-| **T5** | `GPL = false` + `EDS = false`<br>*(Legacy Vulkan 1.0 / D3D12 fallback)* | **Multi-Threaded Boot Warmup + M3 Narrow Async**: Parallel thread pool warms up M1.5 manifest at startup. | Startup warmup $\le 3.5\text{ s}$; 0 mid-game stalls for prebuilt PSOs. |
+| **T5** | `GPL = false` + `EDS = false`<br>*(Legacy Vulkan 1.0 / D3D12 fallback)* | **Multi-Threaded Boot Warmup (if player local cache exists) + M3 Narrow Async**: Parallel thread pool warms up local cache on startup. | Startup warmup $\le 3.5\text{ s}$; 0 mid-game stalls for prebuilt PSOs. |
 
 #### M2.3 Four-Part `VkPipelineLibrary` Implementation
 - **Files Affected**:
@@ -298,8 +279,8 @@ flowchart TD
   - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1000-L1600)
 - **Library Lifecycle & Pair Indexing**:
   1. **Vertex Input Library (`VERTEX_INPUT_INTERFACE_BIT`)**: Cached globally by vertex fetch signature.
-  2. **Pre-Rasterization Library (`PRE_RASTERIZATION_SHADERS_BIT`)**: Keyed strictly by `(vsHash, vsMod)`. Compiled in background worker threads when seeded by the M1.5 prebuild manifest or on first pair discovery.
-  3. **Fragment Shader Library (`FRAGMENT_SHADER_BIT`)**: Keyed strictly by `(psHash, psMod)`. Compiled in background worker threads.
+  2. **Pre-Rasterization Library (`PRE_RASTERIZATION_SHADERS_BIT`)**: Keyed strictly by `(vsHash, vsMod)`. Compiled upon first encounter of the draw tuple (or seeded from player's local previous-session cache).
+  3. **Fragment Shader Library (`FRAGMENT_SHADER_BIT`)**: Keyed strictly by `(psHash, psMod)`. Compiled upon first encounter or seeded from local session cache.
   4. **Fragment Output Library (`FRAGMENT_OUTPUT_INTERFACE_BIT`)**: Render pass formats and blend states (or dynamic via EDS3).
   5. **Runtime Fast Link**:
      ```cpp
@@ -422,19 +403,31 @@ flowchart TD
 
 ---
 
-### Milestone M4 (Optional Backlog): Offline Pre-Translation & Launcher UI
+### Milestone M4 (Optional Client-Side Tooling & Polish): Local Session Manifest, Offline Translation & Launcher UI
 
-> **Goal**: Provide an offline guest ucode pre-translation script and launcher warm-up UI for players on fallback hardware who choose full boot-time warm-up.  
-> **Positioning**: Moved out of the critical path to optional backlog because JIT ucode translation accounts for only $1.39\%$ of slow-frame miss time ($1.58\text{ ms / shader}$).  
+> **Goal**: Provide offline client-side tooling and UI polish for players on fallback hardware or those wanting local pre-warming across repeat sessions.  
+> **Positioning**: Entirely non-blocking and auxiliary. The core release criteria (M0–M3) eliminate in-game stutter on first launch without requiring any distributed database or offline extraction.  
 > **Estimated Effort**: 2 Days  
 > **Target Branch**: `feat/shader-tooling`
 
-#### M4.1 Offline Local Shader Pre-Translation Tool
+#### M4.1 Local Session Pipeline Manifest (`.xpl`) & Local Cache Pre-warming [Non-Distributed]
+- **Files Affected**:
+  - [`scripts/export-pipeline-manifest.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/export-pipeline-manifest.mjs)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1017)
+- **Legal Compliance Guarantee**:
+  - **Zero Distribution**: No `.xpl` file, hash list, or pipeline database is ever committed to Git, bundled in release packages, or hosted on remote distribution endpoints.
+  - Distributing an `.xpl` derived from complete game playthroughs exposes proprietary material topologies and risks copyright or trade secret claims.
+  - M4.1 functions strictly as a **local player cache mechanism**: after the player has played the game on their own machine, the local client or local utility script may serialize the player's own discovered runtime cache (`4E4D0816.fbo.vk.xpso` / `.rtv.d3d12.xpso`) into `game-data/runtime/cache/shaders/prebuild/4E4D0816.fbo.vk.xpl` on their own disk.
+- **Runtime Ingestion**:
+  - On subsequent boots on that user's PC, `ImportShaderPrebuild` reads this locally generated manifest to warm up background worker threads before 3D gameplay begins.
+  - On a pristine first installation, this file does not exist, and the engine relies entirely on runtime GPL fast-linking (M2) and restricted async (M3).
+
+#### M4.2 Offline Local Shader Pre-Translation Tool
 - **Files Affected**:
   - [`scripts/extract-local-shaders.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/extract-local-shaders.mjs)
 - **Role**: Parses local installed game packages (`HexaEngineXbox.knl`, `start.pak`, `eff.pak`, `static.pak`) on the user's PC, translates 130 PS and 94 VS templates to SPIR-V/DXBC at install time ($< 500\text{ ms}$). Eliminates the remaining $1.4\%$ of CPU translation work during boot.
 
-#### M4.2 Launcher Pre-Compilation UI Feedback
+#### M4.3 Launcher Pre-Compilation UI Feedback
 - **Files Affected**:
   - [`scripts/launcher.ps1`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/launcher.ps1)
   - [`private/launcher-usa.json`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/private/launcher-usa.json)
@@ -462,11 +455,6 @@ flowchart TD
 |           | - Re-port d3d12-blocking-pso-precompile.patch to D3D12           |             |                        |
 |           | - Gate PR against D8 criteria (0 stalls > 100 ms on warm run)    |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
-| M1.5      | Prebuild Pipeline Manifest (.xpl) & Export Tooling               | 1-2 Days    | feat/prebuild-manifest |
-|           | - Deliver scripts/export-pipeline-manifest.mjs                   |             |                        |
-|           | - Export 4E4D0816.fbo.vk.xpl and 4E4D0816.rtv.d3d12.xpl         |             |                        |
-|           | - Hook manifest into ImportShaderPrebuild for boot-time warmup   |             |                        |
-+-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2a       | Empirical Validation Spike (Full Distribution GPL Benchmarking)  | 1-2 Days    | spike/gpl-fast-linking |
 |           | - Measure cold VS/PS library compilation with purged GLCache     |             |                        |
 |           | - Measure fast-link latency distribution across all 342 PSOs     |             |                        |
@@ -475,7 +463,7 @@ flowchart TD
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2        | Core Engine GPL & Extended Dynamic State Integration             | 5-8 Days    | feat/vulkan-gpl-linking|
 |           | - 4-part VkPipelineLibrary architecture indexed by (hash, mod)   |             |                        |
-|           | - Consumes M1.5 manifest for zero-cold-stutter boot priming      |             |                        |
+|           | - Zero reliance on shipped manifests (autonomous on cold launch) |             |                        |
 |           | - Extended Dynamic State (1, 2, 3) integration (94 -> 9 states)  |             |                        |
 |           | - Enforce explicit 5-tier hardware fallback matrix               |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
@@ -485,9 +473,10 @@ flowchart TD
 |           | - Audit Category 6B shaders against fxb0 (exclude water/fog)     |             |                        |
 |           | - Presentation gate redesign (eliminate frame-hold deadlock)     |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
-| M4        | Backlog / Optional: Offline Pre-Translation & Launcher UI        | 2 Days      | feat/shader-tooling    |
-|           | - Offline ucode pre-translation script (Stage a optimization)    |             |                        |
-|           | - Launcher warm-up progress bar for boot pre-compilation         |             |                        |
+| M4        | Optional Client-Side Tooling & Polish                            | 2 Days      | feat/shader-tooling    |
+|           | - M4.1 Local session pipeline manifest export (.xpl)             |             |                        |
+|           | - M4.2 Offline ucode pre-translation script (Stage a)            |             |                        |
+|           | - M4.3 Launcher warm-up progress bar for boot pre-compilation    |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 ```
 
@@ -497,7 +486,7 @@ flowchart TD
 
 | Risk ID | Potential Failure Mode | Likelihood | Impact | Architectural Mitigation & Fallback Strategy |
 | :--- | :--- | :---: | :---: | :--- |
-| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. Fall back to **Tier T2**: M1.5 manifest boot-time precompilation combined with **M3 Narrow Async** for safe passes. |
+| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. Fall back to **Tier T2**: Slower link offloaded via **M3 Narrow Async** for safe passes; on hardware lacking GPL, rely on **Tier T3/T4 Extended Dynamic State** (collapsing 26.9% to 36.0% of misses). |
 | **R2** | Fast-linked pipelines exhibit $> 5\%$ GPU execution overhead vs monolithic SASS. | Low | Medium | **Evaluated in M2a Spike**. If GPU overhead is unacceptable, restrict GPL to foreground draw pacing and trigger background monolithic compilation to hot-swap. |
 | **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 fxb0 symbol audit**. Category 6B is provisional; only confirmed fur shells (`Kemumaki`) and foliage billboards are admitted. All unverified shaders default to synchronous. |
 | **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver has the world's most mature GPL implementation (`radv_fast_linking = true` active by default since Mesa 23.1). |
@@ -523,6 +512,6 @@ During a **100% cold first-time launch** (clean `game-data/runtime/cache/` and p
 3. **Zero Functional Regressions**: Zero rendering or pipeline creation crashes across all game zones.
 
 ### 6.3 Compliance & Engineering Standards
-1. **Zero Copyrighted Game Assets or Precompiled Binary Blobs**: No raw microcode, `.xsh`, `.xpso`, or driver caches committed to Git. The `.xpl` prebuild manifest contains exclusively 64-bit cryptographic hashes and state enums.
+1. **Zero Copyrighted Game Assets, Microcode, Hash Lists, or Derived Pipeline Manifests Distributed**: Absolute zero game-derived artifacts committed to Git, bundled into release zips, or hosted on remote mirrors. No raw microcode, `.xsh`, `.xpso`, `.xpl`, driver caches, or hash databases. All game execution artifacts are strictly generated locally on the player's own machine from their legally owned copy.
 2. **Automated CI Validation**: `scripts/verify-shader-mitigation.ps1` runs cleanly and reports green on the target PR using `scripts/analyze-performance-csv.mjs`.
 3. **Code Reviews & Documentation**: Clean commit history conforming to project standards.

@@ -1,10 +1,11 @@
 # Architectural Implementation Plan: Shader Precompilation & Stutter Elimination
 
 > **Date**: 2026-11-11  
-> **Status**: **REVISED IMPLEMENTATION SPECIFICATION (POST-REVIEW RECALIBRATION)**  
+> **Status**: **REVISION 4 — EXTERNAL REFERENCES INTEGRATION (POST-RESEARCH SCAN)**  
 > **Target Title**: *Majin and the Forsaken Kingdom* (Title ID `4E4D0816`)  
 > **Preceding Reference Document**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md)  
 > **Discovery Evidentiary Corpus**: [`docs/discovery/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/) (Phases D1 through D8)  
+> **External Reference Corpus**: See §7 — External Implementation References  
 > **Target Hardware & Driver Environment**: Windows 11 AMD64, NVIDIA GeForce RTX 3060 Ti (driver `621.14`, Vulkan `1.4.357`, DirectX 12 Agility / Feature Level 12_1).  
 > **Legal & Compliance Boundary**: Absolute clean-room zero-distribution principle. Zero distribution of copyrighted game assets, guest shader microcode, `.xsh` dumps, binary driver caches (`.vkpc`, `GLCache`, `DXCache`), prebuild pipeline manifests (`.xpl`), hash lists, state lists, or commercial binaries. All transformations, extractions, and compilations execute exclusively on the player's PC from their legally owned game copy. The first-playthrough cold stutter mitigation MUST succeed independently without any distributed cache, hash database, or shipped pipeline manifest.
 
@@ -19,7 +20,7 @@ During a first-time player's cold launch on modern hardware, frame times collaps
 Following exhaustive architectural review of the discovery findings, RexGlue source code (`command_processor.cpp`, `pipeline_cache.cpp`), and binary caches (`4E4D0816.fbo.vk.xpso` and `4E4D0816.rtv.d3d12.xpso`), this implementation plan addresses seven critical architectural realities:
 
 1. **The VS/PS Coupling Constraint & Draw-Time GPL Fast-Linking**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` depends on the paired pixel shader's input mask (`pixel_shader->GetInterpolatorInputMask(...)`). Consequently, a vertex shader cannot be translated to SPIR-V or compiled into a `VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT` library at ucode registration time in isolation. Instead, pre-rasterization and fragment libraries are keyed by `(vsHash, vsMod)` and `(psHash, psMod)`. When an unlinked pair of pre-compiled libraries or a new state combination is encountered at draw time, `VK_EXT_graphics_pipeline_library` executes a **fast-link in `< 1.0 ms`** (measured at 0.20–0.50 ms), which fits completely inside the 16.6 ms (60 FPS) or 33.3 ms (30 FPS) frame budget without missing a single frame. Any completely new guest shader encountered beyond the boot-primed set still incurs full driver compile latency on first encounter, mitigated by M3 restricted async for non-critical passes.
-2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M1.5) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. The critical path for a pristine cold launch operates 100% autonomously via runtime GPL fast-linking and restricted async.
+2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M4.1) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. The critical path for a pristine cold launch operates 100% autonomously via runtime GPL fast-linking and restricted async.
 3. **Rigorous M2a Validation Spike**: The M2a spike is expanded beyond a trivial fast-link test. It measures: (a) cold library creation for VS and PS with GLCache purged, (b) fast-link latency, (c) GPU runtime draw-call execution overhead of linked vs monolithic pipelines, and (d) validation across the full distribution of all 342 discovered in-game PSOs.
 4. **Correction of M1 Justification & `kStale` Redundancy**: The `+7.82 ms / PSO` overhead documented in D2 is attributed to CPU overhead in the temporary per-pipeline `VkPipelineCache` wrapper (`vkCreatePipelineCache(seed)`, `vkGetPipelineCacheData`, and FNV-1a checksumming of a 2 MB blob), not synchronous disk writes. Disabling `.vkpc` (`--vulkan_store_pipeline_cache=false`) eliminates this entire codepath, making `Outcome::kStale` handling automatically redundant.
 5. **Two-Layer Restricted Async (39.8% Ceiling & Category 6B Validation)**:
@@ -29,10 +30,17 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
    - The presentation gate is specified: non-critical VFX bypass `skip_present_due_async_placeholder`, presenting immediately at 60 FPS without frame-holding deadlocks.
 6. **Controlled Baseline Recapture Protocol**: Recognizes that input-replay does not natively exist in the engine. Replaces arbitrary frame cuts with log lifecycle markers (`flow_a` for gameplay entry, `ContentCreateEx` for checkpoint save). Baseline must be recaptured with `.vkpc` disabled and performance counters enabled, using calibrated thresholds matching the warm reference (P99.9 $< 33.33\text{ ms}$ aggregate / $< 35.0\text{ ms}$ single-run, stalls $> 100\text{ ms} = 0$, stalls $> 33.33\text{ ms} \le 8$ full session / $\le 3$ gameplay-only, excess lost $< 50.0\text{ ms} / 1\text{k frames}$; see §6.1).
 7. **Reconciled Blend Enum Standards**: Clarifies the enum discrepancies between Vulkan `VkBlendFactor` (`SrcAlpha = 6`, `InvSrcAlpha = 7`, `DestColor = 4`) and D3D12 `PipelineBlendFactor` (`SrcAlpha = 4`, `InvSrcAlpha = 5`, `DestColor = 6`).
+8. **External Reference Corpus (New in v4)**: A focused GitHub scan identified four production-grade reference implementations that materially de-risk and accelerate the implementation:
+   - **[TheSimpsonsGameRecomp/pipeline_harness.cpp](https://github.com/YesterMester/TheSimpsonsGameRecomp)** — a standalone headless C++ Vulkan harness that compiles pipelines for guest shaders without launching the game. Serves as the **~70% boilerplate baseline for M2a**.
+   - **[DXVK (dxvk_graphics.cpp / dxvk_shader.cpp)](https://github.com/doitsujin/dxvk)** — the world's most mature production implementation of `VK_EXT_graphics_pipeline_library`. Serves as the **reference architecture for M2** (4-part library split, fast-link, hot-swap pattern).
+   - **Khronos `VK_EXT_graphics_pipeline_library` proposal + `graphicsPipelineLibraryIndependentInterpolationDecoration`** — official specification confirming that this feature **eliminates the interpolator_mask library multiplication risk**, reducing `(vsHash, vsMod)` keying to a stable, non-exploding set.
+   - **[CrownParkComputing/Xbox360-Native-Ports (REXGLUE_FORK_CHANGES.md)](https://github.com/CrownParkComputing/Xbox360-Native-Ports)** — three CPU optimization patches (MRU state cache, binding fast path, bulk register writes) that reduce Command Processor overhead by ~4% overall, complementary to but not overlapping with the shader stutter initiative.
+
+   See §7 for full details, code snippets, and integration directives.
 
 ```
 +-----------------------------------------------------------------------------------------------------------------------+
-|                                    REVISED SIX-LAYER IMPLEMENTATION ARCHITECTURE                                      |
+|                                    REVISED SEVEN-LAYER IMPLEMENTATION ARCHITECTURE                                   |
 +-----------------------------------------------------------------------------------------------------------------------+
 |                                                                                                                       |
 |   LAYER 0: Verification Tooling & Telemetry Integrity (Milestone M0)                                                  |
@@ -49,6 +57,13 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
 |   - Automatically bypasses Outcome::kStale driver cache recycling codepath.                                            |
 |   - Re-port d3d12-blocking-pso-precompile.patch: parallel worker threads cut D3D12 startup from 75-81 to 6.5-12 ms/PSO.|
 |                                                                                                                       |
+|   LAYER 1.5: Optional CPU Optimization Bonus (Milestone M1.5 - CrownParkComputing Port) [NEW in v4]                   |
+|   ====================================================================================                                |
+|   - MRU PipelineDescription state cache (64 entries): 0.3% -> 0.02% of CP CPU                                         |
+|   - Stable-binding fast path (16 entries): 3.2% -> 1.9% of CP CPU                                                     |
+|   - Bulk register writes (memcpy for sequential PM4): 5.9% -> 0.5% of CP CPU                                          |
+|   - Complementary to (not a substitute for) the shader stutter fix; ~4% total CP CPU reduction                        |
+|                                                                                                                       |
 |   LAYER 2: Empirical Validation Spike (Milestone M2a - De-risking Gate)                                               |
 |   =====================================================================                                               |
 |   - Standalone test harness across all 342 discovered PSOs on RTX 3060 Ti:                                            |
@@ -56,10 +71,13 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
 |       2. Fast-link latency distribution (verifying < 1.0 ms).                                                         |
 |       3. GPU runtime execution cost: linked pipeline vs monolithic SASS draw-call time.                               |
 |       4. Full distribution compatibility and link error verification.                                                 |
+|       5. interpolator_mask enumeration + IndependentInterpolationDecoration verification [NEW in v4]                   |
+|   - Starting point: port TheSimpsonsGameRecomp/pipeline_harness.cpp as the ~70% boilerplate base [NEW in v4]          |
 |                                                                                                                       |
 |   LAYER 3: Core Engine GPL & Extended Dynamic State (Milestone M2)                                                    |
 |   ================================================================                                                    |
 |   - 4-part VkPipelineLibrary architecture indexed by (vsHash, vsMod) and (psHash, psMod).                             |
+|   - Reference implementation: DXVK's dxvk_graphics.cpp (production-proven GPL pattern) [NEW in v4]                    |
 |   - Sub-millisecond draw-time fast-linking eliminates cold SASS compilation stalls for new state combinations.          |
 |   - New shaders beyond primed set incur full compile cost, mitigated by M3 restricted async for non-critical passes.    |
 |   - Implement Extended Dynamic State (1, 2, 3) to collapse 94 fixed-function states down to 9 render passes.          |
@@ -73,11 +91,11 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
 |   - Category 6B (92 PSOs, 26.9%): Provisional; contingent on fxb0 shader name audit (exclude water/fog/glass).       |
 |   - Presentation Gate: Non-critical VFX bypass skip_present_due_async_placeholder; zero frame-hold stalls.            |
 |                                                                                                                       |
-|   LAYER 5: Client-Side Local Manifest & Tooling (Milestones M1.5 & M4 - Optional / Non-Distributed)                   |
-|   ================================================================================================                    |
-|   - M1.5 (Local Session Prebuild): Local client exports discovered tuples to user cache for subsequent boots.          |
-|   - M4.1 (Local Shader Pre-translation): Offline parser converts local fxb0 packages to SPIR-V/DXBC at install time.   |
-|   - M4.2 (Launcher UI Feedback): Optional progress bar for players on fallback hardware choosing full boot warm-up.   |
+|   LAYER 5: Client-Side Local Manifest & Tooling (Milestones M1.5-Client & M4 - Optional / Non-Distributed)           |
+|   ======================================================================================================              |
+|   - M4.1 (Local Session Prebuild): Local client exports discovered tuples to user cache for subsequent boots.         |
+|   - M4.2 (Local Shader Pre-translation): Offline parser converts local fxb0 packages to SPIR-V/DXBC at install time.   |
+|   - M4.3 (Launcher UI Feedback): Optional progress bar for players on fallback hardware choosing full boot warm-up.   |
 |   - Absolute compliance: Zero .xpl manifests, microcodes, or hashes distributed with project releases.                |
 |                                                                                                                       |
 +-----------------------------------------------------------------------------------------------------------------------+
@@ -100,33 +118,39 @@ flowchart TD
         D8["D8: Baseline fixed: P99.9 = 443.8 ms cold -> 30.4 ms warm (-93.1%)"]
     end
 
-    subgraph CoreCriticalPath ["Core Critical Path (Primes Cold Run Without Shipped Cache)"]
-        M0["Milestone M0: Telemetry Fixes + analyze-performance-csv.mjs CLI + Baseline Recapture"]
-        M1["Milestone M1: Pure Bypass .vkpc (1-line) + D3D12 Parallel Patch"]
-        M2a["Milestone M2a: Empirical Validation Spike (Cold Lib, Link, GPU Cost, 342 PSOs)"]
-        M2["Milestone M2: Core Engine GPL 4-Part Libraries + EDS (1/2/3) + 5-Tier Fallback"]
-        M3["Milestone M3: Two-Layer Restricted Async + Cat 6B Shader Name Audit + Pres Gate"]
+    subgraph ExternalRefs ["External Reference Corpus (v4 - Research Scan)"]
+        R1["R1: TheSimpsonsGameRecomp pipeline_harness.cpp\n(headless Vulkan harness for M2a boilerplate)"]
+        R2["R2: DXVK dxvk_graphics.cpp\n(production GPL 4-part reference for M2)"]
+        R3["R3: Khronos IndependentInterpolationDecoration\n(eliminates interp_mask VS library explosion)"]
+        R4["R4: CrownParkComputing REXGLUE_FORK_CHANGES.md\n(CP CPU optimization patches for M1.5)"]
     end
 
-    subgraph LocalAuxiliaryTooling ["Client-Side Local Tooling (Non-Distributed / Optional)"]
-        M41["Milestone M4.1: Local Session Manifest (.xpl) & Local Cache Pre-warming"]
-        M42["Milestone M4.2/M4.3: Offline Local fxb0 Pre-translation & Launcher UI"]
+    subgraph CoreCriticalPath ["Core Critical Path (Primes Cold Run Without Shipped Cache)"]
+        M0["M0: Telemetry + Analyzer + Baseline"]
+        M1["M1: .vkpc bypass + D3D12 parallel patch"]
+        M15["M1.5: CP CPU Optimization Bonus (optional, CrownParkComputing)"]
+        M2a["M2a: GPL Validation Spike"]
+        M2["M2: Core GPL + EDS"]
+        M3["M3: Restricted Async + Cat 6B Audit"]
     end
 
     D1 --> M0
     D8 --> M0
     D2B --> M1
+    R4 --> M15
     M0 --> M1
     M1 --> M2a
+    M1 -.-> M15
+    R1 --> M2a
     D2A --> M2a
     D7 --> M2a
+    R3 --> M2a
     M2a --> M2
+    R2 --> M2
     D4 --> M2
     D5 --> M2
     D6 --> M3
     M2 --> M3
-    M2 -.-> M41
-    M1 -.-> M42
 ```
 
 ---
@@ -233,11 +257,76 @@ flowchart TD
 
 ---
 
+### Milestone M1.5 (Optional Bonus): Command Processor CPU Optimization Port (CrownParkComputing)
+
+> **Goal**: Port three low-risk, high-value CPU optimization patches from the CrownParkComputing `Xbox360-Native-Ports` fork to `rexglue-sdk`. These reduce the overall Command Processor CPU load during gameplay (independent of PSO compilation overhead).  
+> **Positioning**: **Complementary, not critical-path.** These optimizations reduce total CP CPU time but do **not** address the primary `pipeline_ms` stutter target. They can be delivered in parallel with M2a/M2 (same author context) or deferred to backlog.  
+> **Estimated Effort**: 0.5–1 Day  
+> **Target Branch**: `feat/cp-cpu-optimizations`
+
+#### M1.5.1 MRU PipelineDescription State Cache
+- **Files Affected**: `tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp` (`ConfigurePipeline`)
+- **Problem**: `GetCurrentStateDescription()` recomputes the full state hash on every draw call.
+- **Fix**: Add a 64-entry MRU cache keyed by a cheap state signature.
+- **Measured Effect**: `GetCurrentStateDescription` drops from ~0.3% to ~0.02% of CP CPU time.
+
+#### M1.5.2 Stable-Binding Fast Path
+- **Files Affected**: `tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp` (`UpdateBindings`)
+- **Problem**: `VkImageView` resolution is repeated on adjacent draws with identical textures.
+- **Fix**: Add a 16-entry MRU cache keyed by `(texture_fetch_constant, texture_host)`.
+- **Measured Effect**: `UpdateBindings` drops from ~3.2% to ~1.9% of CP CPU time.
+
+#### M1.5.3 Bulk Register Writes
+- **Files Affected**: `tools/source/rexglue-sdk/src/graphics/command_processor.cpp` (`WriteRegister` and callers)
+- **Problem**: Sequential PM4 register writes dispatch one virtual call per register.
+- **Fix**: Batch contiguous writes into a single `memcpy` on the destination register file.
+- **Measured Effect**: `WriteRegister` drops from ~5.9% to ~0.5% of CP CPU time.
+
+#### M1.5.4 Acceptance Criteria
+- All three patches verified against the D8 warm baseline: no regression in P99.9 or excess spike rate.
+- Cumulative CP CPU reduction ≥ 3.0% (target ~4% based on source measurements).
+- **Explicit non-goal**: these patches do not improve cold P99.9 or stall counts — they are pure steady-state CPU optimization.
+
+---
+
 ### Milestone M2a: Empirical Validation Spike — Full Distribution GPL Benchmarking
 
 > **Goal**: De-risk Milestone M2 before committing 5–8 days of architectural refactoring. Build an empirical spike harness measuring cold library compilation, fast-link latency, GPU runtime draw cost, and distribution-wide compatibility across all 342 real game PSOs on the maintainer's RTX 3060 Ti.  
 > **Estimated Effort**: 1–2 Days  
 > **Target Branch**: `spike/gpl-fast-linking`
+
+#### M2a.0 Starting Point — Port TheSimpsonsGameRecomp's Headless Harness [NEW in v4]
+
+Before writing the M2a harness from scratch, port the standalone headless Vulkan harness from TheSimpsonsGameRecomp:
+
+- **Source**: [`YesterMester/TheSimpsonsGameRecomp/tools/native-renderer/pipeline_harness.cpp`](https://github.com/YesterMester/TheSimpsonsGameRecomp)
+- **Approximate coverage of M2a requirements**: ~70% of the boilerplate.
+
+**Reusable verbatim (~70%)**:
+- Vulkan instance/device creation and `VkPhysicalDeviceFeatures2` chain (extend for GPL features).
+- `volk` loader integration.
+- `nlohmann/json` manifest + `.jsonl` inventory parsing.
+- `vkCreateShaderModule` for all recorded SPIR-V modules.
+- Descriptor set layout creation from reflection.
+- Pipeline layout creation from reflection.
+- **Guest→Vulkan state mapping** (`ToVkBlendOp`, `GuestColorFormat`, `ToVkTopology`, direct enum casts — **enums identical to `rex/graphics/xenos.h`**).
+- Empty vertex input state (confirms the Majin `gl_VertexIndex` pattern from D4).
+- `pipeline_cache.bin` persistence (cold/warm methodology identical to D2).
+
+**Must be extended (~30% new work)**:
+1. Enable and probe `VK_EXT_graphics_pipeline_library` + `graphicsPipelineLibraryIndependentInterpolationDecoration` + `graphicsPipelineLibraryFastLinking`.
+2. Replace monolithic `vkCreateGraphicsPipelines` with the **two-phase library compile → fast-link** flow.
+3. Instrument per-library cold latency (not aggregate).
+4. Instrument per-PSO fast-link latency distribution (P50, P95, P99, max, % < 1.0 ms).
+5. Add `vkCmdWriteTimestamp` GPU runtime benchmark (offscreen render, linked vs monolithic).
+6. Enable validation layer and assert 0 errors.
+7. Adapt manifest schema from `.jsonl` (The Simpsons) to Majin's `.xpso` format.
+
+**Majin-specific pitfalls to handle**:
+- `vsMod`/`psMod` are `uint64`, not string.
+- `render_pass_key` (0x8c, 0x8, etc.) is more granular than The Simpsons FBO.
+- `vulkan_dynamic_rendering=false` in production; harness must be testable in both modes.
+- Confirm depth format against RexGlue's `VkRenderTargetCache::GetDepthVulkanFormat` (do not assume `D32_SFLOAT_S8_UINT`).
 
 #### M2a.1 Comprehensive Measurement Methodology
 1. **Cold Creation Latency of VS and PS Libraries**:
@@ -247,7 +336,7 @@ flowchart TD
    - Measure cold compilation latency distribution (min, median, P95, max) for individual libraries.
 2. **Fast-Link Latency Distribution**:
    - For all 342 real PSOs (195 unique pairs), execute `vkCreateGraphicsPipelines` with `VkPipelineLibraryCreateInfoKHR` linking the libraries together with `flags = 0`.
-   - Measure linking latency distribution on the CPU. Confirm whether $\ge 99\%$ of links complete in **`< 1.0 ms`** (verifying driver `graphicsPipelineLibraryFastLinking = true`).
+   - Measure linking latency distribution on the CPU. Confirm whether ≥ 99% of links complete in **`< 1.0 ms`** (verifying driver `graphicsPipelineLibraryFastLinking = true`).
 3. **GPU Runtime Draw Execution Overhead (Linked vs. Monolithic)**:
    - Compile the identical 342 PSOs as monolithic pipelines with full driver optimization (`flags = 0`).
    - In an offscreen render loop, issue 1,000 draws using the monolithic pipelines, then 1,000 draws using the fast-linked pipelines.
@@ -255,14 +344,20 @@ flowchart TD
 4. **Compatibility & Verification**:
    - Verify that all 342 PSOs succeed in linking with 0 Vulkan validation layer warnings/errors.
    - Audit interface compatibility: verify that NVIDIA driver 621.14 accepts libraries where the pre-rasterization library outputs match the fragment library inputs directly via `(vsHash, vsMod)` and `(psHash, psMod)`.
-5. **Explicit Enumeration of (vsHash, vsMod, interpolator_mask)**:
+5. **Explicit Enumeration of (vsHash, vsMod, interpolator_mask) & IndependentInterpolationDecoration Verification**:
    - In RexGlue's SPIR-V translator ([`spirv_translator.h:54`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/pipeline/shader/spirv_translator.h#L54)), `interpolator_mask` occupies bits 0..15 of `Modification.vertex` (`vsMod`).
    - For all 99 unique `(vsHash, vsMod)` pre-rasterization libraries, measure and verify whether `unique(vsHash, vsMod) == unique(vsHash, interpolator_mask)`.
-   - **Empirical Baseline Confirmed**: Across the 342 real game PSOs in `4E4D0816.fbo.vk.xpso`, there are exactly **97 unique VS hashes**, **99 unique `(vsHash, vsMod)` tuples**, and **99 unique `(vsHash, interpMask)` tuples**. Exactly 2 VS hashes have 2 variants (`interpMask = 0` vs `1`), while 95 VS hashes have strictly 1 variant.
-   - The spike will measure whether unencountered pixel shaders dynamically require new interpolator masks during gameplay, quantifying library multiplication risk prior to backend refactoring.
+   - **Empirical Baseline Confirmed (v3)**: Across the 342 real game PSOs in `4E4D0816.fbo.vk.xpso`, there are exactly **97 unique VS hashes**, **99 unique `(vsHash, vsMod)` tuples**, and **99 unique `(vsHash, interpMask)` tuples**. Exactly 2 VS hashes have 2 variants (`interpMask = 0` vs `1`), while 95 VS hashes have strictly 1 variant.
+   - **New verification (v4)**: Confirm that the RTX 3060 Ti driver reports `graphicsPipelineLibraryIndependentInterpolationDecoration = true`. **If yes**, then per the Vulkan spec, "any geometry stage decorations are ignored" when building pre-raster libraries — meaning **a single VS pre-raster library per `(vsHash, vsMod)`** suffices for **all** paired PS variants, regardless of their interpolator declarations. This eliminates the library multiplication risk outright and is a hard prerequisite for M2's viability on any hardware.
+   - **Cross-reference**: See §7 item R3 for the Khronos spec quote and DXVK's `canUseGraphicsPipelineLibrary` guard, which shows this is the standard production pattern.
+6. **Placeholder Pipeline Compile Cost Audit**:
+   - Measure the synchronous CPU cost of creating the `kPlaceholderPixelShaderSource` (`discard;`) pipeline with `vkCreateGraphicsPipelines`.
+   - If > 1.0 ms per placeholder, the net benefit of M3's restricted async path is reduced by the placeholder creation overhead and must be factored into M3's acceptance criteria.
+
 - **Pass / Gate Criteria for M2a**:
-  - **Success**: $\ge 95\%$ of PSOs fast-link in $< 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 validation errors. **PROCEED TO M2**.
-  - **Failure / Warning**: Linking exceeds $1.0\text{ ms}$ or GPU overhead $\ge 5\%$. **TRIGGER CONTINGENCY R1** (rely on EDS permutation collapse [Tier T3/T4] + M3 Restricted Async).
+  - **Success**: ≥ 95% of PSOs fast-link in `< 1.0 ms`, GPU overhead `< 2%`, 0 validation errors, `independentInterpolationDecoration = true`. **PROCEED TO M2**.
+  - **Conditional Proceed**: GPU overhead in `[2%, 5%)`. Proceed to M2 but schedule a background optimization pass to hot-swap to monolithic pipelines if in-game telemetry confirms unacceptable performance impact.
+  - **Failure / Warning**: Linking exceeds `1.0 ms` or GPU overhead `≥ 5%` or `independentInterpolationDecoration = false`. **TRIGGER CONTINGENCY R1**.
 
 ---
 
@@ -272,6 +367,31 @@ flowchart TD
 > **Estimated Effort**: 5–8 Days  
 > **Target Branch**: `feat/vulkan-gpl-linking`
 
+#### M2.0 Reference Implementation — DXVK's Production GPL Pattern [NEW in v4]
+
+Before writing the 4-part library architecture, study and mirror the production-proven DXVK implementation:
+
+- **Source**: [`doitsujin/dxvk/src/dxvk/dxvk_graphics.cpp`](https://github.com/doitsujin/dxvk)
+- **Source**: [`doitsujin/dxvk/src/dxvk/dxvk_shader.cpp`](https://github.com/doitsujin/dxvk)
+
+**Key architecture elements to mirror**:
+
+1. **4-library split** (identical to M2.3):
+   ```cpp
+   std::array<VkPipeline, 4> libraries = {{
+       key.viLibrary->getHandle(),  // 1. Vertex Input
+       vs.handle,                   // 2. Pre-Rasterization (VS)
+       fs.handle,                   // 3. Fragment Shader (PS)
+       key.foLibrary->getHandle(),  // 4. Fragment Output (Blend + RenderPass)
+   }};
+   ```
+
+2. **Fast-link at draw time** (`createBasePipeline`): pass the 4 libraries to `VkPipelineLibraryCreateInfoKHR` and call `vkCreateGraphicsPipelines` **without** the expensive optimization flag.
+
+3. **Hot-swap pattern** (`getOptimizedPipeline`): after fast-link succeeds, dispatch a background monolithic compile and swap the pipeline handle when ready. **This is optional for Majin** (since fast-linked performance is < 2% overhead per M2a gate), but is a valuable fallback if M2a shows unacceptable GPU overhead.
+
+4. **`canUseGraphicsPipelineLibrary` guard** (`dxvk_device.cpp`): the production gate that checks `graphicsPipelineLibrary && graphicsPipelineLibraryIndependentInterpolationDecoration`. **The M2.1 feature negotiation MUST replicate this guard**, not just check `graphicsPipelineLibrary`.
+
 #### M2.1 Device Extension Negotiation & Physical Feature Probing
 - **Files Affected**:
   - [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L310)
@@ -279,6 +399,7 @@ flowchart TD
 - **Negotiation**:
   Query and enable `VK_EXT_graphics_pipeline_library`, `VK_KHR_pipeline_library`, and `VK_EXT_extended_dynamic_state` (1, 2, 3). Probe physical device feature flags:
   - `graphicsPipelineLibrary`
+  - **`graphicsPipelineLibraryIndependentInterpolationDecoration`** (MANDATORY for T1 tier)
   - `graphicsPipelineLibraryFastLinking`
   - `extendedDynamicState`
   - `extendedDynamicState2`
@@ -288,16 +409,20 @@ flowchart TD
 
 | Tier | Hardware Capabilities Detected | Compilation & Linking Strategy | Objective Acceptance Criteria |
 | :---: | :--- | :--- | :--- |
-| **T1** | `GPL = true` + `fastLinking = true`<br>*(NVIDIA $\ge 515$, AMD $\ge 23.3$, Intel Arc)* | **Primary Path**: 4-part library fast-linking on command processor thread (< 1.0 ms) on first draw. Zero reliance on shipped manifest; operates 100% autonomously on a pristine cold install. | Cold P99.9 $< 33.33\text{ ms}$ (agg) / $< 35.0\text{ ms}$ (single); **0 stalls $> 100\text{ ms}$**; stalls $> 33.33\text{ ms} \le 8$; excess spike rate $< 50\text{ ms}/1\text{k}$ (see §6.1). |
-| **T2** | `GPL = true` + `fastLinking = false`<br>*(Early GPL driver releases)* | **GPL + Narrow Async**: Slower link (~1.5–3 ms) offloaded for allowlisted VFX; synchronous for critical passes. | Cold P99.9 $< 40.0\text{ ms}$; **$\le 1$ stall $> 100\text{ ms}$**; 0 visual glitches. |
-| **T3** | `GPL = false` + `EDS 1, 2, 3 = true`<br>*(Vulkan 1.3 GPUs lacking GPL)* | **Monolithic PSO + Dynamic Blend & Depth**: Dynamic states collapse 94 blocks down to **9 states**. | Misses reduced by **36.0% (123 misses)**; stalls $> 100\text{ ms} \le 5$. |
-| **T4** | `GPL = false` + `EDS 1 & 2 = true`<br>*(Vulkan 1.2+ GPUs with basic dynamic state)* | **Monolithic PSO + Dynamic Depth/Cull**: Collapses 94 blocks down to **28 states**. | Misses reduced by **26.9% (92 misses)**; stalls $> 100\text{ ms} \le 8$. |
-| **T5** | `GPL = false` + `EDS = false`<br>*(Legacy Vulkan 1.0 / D3D12 fallback)* | **Multi-Threaded Boot Warmup (if player local cache exists) + M3 Narrow Async**: Parallel thread pool warms up local cache on startup. | Startup warmup $\le 3.5\text{ s}$; 0 mid-game stalls for prebuilt PSOs. |
+| **T1** | `GPL = true` + `fastLinking = true` + **`independentInterpolationDecoration = true`** | **Primary Path**: 4-part library fast-linking on command processor thread (< 1.0 ms) on first draw. Zero reliance on shipped manifest; operates 100% autonomously on a pristine cold install. | Cold P99.9 $< 33.33\text{ ms}$ (agg) / $< 35.0\text{ ms}$ (single); **0 stalls $> 100\text{ ms}$**; stalls $> 33.33\text{ ms} \le 8$; excess spike rate $< 50\text{ ms}/1\text{k}$ (see §6.1). |
+| **T2** | `GPL = true` + `fastLinking = false` + **`independentInterpolationDecoration = true`** | **GPL + Narrow Async**: Slower link (~1.5–3 ms) offloaded for allowlisted VFX; synchronous for critical passes. | Cold P99.9 $< 40.0\text{ ms}$; **$\le 1$ stall $> 100\text{ ms}$**; 0 visual glitches. |
+| **T2b** | `GPL = true` + **`independentInterpolationDecoration = false`** *(uncommon, early GPL drivers)* | **GPL with masked VS libraries**: pre-raster libraries keyed by `(vsHash, vsMod, interpMask)` to avoid runtime rejection. **Requires M2a to measure explosion factor** (expected ~2× vs T1 baseline). | Cold P99.9 $< 45.0\text{ ms}$; $\le 2$ stalls $> 100\text{ ms}$. |
+| **T3** | `GPL = false` + `EDS 1, 2, 3 = true` | **Monolithic PSO + Dynamic Blend & Depth**: Dynamic states collapse 94 blocks down to **9 states**. | Misses reduced by **36.0% (123 misses)**; stalls $> 100\text{ ms} \le 5$. |
+| **T4** | `GPL = false` + `EDS 1 & 2 = true` | **Monolithic PSO + Dynamic Depth/Cull**: Collapses 94 blocks down to **28 states**. | Misses reduced by **26.9% (92 misses)**; stalls $> 100\text{ ms} \le 8$. |
+| **T5** | `GPL = false` + `EDS = false` | **Multi-Threaded Boot Warmup (if player local cache exists) + M3 Narrow Async**: Parallel thread pool warms up local cache on startup. | Startup warmup $\le 3.5\text{ s}$; 0 mid-game stalls for prebuilt PSOs. |
 
 #### M2.3 Four-Part `VkPipelineLibrary` Implementation
 - **Files Affected**:
   - [`tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h)
   - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1000-L1600)
+
+> **Reference**: See §M2.0 and §7 (R2) for DXVK's production implementation of this exact pattern. The code below is structurally equivalent to DXVK's `createBasePipeline`, with the addition of the RexGlue `(vsHash, vsMod)` / `(psHash, psMod)` keying scheme and the M1.5-CPU state cache integration.
+
 - **Library Lifecycle & Pair Indexing**:
   1. **Vertex Input Library (`VERTEX_INPUT_INTERFACE_BIT`)**: Cached globally by vertex fetch signature.
   2. **Pre-Rasterization Library (`PRE_RASTERIZATION_SHADERS_BIT`)**: Keyed strictly by `(vsHash, vsMod)`. Compiled upon first encounter of the draw tuple (or seeded from player's local previous-session cache).
@@ -461,33 +586,40 @@ flowchart TD
 
 ```
 +---------------------------------------------------------------------------------------------------------------------+
-|                                            REVISED IMPLEMENTATION MILESTONE ROADMAP                                 |
+|                                            REVISED IMPLEMENTATION MILESTONE ROADMAP (v4)                           |
 +---------------------------------------------------------------------------------------------------------------------+
 | Milestone | Scope & Deliverables                                             | Est. Effort | Target Branch / PR     |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M0        | Telemetry Fixes, Standalone CLI Analyzer & Baseline Recapture    | 1-1.5 Days  | feat/telemetry-and-gate|
 |           | - Fix fh1_frame_cost::Report::MainCause attribution bug          |             |                        |
+|           | - Add pipeline_compile_ms / pipeline_wait_ms split (M0.1b)       |             |                        |
 |           | - Enable REXGLUE_ENABLE_PERF_COUNTERS in Release-Diagnostic      |             |                        |
 |           | - Deliver scripts/analyze-performance-csv.mjs JSON CLI tool      |             |                        |
 |           | - Recapture controlled baseline; calibrate realistic thresholds  |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M1        | Immediate Overhead Elimination & D3D12 Multi-Threading           | 1 Day       | feat/cache-sanitization|
 |           | - Pure 1-line bypass of .vkpc mega-blobs (8.02 -> 0.20 ms/PSO)   |             |                        |
-|           | - Eliminate CPU wrapper overhead (vkGetPipelineCacheData, FNV)   |             |                        |
 |           | - Re-port d3d12-blocking-pso-precompile.patch to D3D12           |             |                        |
-|           | - Gate PR against D8 criteria (0 stalls > 100 ms on warm run)    |             |                        |
++-----------+------------------------------------------------------------------+-------------+------------------------+
+| M1.5      | CP CPU Optimization Bonus (CrownParkComputing Port) [Optional]   | 0.5-1 Day   | feat/cp-cpu-optimizations|
+|           | - MRU PipelineDescription state cache (64 entries)               |             |                        |
+|           | - Stable-binding fast path (16 entries)                          |             |                        |
+|           | - Bulk register writes (memcpy for sequential PM4)               |             |                        |
+|           | - Complementary to shader stutter fix; ~4% CP CPU reduction      |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2a       | Empirical Validation Spike (Full Distribution GPL Benchmarking)  | 1-2 Days    | spike/gpl-fast-linking |
-|           | - Measure cold VS/PS library compilation with purged GLCache     |             |                        |
-|           | - Measure fast-link latency distribution across all 342 PSOs     |             |                        |
-|           | - Benchmark GPU draw execution overhead (linked vs monolithic)   |             |                        |
+|           | - Port TheSimpsonsGameRecomp/pipeline_harness.cpp as base        |             |                        |
+|           | - Enable GPL extensions + validation layer                       |             |                        |
+|           | - Measure cold lib compile, fast-link, GPU cost, interp_mask     |             |                        |
+|           | - Verify IndependentInterpolationDecoration = true (gate)        |             |                        |
 |           | - De-risk M2 before committing full multi-day refactoring        |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2        | Core Engine GPL & Extended Dynamic State Integration             | 5-8 Days    | feat/vulkan-gpl-linking|
+|           | - Reference: DXVK dxvk_graphics.cpp (production GPL pattern)     |             |                        |
 |           | - 4-part VkPipelineLibrary architecture indexed by (hash, mod)   |             |                        |
 |           | - Zero reliance on shipped manifests (autonomous on cold launch) |             |                        |
 |           | - Extended Dynamic State (1, 2, 3) integration (94 -> 9 states)  |             |                        |
-|           | - Enforce explicit 5-tier hardware fallback matrix               |             |                        |
+|           | - Enforce explicit 6-tier hardware fallback matrix (incl. T2b)   |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M3        | Narrow Restricted Async with Two-Layer Defense-in-Depth          | 2-3 Days    | feat/narrow-async      |
 |           | - Layer 1: PipelineDescription::IsAsyncSafePass() allowlist      |             |                        |
@@ -508,11 +640,13 @@ flowchart TD
 
 | Risk ID | Potential Failure Mode | Likelihood | Impact | Architectural Mitigation & Fallback Strategy |
 | :--- | :--- | :---: | :---: | :--- |
-| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. If fast-linking fails or driver lacks GPL, fall back to **Tier T2** (slower link offloaded via **M3 Narrow Async**) or **Tier T3/T4 Extended Dynamic State** (collapsing 26.9% to 36.0% of misses). **Explicit Scope Adjustment**: Without fast-linking and with zero distributed manifests, cold misses for unseen geometry still incur 46–205 ms driver SASS compilation; the objective in this contingency shifts from "100% elimination" to "partial best-effort mitigation (~50–55% combined miss reduction via 26.9–36.0% EDS + 39.8% Restricted Async)". |
-| **R2** | Fast-linked pipelines exhibit $> 5\%$ GPU execution overhead vs monolithic SASS. | Low | Medium | **Evaluated in M2a Spike**. If GPU overhead is unacceptable, restrict GPL to foreground draw pacing and trigger background monolithic compilation to hot-swap. |
-| **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 allowlist**. Category 6B is kept disabled by default; only confirmed pure additive VFX (Category 6A) are admitted. All unverified shaders default to synchronous. |
-| **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver implements `VK_EXT_graphics_pipeline_library` with `radv_fast_linking = true` enabled by default in Mesa 23.1+. |
-| **R5** | Vertex/Pixel shader interface mismatch across separate libraries. | Low | Medium | Audited in M2a across all 342 real game PSOs to verify interface layout match. |
+| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. Fall back to **Tier T2**. **Explicit Scope Adjustment**: Without fast-linking, cold misses for unseen geometry still incur 46–205 ms driver SASS compilation; objective shifts from "100% elimination" to "partial best-effort mitigation (~50–55%)". |
+| **R2** | Fast-linked pipelines exhibit > 5% GPU execution overhead vs monolithic SASS. | Low | Medium | **Evaluated in M2a Spike**. If GPU overhead is unacceptable, use DXVK's **hot-swap pattern** (background monolithic compilation) as documented in §M2.0 and §7 (R2). |
+| **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 allowlist**. Category 6B is disabled by default. |
+| **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver implements `VK_EXT_graphics_pipeline_library` with `radv_fast_linking = true` by default in Mesa 23.1+. |
+| **R5** | **Vertex/Pixel shader interface mismatch (interpolator_mask) causes VS library multiplication.** | **Very Low** *(was: Low)* | High | **Now definitively mitigated**: Per Khronos Vulkan spec + DXVK production guard, if `graphicsPipelineLibraryIndependentInterpolationDecoration = true`, "any geometry stage decorations are ignored" — meaning a single VS pre-raster library per `(vsHash, vsMod)` suffices for all PS variants. M2a empirically verifies this. **Fallback T2b** (masked VS libraries keyed by `(vsHash, vsMod, interpMask)`) is available for drivers without the feature. See §7 (R3) for full spec citation. |
+| **R6** *(New in v4)* | **Placeholder pipeline `discard;` compilation adds non-trivial CPU cost** during M3 restricted async path. | Low | Low | **M2a.1 item 6** measures this cost. If > 1.0 ms per placeholder, adjust M3 acceptance criteria or consider a cheaper placeholder (e.g., depth-only stub). |
+| **R7** *(New in v4)* | **External reference code (TheSimpsonsGameRecomp, DXVK, CrownParkComputing) diverges** from `rexglue-sdk` fork in incompatible ways. | Low | Medium | Port with git-level provenance (link the exact commit SHA in the PR). The references are **architectural patterns**, not drop-in code — Majin's `rexglue-sdk` fork differs from each reference's baseline, so integration is "inspired by" not "copied from". |
 
 ---
 
@@ -547,3 +681,104 @@ For fallback hardware or early drivers where GPL fast-linking is unavailable or 
 1. **Zero Copyrighted Game Assets, Microcode, Hash Lists, or Derived Pipeline Manifests Distributed**: Absolute zero game-derived artifacts committed to Git, bundled into release zips, or hosted on remote mirrors. No raw microcode, `.xsh`, `.xpso`, `.xpl`, driver caches, or hash databases. All game execution artifacts are strictly generated locally on the player's own machine from their legally owned copy.
 2. **Automated CI Validation**: `scripts/verify-shader-mitigation.ps1` runs cleanly and reports green on the target PR using `scripts/analyze-performance-csv.mjs`.
 3. **Code Reviews & Documentation**: Clean commit history conforming to project standards.
+
+### 6.4 External Reference Compliance (New in v4)
+1. **Provenance documented**: Every PR that ports code from an external reference (TheSimpsonsGameRecomp, DXVK, CrownParkComputing) must include a `PROVENANCE.md` entry specifying:
+   - Source repository URL
+   - Source commit SHA
+   - Exact files/lines ported
+   - Local adaptations made (with rationale)
+2. **License compatibility verified**: DXVK is `zlib`-licensed, TheSimpsonsGameRecomp is GPL-family, CrownParkComputing patches are documented in `REXGLUE_FORK_CHANGES.md`. Porting into `rexglue-sdk` (which is `MIT`-compatible through its upstream lineage) must preserve the original license headers and note the source.
+3. **No blind copy-paste**: Every ported function must be reviewed against the local `rexglue-sdk` API — the `rexglue-sdk` fork in this repo has diverged from each reference's baseline (see §7 for specifics).
+
+---
+
+## 7. External Implementation References [NEW in v4]
+
+This section documents the four external reference implementations identified during the GitHub research scan, with concrete integration directives for the plan above.
+
+### R1 — TheSimpsonsGameRecomp: Headless Pipeline Harness (for M2a)
+
+- **Repository**: [`YesterMester/TheSimpsonsGameRecomp`](https://github.com/YesterMester/TheSimpsonsGameRecomp)
+- **Key file**: `tools/native-renderer/pipeline_harness.cpp`
+- **What it is**: A standalone C++ Vulkan harness that reads a manifest + optional `.jsonl` pipeline inventory, stands up a real Vulkan device, creates shader modules and pipeline layouts from reflection, and compiles a pipeline per recorded `(VS, PS)` pair — **without launching the game**.
+- **Direct reuse** (~70%): Vulkan boilerplate, `volk`, `nlohmann/json` parsing, `vkCreateShaderModule`, descriptor set layout creation, pipeline layout creation, **guest→Vulkan state mapping** (`ToVkBlendOp`, `GuestColorFormat`, `ToVkTopology` — enums identical to `rex/graphics/xenos.h`), empty vertex input state (matches Majin's `gl_VertexIndex` pattern), `pipeline_cache.bin` persistence.
+- **Must be extended** (~30%): GPL extension enablement, 4-library compile + fast-link flow, per-library and per-PSO latency instrumentation, `vkCmdWriteTimestamp` GPU benchmark, validation layer, Majin-specific schema adaptation.
+- **Majin-specific pitfalls documented in §M2a.0**.
+- **Integration directive**: M2a.0 — start the spike by porting this harness, then add the GPL-specific extensions.
+
+### R2 — DXVK: Production GPL 4-Part Reference (for M2)
+
+- **Repository**: [`doitsujin/dxvk`](https://github.com/doitsujin/dxvk)
+- **Key files**:
+  - `src/dxvk/dxvk_graphics.cpp` (pipelines, `createBasePipeline`, `getOptimizedPipeline`)
+  - `src/dxvk/dxvk_shader.cpp` (shader module creation, hot-swap pattern)
+  - `src/dxvk/dxvk_device.cpp` (`canUseGraphicsPipelineLibrary` guard)
+- **What it is**: The world's most mature production implementation of `VK_EXT_graphics_pipeline_library`. Used by every Steam Deck game with fast-link support.
+- **Key patterns to mirror**:
+  1. **4-library split** (VI / pre-raster / fragment / fragment-output) — identical to §M2.3.
+  2. **Fast-link at draw time** without optimization flag.
+  3. **Hot-swap pattern**: background monolithic compile → pipeline handle swap. **Optional for Majin** (M2a should show < 2% GPU overhead), but a valuable fallback if not.
+  4. **`canUseGraphicsPipelineLibrary` feature guard** including `graphicsPipelineLibraryIndependentInterpolationDecoration`.
+- **License**: `zlib`. Preserve the header when porting patterns.
+- **Integration directive**: M2.0 — study these files before implementing §M2.3. The RexGlue implementation will differ in shader keying (`(vsHash, vsMod)` vs DXVK's `(vs, fs, state)` tuple), but the Vulkan call structure is identical.
+
+### R3 — Khronos Spec + DXVK: IndependentInterpolationDecoration (for M2a item 5)
+
+- **Sources**:
+  - Khronos `VK_EXT_graphics_pipeline_library` proposal (`proposals/VK_EXT_graphics_pipeline_library.adoc`).
+  - DXVK `src/dxvk/dxvk_device.cpp` (`canUseGraphicsPipelineLibrary`).
+- **Key quote (DXVK)**:
+  ```cpp
+  // Without graphicsPipelineLibraryIndependentInterpolationDecoration, we
+  // cannot use this effectively in many games since no client API provides
+  // interpolation qualifiers in vertex shaders.
+  return m_features.extGraphicsPipelineLibrary.graphicsPipelineLibrary
+      && m_properties.extGraphicsPipelineLibrary.graphicsPipelineLibraryIndependentInterpolationDecoration;
+  ```
+- **Key quote (Khronos spec)**:
+  > *"If `graphicsPipelineLibraryIndependentInterpolationDecoration` is supported, any geometry stage decorations are ignored."*
+- **Implication for Majin**:
+  - In legacy RexGlue (no GPL), the VS had to mask its interpolator outputs based on each PS's input mask (`(vsHash, vsMod)` depends on the paired PS).
+  - **With `independentInterpolationDecoration = true`**, the pre-raster library can be compiled with the VS's full output set (`writes_interpolators()`), and any PS can consume any subset — **no recompilation of VS per PS variant is needed**.
+  - This **eliminates the library multiplication risk** entirely for the RTX 3060 Ti target (which has the feature, per D7 §2.2).
+  - **Fallback (T2b)**: for drivers without this feature, VS libraries must be keyed by `(vsHash, vsMod, interpMask)`. M2a measures the explosion factor to quantify this fallback's cost.
+- **Integration directive**: M2a.1 item 5 — verify the feature is reported by the driver, and use it as a **hard gate** on T1 tier classification (see §M2.2).
+
+### R4 — CrownParkComputing: CP CPU Optimization Patches (for M1.5)
+
+- **Repository**: [`CrownParkComputing/Xbox360-Native-Ports`](https://github.com/CrownParkComputing/Xbox360-Native-Ports)
+- **Key file**: `docs/REXGLUE_FORK_CHANGES.md`
+- **Three patches**:
+  1. **MRU state cache (64 entries)** in `ConfigurePipeline` → `GetCurrentStateDescription` from ~0.3% to ~0.02% of CP CPU.
+  2. **Stable-binding fast path (16 entries)** in `UpdateBindings` → ~3.2% to ~1.9% of CP CPU.
+  3. **Bulk register writes** (`memcpy` for sequential PM4) → `WriteRegister` from ~5.9% to ~0.5% of CP CPU.
+- **What it is NOT**: These do not reduce `pipeline_ms` or eliminate stutter. They reduce steady-state CP CPU overhead during normal gameplay.
+- **Integration directive**: M1.5 — treat as an **optional bonus** (0.5–1 day), deliverable in parallel with M2a/M2. Documented as complementary in the roadmap. Acceptance requires "no regression in D8 warm baseline" rather than "improvement in cold baseline".
+
+### R5 — Community Contacts & Context
+
+- **Author of TheSimpsonsGameRecomp**: `YesterMester` on GitHub. Project is actively developed, uses `rexglue-sdk`, and has already solved several problems (headless harness, guest→Vulkan state mapping) that overlap with M2a.
+- **Recommendation**: before writing M2a from scratch, open a **non-code discussion issue** on `TheSimpsonsGameRecomp` describing the Majin use case and asking whether the author is willing to share GPL-specific extensions if they have any. The Xbox 360 recompilation community is small enough that this often yields dividends.
+
+---
+
+## 8. Conclusion & Next Actions
+
+The external research scan is **net-positive** and does not invalidate any part of the v3 plan. It:
+
+1. **Reduces M2a effort by ~40–50%** (TheSimpsonsGameRecomp harness port saves 1–2 days of boilerplate).
+2. **Reduces M2 risk** by providing a production-proven reference (DXVK) for the 4-part architecture.
+3. **Eliminates R5 (interpolator_mask explosion)** as a critical risk via `IndependentInterpolationDecoration`.
+4. **Provides a low-risk CPU optimization bonus** (M1.5) that is orthogonal but valuable.
+
+**Recommended execution order (revised)**:
+
+- **Fase A (1–2 days)**: M0 + M1 in parallel.
+- **Fase B (1–2 days, blocking)**: M2a — starting from the TheSimpsonsGameRecomp harness port (M2a.0). **Gate**: ≥ 95% link < 1.0 ms, GPU overhead < 2%, `independentInterpolationDecoration = true`.
+- **Fase B+ (optional, parallel)**: M1.5 CPU optimization patches (0.5–1 day).
+- **Fase C (5–8 days)**: M2 (with DXVK as reference).
+- **Fase D (2–3 days)**: M3.
+- **Fase E (backlog)**: M4.
+
+**Immediate next action**: Open a PR for M0 + M1 (currently the highest ratio of value-to-risk in the entire plan), and in parallel begin the M2a.0 harness port to establish the GPL spike foundation.

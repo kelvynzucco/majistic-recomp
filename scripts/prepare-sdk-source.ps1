@@ -179,4 +179,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Monolithic pipeline cache patch application'
 }
 
-Write-Host "[1.1 - 1.10] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.11: Apply Extended Dynamic State (EDS 1, 2, 3) patch
+$edsPatch = Join-Path $patchRoot 'vulkan-extended-dynamic-state.patch'
+git -C $source apply --reverse --check $edsPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $edsPatch
+    Check-Native 'Extended Dynamic State patch check'
+    git -C $source apply $edsPatch
+    Check-Native 'Extended Dynamic State patch application'
+}
+
+Write-Host "[1.1 - 1.11] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

@@ -4,8 +4,8 @@
 **Date**: 2026-11-11  
 **Status**: Completed  
 **Branch / Environment**: Windows 11 (AMD64), Vulkan (`rexgpu-xenos.dll`), DirectX 12 (`rexgpu-d3d12.dll`), NVIDIA GeForce RTX 3060 Ti (Driver 621.14 / Vulkan 1.4.357)  
-**Deliverable Script**: [`scripts/discovery/d7-feature-support.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d7-feature-support.mjs) (`node scripts/discovery/d7-feature-support.mjs`)  
-**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
+**Deliverable Script**: [`scripts/discovery/d7-feature-support.mjs`](../../scripts/discovery/d7-feature-support.mjs) (`node scripts/discovery/d7-feature-support.mjs`)  
+**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](../SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
 
 ---
 
@@ -63,10 +63,10 @@ flowchart TD
 
 2. **Does the SDK currently use any of these features?**
    - **NO**. Neither GPL nor Extended Dynamic State is enabled in the SDK:
-     - In [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp:220-300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300), neither `VK_EXT_graphics_pipeline_library` nor `VK_EXT_extended_dynamic_state` is requested in the device extension vector.
-     - In [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:10300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300), an explicit author note confirms: `// TODO(Triang3l): VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2.`
-     - In [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:4315`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315), `pipeline_create_info.flags = 0;` (no optimization flags, no library flags).
-     - In [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp:3034`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034), `state_desc.CachedPSO` is empty, and `Flags = D3D12_PIPELINE_STATE_FLAG_NONE`.
+     - In [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp:220-300`](../../tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300), neither `VK_EXT_graphics_pipeline_library` nor `VK_EXT_extended_dynamic_state` is requested in the device extension vector.
+     - In [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:10300`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300), an explicit author note confirms: `// TODO(Triang3l): VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2.`
+     - In [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:4315`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315), `pipeline_create_info.flags = 0;` (no optimization flags, no library flags).
+     - In [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp:3034`](../../tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034), `state_desc.CachedPSO` is empty, and `Flags = D3D12_PIPELINE_STATE_FLAG_NONE`.
 
 3. **How many PSO permutations would these features eliminate?**
    - **Extended Dynamic State 1 & 2** (dynamic culling, front face, depth test, depth write, depth compare, stencil):
@@ -114,21 +114,21 @@ Direct extraction of device properties via `vulkaninfo` on the test environment 
 
 ## 3. SDK Implementation Status Audit
 
-A comprehensive code audit of [`tools/source/rexglue-sdk`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk) was conducted to evaluate how pipeline creation and device initialization are currently structured:
+A comprehensive code audit of [`tools/source/rexglue-sdk`](../../tools/source/rexglue-sdk) was conducted to evaluate how pipeline creation and device initialization are currently structured:
 
 | Subsystem / Feature | Location in SDK Source | Current Implementation State | Missing Capability |
 | :--- | :--- | :--- | :--- |
-| **Device Extensions** | [`src/ui/vulkan/vulkan_device.cpp:220-300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300) | Enables basic extensions (`KHR_swapchain`, `KHR_dynamic_rendering`, `EXT_robustness2`). | Does not request `VK_EXT_graphics_pipeline_library` or `VK_EXT_extended_dynamic_state`. |
-| **Command Processor Dynamic State** | [`src/graphics/vulkan/command_processor.cpp:10300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300) | Emits standard Vulkan 1.0 dynamic state (`CmdSetViewport`, `CmdSetScissor`). | Contains `// TODO(Triang3l): VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2`. |
-| **Pipeline Creation Flags** | [`src/graphics/vulkan/pipeline_cache.cpp:4315`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315) | `pipeline_create_info.flags = 0;` | Does not pass `VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT` or `DISABLE_OPTIMIZATION`. |
-| **Vulkan Dynamic States Array** | [`src/graphics/vulkan/pipeline_cache.cpp:4265-4273`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4265-L4273) | Hardcoded array of 7 Vulkan 1.0 states (Viewport, Scissor, Depth Bias, Blend Constants, Stencil masks). | Culling, depth compare, and blend equations are baked into the monolithic PSO. |
-| **D3D12 Creation Flags** | [`src/graphics/d3d12/pipeline_cache.cpp:3034`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034) | Raw `CreateGraphicsPipelineState` call with empty `CachedPSO`. | Does not use `ID3D12PipelineLibrary` or cached blobs at runtime. |
+| **Device Extensions** | [`src/ui/vulkan/vulkan_device.cpp:220-300`](../../tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300) | Enables basic extensions (`KHR_swapchain`, `KHR_dynamic_rendering`, `EXT_robustness2`). | Does not request `VK_EXT_graphics_pipeline_library` or `VK_EXT_extended_dynamic_state`. |
+| **Command Processor Dynamic State** | [`src/graphics/vulkan/command_processor.cpp:10300`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300) | Emits standard Vulkan 1.0 dynamic state (`CmdSetViewport`, `CmdSetScissor`). | Contains `// TODO(Triang3l): VK_EXT_extended_dynamic_state and VK_EXT_extended_dynamic_state2`. |
+| **Pipeline Creation Flags** | [`src/graphics/vulkan/pipeline_cache.cpp:4315`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315) | `pipeline_create_info.flags = 0;` | Does not pass `VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT` or `DISABLE_OPTIMIZATION`. |
+| **Vulkan Dynamic States Array** | [`src/graphics/vulkan/pipeline_cache.cpp:4265-4273`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4265-L4273) | Hardcoded array of 7 Vulkan 1.0 states (Viewport, Scissor, Depth Bias, Blend Constants, Stencil masks). | Culling, depth compare, and blend equations are baked into the monolithic PSO. |
+| **D3D12 Creation Flags** | [`src/graphics/d3d12/pipeline_cache.cpp:3034`](../../tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034) | Raw `CreateGraphicsPipelineState` call with empty `CachedPSO`. | Does not use `ID3D12PipelineLibrary` or cached blobs at runtime. |
 
 ---
 
 ## 4. State-Space Permutation Collapse Simulation
 
-Using the 342 real-game PSOs recorded in [`4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (evaluated via [`scripts/discovery/d7-feature-support.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d7-feature-support.mjs)), we simulated the reduction in fixed-function state blocks and total PSO misses under each progressive mitigation strategy:
+Using the 342 real-game PSOs recorded in [`4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (evaluated via [`scripts/discovery/d7-feature-support.mjs`](../../scripts/discovery/d7-feature-support.mjs)), we simulated the reduction in fixed-function state blocks and total PSO misses under each progressive mitigation strategy:
 
 ```mermaid
 xychart-beta
@@ -255,19 +255,19 @@ flowchart TD
    - For non-critical additive VFX particles and secondary fur/foliage shell overlays (`39.8%` of all PSOs; 136 PSOs under positive allowlist).
    - Allows background compilation with zero CPU stalling, acting as a secondary buffer.
 3. **Tier 3 — Legacy Fallback & Direct3D 12 Path**:
-   - Re-apply [`d3d12-blocking-pso-precompile.patch`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/patches/rexglue-0.10.0/d3d12-blocking-pso-precompile.patch) to the `ReIGlue` codebase (as proven in D2), dropping startup PSO compilation from `75 ms` to `6.5 ms / PSO` across worker threads.
+   - Re-apply [`d3d12-blocking-pso-precompile.patch`](../../patches/rexglue-0.10.0/d3d12-blocking-pso-precompile.patch) to the `ReIGlue` codebase (as proven in D2), dropping startup PSO compilation from `75 ms` to `6.5 ms / PSO` across worker threads.
    - Replace the per-pipeline `~2.11 MB` `.vkpc` wrapper overhead with a single shared cache or direct driver cache bypass, eliminating `97.5%` of warm-cache overhead.
 
 ---
 
 ## 8. Attached Evidence & Reproducibility
 
-- **Automated Capability & Permutation Script**: [`scripts/discovery/d7-feature-support.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d7-feature-support.mjs)
+- **Automated Capability & Permutation Script**: [`scripts/discovery/d7-feature-support.mjs`](../../scripts/discovery/d7-feature-support.mjs)
 - **Local Driver Inspection**: Verified via `vulkaninfo` on NVIDIA Driver `621.14` / Vulkan `1.4.357`.
 - **Inspected SDK Source Code**:
-  - Device Extension Setup: [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp:220-300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300)
-  - Triang3l Dynamic State TODO: [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:10300`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300)
-  - Pipeline Creation Flags: [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:4315`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315)
-  - D3D12 Creation State: [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp:3034`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034)
+  - Device Extension Setup: [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp:220-300`](../../tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L300)
+  - Triang3l Dynamic State TODO: [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:10300`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L10300)
+  - Pipeline Creation Flags: [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:4315`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L4315)
+  - D3D12 Creation State: [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp:3034`](../../tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L3034)
 - **Binary Cache Input**:
-  - Vulkan FBO: [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)
+  - Vulkan FBO: [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)

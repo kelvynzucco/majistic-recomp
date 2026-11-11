@@ -4,8 +4,8 @@
 **Date**: 2026-11-10  
 **Status**: Completed  
 **Branch / Environment**: Windows AMD64, Vulkan (`rexgpu-xenos.dll`), DirectX 12 (`rexgpu-d3d12.dll`), NVIDIA GeForce RTX 3060 Ti  
-**Deliverable Script**: [`scripts/discovery/d5-state-variability.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d5-state-variability.mjs)  
-**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
+**Deliverable Script**: [`scripts/discovery/d5-state-variability.mjs`](../../scripts/discovery/d5-state-variability.mjs)  
+**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](../SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
 
 ---
 
@@ -49,7 +49,7 @@ flowchart TD
 ### Core Answers to Plan Questions:
 
 1. **How many unique pipeline state combinations exist per shader pair?**
-   - **Extremely low and concentrated variability**: Across the `342` runtime PSOs in Vulkan FBO ([`4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso)), there are **`183` unique `(VS, PS)` pairs** associated with **`94` unique fixed-function state blocks**.
+   - **Extremely low and concentrated variability**: Across the `342` runtime PSOs in Vulkan FBO ([`4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso)), there are **`183` unique `(VS, PS)` pairs** associated with **`94` unique fixed-function state blocks**.
    - The average ratio is only **`1.87` PSOs per pair** (in D3D12 RTV it is **`1.67` PSOs per pair**; in FSI/ROV backends it drops further to **`1.18–1.24`**).
    - **`67.8%` of pairs (124 of 183) use strictly 1 unique state**.
    - **`83.6%` of pairs (153 of 183) use at most 2 states**.
@@ -72,7 +72,7 @@ flowchart TD
      - **93.5% of Pixel Shaders (130 of 139)** reside byte-for-byte in the on-disk `fxb0` files and can be translated immediately at install time (< 500 ms total CPU time).
      - **94.0% of Vertex Shaders (94 of 100)** have control flow (CF) and ALU instruction bodies identical to on-disk templates.
    - **Stage (b) Driver PSO Synthesis: INFEASIBLE via Pure Static Generation**:
-     - Dynamic `vfetch` patching in RAM by guest routine [`sub_8261EAD8`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) binds each Vertex Shader dynamically to mesh geometry declarations (`chr*.pak` and `st*.pak`).
+     - Dynamic `vfetch` patching in RAM by guest routine [`sub_8261EAD8`](../../prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) binds each Vertex Shader dynamically to mesh geometry declarations (`chr*.pak` and `st*.pak`).
      - A naive unconstrained Cartesian product (100 VS * 139 PS * 94 states) yields **`1,306,600` PSOs**. At the measured cold compile speed of `29.91 ms / PSO` (RTX 3060 Ti), compiling 1.3 million PSOs would require **over 10.8 hours** of continuous CPU computation.
      - Even restricting permutations to observed passes and `vfetch` signatures yields over 100,000 blind PSOs (~50 minutes of compilation), where 99% would never be requested during runtime.
    - **Architecture & Mitigation Verdict**:
@@ -86,7 +86,7 @@ flowchart TD
 ## 2. Binary Architecture of Global Packages & `fxb0` Containers
 
 ### 2.1 Shader Package Distribution
-As verified in [`scripts/discovery/d5-state-variability.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d5-state-variability.mjs), all 99 shader archives in the game reside within 4 global packages:
+As verified in [`scripts/discovery/d5-state-variability.mjs`](../../scripts/discovery/d5-state-variability.mjs), all 99 shader archives in the game reside within 4 global packages:
 
 | Package / File | File Type | TOC Entries | `fxb0` Containers | Rendering Scope |
 | :--- | :--- | ---: | ---: | :--- |
@@ -154,7 +154,7 @@ Quantitative distribution confirms that combinatorial explosion does not occur a
 ## 4. Microcode Analysis & Dynamic `vfetch` Patching
 
 ### 4.1 On-Disk vs. Runtime Microcode Match (`4E4D0816.xsh`)
-A byte-for-byte comparison between the 239 shaders extracted from [`4E4D0816.xsh`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh) and on-disk `fxb0` archives reveals a fundamental architectural asymmetry between Pixel Shaders and Vertex Shaders:
+A byte-for-byte comparison between the 239 shaders extracted from [`4E4D0816.xsh`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh) and on-disk `fxb0` archives reveals a fundamental architectural asymmetry between Pixel Shaders and Vertex Shaders:
 
 | Shader Stage | Unique in Runtime Cache | Exact Match on Disk | Match Rate | Root Cause |
 | :--- | ---: | ---: | ---: | :--- |
@@ -165,7 +165,7 @@ A byte-for-byte comparison between the 239 shaders extracted from [`4E4D0816.xsh
 ### 4.2 Role of Guest Routine `sub_8261EAD8`
 On the Xbox 360, the D3D9 driver dynamically modifies `vfetch` instructions in guest RAM prior to issuing `PM4_IM_LOAD` packets.
 
-In the recompiled executable, guest function [`sub_8261EAD8`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype/generated/default/majin_recomp.139.cpp#L16088-L16625):
+In the recompiled executable, guest function [`sub_8261EAD8`](../../prototype/generated/default/majin_recomp.139.cpp#L16088-L16625):
 1. Accepts the Vertex Shader template pointer and the mesh's `D3DVertexDeclaration`.
 2. Iterates over vertex elements (position, normal, UV coordinates, blend weights).
 3. Directly writes into the 12-byte (`3 dwords`) `vfetch` instruction fields:
@@ -179,7 +179,7 @@ A total of **85 distinct `vfetch` signatures** were identified across the 100 ru
 
 ## 5. Ringbuffer Lookahead Telemetry in Active Gameplay
 
-While Phase D4 measured lookahead lead times during boot and menus (0.05 to 2.5 ms, N = 25), telemetry from the extended 15.9-minute gameplay session ([`runtime-20261108-161438.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/runtime-20261108-161438.log)) provides empirical evidence of lookahead behavior during active play:
+While Phase D4 measured lookahead lead times during boot and menus (0.05 to 2.5 ms, N = 25), telemetry from the extended 15.9-minute gameplay session ([`runtime-20261108-161438.log`](../../game-data/runtime/logs/runtime-20261108-161438.log)) provides empirical evidence of lookahead behavior during active play:
 
 ```
 [2026-11-08 16:28:55.445] [info] [gpu] [t17588] Pipelines: 332 built, 108 of them ahead of their draws (108 drawn with so far, 0 failed), 0 placeholders; ... lookahead: 103 walks (queue end 3, wait 100), 392361 packets, 12317 draws, 108 queued, 100 unmet waits, 53.4 ms; 60 waits 4348.7 ms
@@ -260,15 +260,15 @@ The findings of Phase D5 conclude the static asset exploration and direct future
 
 ## 8. Attached Evidence
 
-- Analysis and extraction script: [`scripts/discovery/d5-state-variability.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d5-state-variability.mjs)
+- Analysis and extraction script: [`scripts/discovery/d5-state-variability.mjs`](../../scripts/discovery/d5-state-variability.mjs)
 - Inspected binary caches:
-  - [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)
-  - [`game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso) (`295` PSOs)
-  - [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh) (`239` shaders)
+  - [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)
+  - [`game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso`](../../game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso) (`295` PSOs)
+  - [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh) (`239` shaders)
 - Examined game asset packages:
   - `game-data/finalizedXBox360/KB/package/static.pak` (`91` `fxb0` shaders)
   - `game-data/finalizedXBox360/system/HexaEngineXbox.knl` (`5` `fxb0` shaders)
   - `game-data/finalizedXBox360/KB/package/start.pak` (`1` `fxb0` shader)
   - `game-data/finalizedXBox360/KB/package/eff.pak` (`2` `fxb0` shaders)
 - Continuous gameplay telemetry:
-  - [`game-data/runtime/logs/runtime-20261108-161438.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/runtime-20261108-161438.log) (Periodic lookahead lines `315` to `1540`).
+  - [`game-data/runtime/logs/runtime-20261108-161438.log`](../../game-data/runtime/logs/runtime-20261108-161438.log) (Periodic lookahead lines `315` to `1540`).

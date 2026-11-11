@@ -4,8 +4,8 @@
 **Date**: 2026-11-10  
 **Status**: Completed (with explicit gameplay and cold-driver caveats)  
 **Branch / Environment**: Windows AMD64, Vulkan (`rexgpu-xenos.dll`), NVIDIA GeForce RTX 3060 Ti (Driver 621.14 / Vulkan 1.4.357)  
-**Deliverable Script**: [`scripts/discovery/d4-shader-registration-timing.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d4-shader-registration-timing.mjs)  
-**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
+**Deliverable Script**: [`scripts/discovery/d4-shader-registration-timing.mjs`](../../scripts/discovery/d4-shader-registration-timing.mjs)  
+**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](../SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
 
 ---
 
@@ -57,14 +57,14 @@ flowchart TD
 
 1. **A engine registra shaders sob demanda (*lazily*) no draw time**:
    - **Zero shaders por fase em disco**: A varredura de todos os **11.310 arquivos** e **555 pacotes `.pak`** dos dados do jogo confirmou que **nenhum pacote de fase, personagem ou cutscene contém shaders**. Todos os 98 contêineres de shader residem em apenas **4 arquivos globais de inicialização**.
-   - **Patching dinâmico de `vfetch` em RAM**: A comparação estrutural entre os shaders de runtime e os contêineres em disco revelou que enquanto **93,5% dos Pixel Shaders** coincidem integralmente com os dados em disco, **0% dos Vertex Shaders** coincidem integralmente. A rotina guest [`sub_8261EAD8`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) faz patch dinâmico em RAM das instruções de busca de vértices (`vfetch`) no momento em que a declaração de vértices do mesh é associada, imediatamente antes de emitir o pacote `PM4_IM_LOAD`.
+   - **Patching dinâmico de `vfetch` em RAM**: A comparação estrutural entre os shaders de runtime e os contêineres em disco revelou que enquanto **93,5% dos Pixel Shaders** coincidem integralmente com os dados em disco, **0% dos Vertex Shaders** coincidem integralmente. A rotina guest [`sub_8261EAD8`](../../prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) faz patch dinâmico em RAM das instruções de busca de vértices (`vfetch`) no momento em que a declaração de vértices do mesh é associada, imediatamente antes de emitir o pacote `PM4_IM_LOAD`.
    - **Ressalva de amostragem**: O comportamento 100% *lazy* com envio imediato antes do draw foi medido diretamente durante a inicialização e menus ($N = 27$ shaders observados no probe, com mediana de $\Delta(\text{IM} \to \text{Draw}) = 1,33\text{ ms}$). Para o gameplay propriamente dito, a evidência é primariamente **estrutural** (inexistência de shaders nos pacotes de fases e necessidade de declaração de vértices para sintetizar o VS final).
 2. **Ausência de shaders durante o carregamento (`flow_a`)**:
    - Durante a transição de carregamento (`flow_a entry` até `flow_a result`), são processados **0 pacotes `PM4_IM_LOAD`**.
    - *Ressalva:* Como durante a tela de loading não ocorrem draws 3D, a ausência de registros é esperada; o dado comprova que a engine **não aproveita a janela de carregamento para pré-declarar ou aquecer shaders na GPU**.
 3. **Janela de Lookahead do Ringbuffer**:
-   - Na inicialização e menus, o lead time do [`Fh1PipelineLookahead`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/fh1_pipeline_lookahead.cpp) sobre o Command Processor situou-se entre **0,05 ms e 2,5 ms**.
-   - *Ressalva de gameplay:* Durante o gameplay, se a thread de CPU do jogo abrir uma folga de 2 a 3 frames (66 a 100 ms a 30 FPS) à frente do Command Processor, a janela pode ser maior. Porém, em picos de compilação a frio de 100 a 200 ms, essa folga é rapidamente consumida, levando à trava em [`Fh1WaitForAhead`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1846).
+   - Na inicialização e menus, o lead time do [`Fh1PipelineLookahead`](../../tools/source/rexglue-sdk/src/graphics/vulkan/fh1_pipeline_lookahead.cpp) sobre o Command Processor situou-se entre **0,05 ms e 2,5 ms**.
+   - *Ressalva de gameplay:* Durante o gameplay, se a thread de CPU do jogo abrir uma folga de 2 a 3 frames (66 a 100 ms a 30 FPS) à frente do Command Processor, a janela pode ser maior. Porém, em picos de compilação a frio de 100 a 200 ms, essa folga é rapidamente consumida, levando à trava em [`Fh1WaitForAhead`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1846).
 4. **Veredito sobre Pré-Aquecimento (Warm-Up)**:
    - **Pré-aquecimento dinâmico por zona/fase: NÃO É VIÁVEL.** Não existem shaders isolados por fase nem eventos de pré-registro em `flow_a`.
    - **Pré-aquecimento no Boot: VIÁVEL APENAS SE A LISTA DE PSOs FOR OBTIDA LOCALMENTE.**
@@ -94,15 +94,16 @@ Move-Item -Path $gl -Destination $backup
 New-Item -ItemType Directory -Path $gl
 
 # 2. Execução controlada via majin.exe com --shader_prebuild_only=true e --vulkan_store_pipeline_cache=false
-$exe = "C:\Users\kelvy\Desktop\Majin Recomp\game-data\bin\majin.exe"
+$repoRoot = (Resolve-Path ".").Path
+$exe = "$repoRoot\game-data\bin\majin.exe"
 $launchArgs = @(
     '--gpu_plugin', 'xenos',
     '--gpu_backend=vulkan',
-    '--game_data_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data',
-    '--user_data_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\user',
-    '--cache_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\cache\vulkan-vulkan\release',
-    '--metadata_root', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\metadata\vulkan-vulkan\release',
-    '--log_file', 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\runtime\logs\d4-cold-warmup-pass1.log',
+    '--game_data_root', "$repoRoot\game-data",
+    '--user_data_root', "$repoRoot\game-data\runtime\user",
+    '--cache_root', "$repoRoot\game-data\runtime\cache\vulkan-vulkan\release",
+    '--metadata_root', "$repoRoot\game-data\runtime\metadata\vulkan-vulkan\release",
+    '--log_file', "$repoRoot\game-data\runtime\logs\d4-cold-warmup-pass1.log",
     '--window_width=1280',
     '--window_height=720',
     '--fullscreen=false',
@@ -113,12 +114,12 @@ $launchArgs = @(
     '--shader_prebuild_only=true'
 )
 $quotedArgs = @($launchArgs | ForEach-Object { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' })
-$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory 'C:\Users\kelvy\Desktop\Majin Recomp\game-data\bin' -Wait -PassThru
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory "$repoRoot\game-data\bin" -Wait -PassThru
 ```
 
 ### 2.2 Resultados Empíricos Medidos (RTX 3060 Ti, Driver 621.14, 6 Threads de Trabalho)
 
-Os resultados controlados entre a execução limpa a frio (Pass 1) e o re-teste imediato com cache aquecido (Pass 2) estão registrados em [`game-data/runtime/logs/d4-cold-warmup-pass1.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/d4-cold-warmup-pass1.log#L166-L225) e [`game-data/runtime/logs/d4-warm-warmup-pass2.log`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/logs/d4-warm-warmup-pass2.log#L166-L225):
+Os resultados controlados entre a execução limpa a frio (Pass 1) e o re-teste imediato com cache aquecido (Pass 2) estão registrados em [`game-data/runtime/logs/d4-cold-warmup-pass1.log`](../../game-data/runtime/logs/d4-cold-warmup-pass1.log#L166-L225) e [`game-data/runtime/logs/d4-warm-warmup-pass2.log`](../../game-data/runtime/logs/d4-warm-warmup-pass2.log#L166-L225):
 
 | Etapa do Aquecimento de Inicialização | Pass 1: Driver Frio (`GLCache` Limpo) | Pass 2: Driver Quente (Re-execução Imediata) | Delta / Speedup do Cache | Custo Unitário a Frio (Relógio - Dado Firme) | Custo Normalizado por Thread (Derivado) |
 | :--- | ---: | ---: | ---: | ---: | ---: |
@@ -197,7 +198,7 @@ A análise comparativa entre os microcódigos compilados e os templates estátic
 | **Palavras 9 a 14 (Bytes 36..59)** | Instruções de busca de vértices (`vfetch`) | **Divergente**: Em disco os campos de fluxo (*stream*), deslocamento (*offset*) e formato de dados estão zerados (templates genéricos). |
 | **Palavras 15 em diante (Bytes 60..fim)** | Cláusulas de instruções ALU (cálculos matemáticos, vetoriais e transformações) | **100% idêntico** aos templates em disco. |
 
-A rotina guest [`sub_8261EAD8`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) lê os elementos da `D3DVertexDeclaration` associada ao modelo geométrico e preenche dinamicamente em RAM os campos das instruções `vfetch` antes de invocar o envio à GPU.
+A rotina guest [`sub_8261EAD8`](../../prototype/generated/default/majin_recomp.139.cpp#L16088-L16625) lê os elementos da `D3DVertexDeclaration` associada ao modelo geométrico e preenche dinamicamente em RAM os campos das instruções `vfetch` antes de invocar o envio à GPU.
 
 ---
 

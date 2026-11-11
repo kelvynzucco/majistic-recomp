@@ -4,8 +4,8 @@
 **Date**: 2026-11-11  
 **Status**: Completed  
 **Branch / Environment**: Windows 11 (AMD64), Vulkan (`rexgpu-xenos.dll`), DirectX 12 (`rexgpu-d3d12.dll`), NVIDIA GeForce RTX 3060 Ti (Driver 621.14 / Vulkan 1.4.357)  
-**Deliverable Script**: [`scripts/discovery/d6-async-safety.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d6-async-safety.mjs) (`node scripts/discovery/d6-async-safety.mjs`)  
-**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
+**Deliverable Script**: [`scripts/discovery/d6-async-safety.mjs`](../../scripts/discovery/d6-async-safety.mjs) (`node scripts/discovery/d6-async-safety.mjs`)  
+**Parent Plan**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](../SHADER_PRECOMPILATION_PLAN.md) (Issue #4)
 
 ---
 
@@ -50,18 +50,18 @@ flowchart TD
 ### Core Answers to Plan Questions:
 
 1. **Why did asynchronous shader compilation cause glitches in *Majin and the Forsaken Kingdom*?**
-   - **Flaw 1 (CPU Draw Dropping)**: In [`VulkanCommandProcessor::IssueDraw`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354), when a pipeline is in placeholder state, the engine does **not** draw with a fallback shader; it **drops the draw call entirely on the CPU** (`return true;`). In D3D12 ([`d3d12/command_processor.cpp:2458-2461`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461)), the behavior is even cruder: if `pipeline_handle == nullptr`, the draw call is unconditionally skipped.
+   - **Flaw 1 (CPU Draw Dropping)**: In [`VulkanCommandProcessor::IssueDraw`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354), when a pipeline is in placeholder state, the engine does **not** draw with a fallback shader; it **drops the draw call entirely on the CPU** (`return true;`). In D3D12 ([`d3d12/command_processor.cpp:2458-2461`](../../tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461)), the behavior is even cruder: if `pipeline_handle == nullptr`, the draw call is unconditionally skipped.
    - **Flaw 2 (Downstream Render-Pass Corruption)**: Dropping draw calls in early passes fatally corrupts later dependent passes:
      - **Shadow Map Passes**: Missing shadow depth leaves empty or stale depth values in the shadow buffer. The subsequent main scene lighting pass samples this corrupted shadow map, casting violent black splotches and shadow acne across the world.
      - **Pre-Z Passes**: The game uses an explicit Pre-Z depth-priming pass (`KbPreZ*`). If Pre-Z is dropped, the depth buffer lacks the object's depth. When the main color pass executes with `depth_compare_op = EQUAL`, the depth test **fails**, causing entire characters and geometry to become completely invisible.
      - **Main Opaque Geometry**: Dropping the main draw causes visible holes in terrain and walls, exposing the skybox beneath the player.
    - **Flaw 3 (The Incomplete Frame Hold Dilemma)**:
-     - When `vulkan_async_skip_incomplete_frames = false` (configured in [`src/majin_app.h:212`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L212)), the frame presentation is never held. Incomplete frames are displayed immediately, exposing all missing meshes and corrupt shadows to the player.
-     - When `vulkan_async_skip_incomplete_frames = true`, [`Fh1SkipMustHoldFrame`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328) detects missing depth, screen, or UI passes and **holds the frame indefinitely**. Because true cold driver compilation takes **`46.8` to `205.3 ms`** (proven in D2), holding the frame **re-introduces the exact multi-frame stutter that async compilation was meant to prevent**!
+     - When `vulkan_async_skip_incomplete_frames = false` (configured in [`src/majin_app.h:212`](../../src/majin_app.h#L212)), the frame presentation is never held. Incomplete frames are displayed immediately, exposing all missing meshes and corrupt shadows to the player.
+     - When `vulkan_async_skip_incomplete_frames = true`, [`Fh1SkipMustHoldFrame`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328) detects missing depth, screen, or UI passes and **holds the frame indefinitely**. Because true cold driver compilation takes **`46.8` to `205.3 ms`** (proven in D2), holding the frame **re-introduces the exact multi-frame stutter that async compilation was meant to prevent**!
 
 2. **Can a narrow, restricted version of async shader compilation be safe?**
    - **YES**. While a global async toggle is catastrophic, a **pass-discriminated restricted async path** using a strict **positive allowlist** and **draw-time quad guard** is 100% viable.
-   - Deconstruction of all **342 PSOs** in Vulkan FBO ([`4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso)) proves that:
+   - Deconstruction of all **342 PSOs** in Vulkan FBO ([`4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso)) proves that:
      - **`206` PSOs (`60.2%`)** belong to critical passes (Shadows, Pre-Z, Opaque World, Skybox, Post-FX, Bloom Quads, UI, Offscreen Targets) and **MUST NOT BE ASYNCHRONOUS**.
      - **`136` PSOs (`39.8%`)** belong to non-depth-writing blended passes (Additive VFX sparks/fire/smoke: 44 PSOs; multi-pass fur shells & alpha foliage: 92 PSOs).
    - In additive VFX passes (`44` PSOs, `12.9%`), draw calls write zero depth, overwrite zero background pixels, and are never sampled by downstream passes. Dropping an additive spark or dust puff for 1–2 frames during initial spawn is **perceptually imperceptible** at 30/60 FPS.
@@ -73,9 +73,9 @@ flowchart TD
 
 ### 2.1 The Vulkan Async Path
 
-#### 1. Placeholder Creation & Background Queueing ([`vulkan/pipeline_cache.cpp:1896-1914`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1896-L1914))
+#### 1. Placeholder Creation & Background Queueing ([`vulkan/pipeline_cache.cpp:1896-1914`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1896-L1914))
 When `VulkanPipelineCache::ConfigurePipeline` encounters a missing PSO and `use_async` is true (`async_shader_compilation && !sync_pipeline_creation && !creation_threads_.empty()`):
-1. It creates a temporary synchronous pipeline using [`kPlaceholderPixelShaderSource`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L96-L102):
+1. It creates a temporary synchronous pipeline using [`kPlaceholderPixelShaderSource`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L96-L102):
    ```glsl
    #version 460
    layout(location = 0) out vec4 oC0;
@@ -87,7 +87,7 @@ When `VulkanPipelineCache::ConfigurePipeline` encounters a missing PSO and `use_
 3. It pushes the real PSO creation parameters (`creation_arguments_real`) into `creation_queue_` and wakes worker threads via `creation_request_cond_.notify_one()`.
 4. It returns `true` to the Command Processor with `pipeline_is_placeholder = true`.
 
-#### 2. CPU Draw Interception & Silent Dropping ([`vulkan/command_processor.cpp:7346-7354`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354))
+#### 2. CPU Draw Interception & Silent Dropping ([`vulkan/command_processor.cpp:7346-7354`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354))
 Inside `VulkanCommandProcessor::IssueDraw`:
 ```cpp
 if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
@@ -103,7 +103,7 @@ if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
 > [!CAUTION]
 > **Key Finding**: The placeholder pipeline compiled with `discard;` is **never bound or executed on the GPU**. The Command Processor intercepts the call on the CPU and returns `true`, completely skipping the draw packet. The GPU never processes the mesh vertices or rasterizes anything.
 
-#### 3. The Presentation Gate & The Hold Dilemma ([`vulkan/command_processor.cpp:5138-5186`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5138-L5186))
+#### 3. The Presentation Gate & The Hold Dilemma ([`vulkan/command_processor.cpp:5138-5186`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5138-L5186))
 During frame presentation (`Swap` / `Present`):
 ```cpp
 bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) &&
@@ -114,7 +114,7 @@ bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) 
   - The frame presentation is skipped (`return;`), keeping the previous frame on display.
   - If the skipped draw was critical (`fh1_frame_skipped_critical_ = true` via `Fh1SkipMustHoldFrame`), the engine sets `held_for_stale_contents = true` and **refuses to show the frame past the 100 ms hold timeout (`vulkan_async_skip_incomplete_frames_ms`)**.
   - As measured in D2, cold SASS compilation takes up to **`205.3 ms`** per PSO. Holding the frame for 200 ms completely recreates the exact stutter that async compilation was designed to prevent!
-- If `vulkan_async_skip_incomplete_frames == false` (configured in [`src/majin_app.h:212`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L212)):
+- If `vulkan_async_skip_incomplete_frames == false` (configured in [`src/majin_app.h:212`](../../src/majin_app.h#L212)):
   - `skip_present_due_async_placeholder` evaluates to `false`.
   - The frame is presented **immediately**, displaying the world with missing geometry, un-occluded meshes, and broken shadows!
 
@@ -122,7 +122,7 @@ bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) 
 
 ### 2.2 The Direct3D 12 Async Path
 
-In the Direct3D 12 backend ([`tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp:2458-2461`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461)):
+In the Direct3D 12 backend ([`tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp:2458-2461`](../../tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461)):
 ```cpp
 if (REXCVAR_GET(async_shader_compilation) &&
     pipeline_cache_->GetD3D12PipelineByHandle(pipeline_handle) == nullptr) {
@@ -190,7 +190,7 @@ sequenceDiagram
 
 ## 4. Quantitative Pass-Type Taxonomy & Safety Classification
 
-Using [`scripts/discovery/d6-async-safety.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d6-async-safety.mjs), we parsed and categorized every PSO across the runtime binary caches ([`4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) and [`4E4D0816.rtv.d3d12.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso)):
+Using [`scripts/discovery/d6-async-safety.mjs`](../../scripts/discovery/d6-async-safety.mjs), we parsed and categorized every PSO across the runtime binary caches ([`4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) and [`4E4D0816.rtv.d3d12.xpso`](../../game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso)):
 
 ### 4.1 Vulkan FBO Cache Taxonomy (N = 342 PSOs)
 
@@ -215,7 +215,7 @@ Using [`scripts/discovery/d6-async-safety.mjs`](file:///C:/Users/kelvy/Desktop/M
 
 ### 4.2 Direct3D 12 RTV Cache Validation (N = 295 PSOs)
 
-In the D3D12 cache ([`4E4D0816.rtv.d3d12.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso)), parsing bitfield word `w0` (`depth_write = (w0 >> 17) & 1`) and `rt0` (`write_mask = (rt0 >> 27) & 0xF`, `src_blend = (rt0 >> 5) & 0xF`, `dst_blend = (rt0 >> 9) & 0xF`, using D3D12 blend enum `kSrcAlpha = 4`, `kInvSrcAlpha = 5`) confirms close structural parity:
+In the D3D12 cache ([`4E4D0816.rtv.d3d12.xpso`](../../game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso)), parsing bitfield word `w0` (`depth_write = (w0 >> 17) & 1`) and `rt0` (`write_mask = (rt0 >> 27) & 0xF`, `src_blend = (rt0 >> 5) & 0xF`, `dst_blend = (rt0 >> 9) & 0xF`, using D3D12 blend enum `kSrcAlpha = 4`, `kInvSrcAlpha = 5`) confirms close structural parity:
 
 | D3D12 Pass Category | PSO Count | Share (%) | Depth Write | Color Write Mask | Async Safety Verdict |
 | :--- | ---: | ---: | :---: | :---: | :--- |
@@ -234,12 +234,12 @@ In the D3D12 cache ([`4E4D0816.rtv.d3d12.xpso`](file:///C:/Users/kelvy/Desktop/M
 
 ## 5. Why Existing SDK Logic (`Fh1SkipMustHoldFrame`) Stalls Instead of Accelerating
 
-In [`VulkanCommandProcessor::Fh1SkipMustHoldFrame`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328), the SDK already attempts to classify critical passes:
+In [`VulkanCommandProcessor::Fh1SkipMustHoldFrame`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328), the SDK already attempts to classify critical passes:
 1. `!has_pixel_shader || !color_mask` (Depth/Shadow) $\rightarrow$ `fh1_frame_skipped_critical_ = true`.
 2. `host_vertex_count <= 6` (Screen-space pass) $\rightarrow$ `fh1_frame_skipped_critical_ = true`.
 3. Front buffer / native HUD $\rightarrow$ `fh1_frame_skipped_critical_ = true`.
 
-However, the SDK's presentation logic in [`command_processor.cpp:5155-5164`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5155-L5164) contains a fundamental design flaw:
+However, the SDK's presentation logic in [`command_processor.cpp:5155-5164`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5155-L5164) contains a fundamental design flaw:
 
 ```cpp
 const uint32_t hold_ms = REXCVAR_GET(vulkan_async_skip_incomplete_frames_ms); // default 100 ms
@@ -309,14 +309,14 @@ The conclusions of Phase D6 provide concrete directives for the remainder of the
 
 ## 8. Attached Evidence & Reproducibility
 
-- **Automated Taxonomy Script**: [`scripts/discovery/d6-async-safety.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d6-async-safety.mjs)
+- **Automated Taxonomy Script**: [`scripts/discovery/d6-async-safety.mjs`](../../scripts/discovery/d6-async-safety.mjs)
 - **Inspected SDK Source Code**:
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:7346-7354`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354) (CPU draw dropping)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:5138-5186`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5138-L5186) (Presentation gate)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:9292-9328`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328) (`Fh1SkipMustHoldFrame`)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:1896-1914`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1896-L1914) (Placeholder PSO creation)
-  - [`tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp:2458-2461`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461) (D3D12 unconditional drop)
-  - [`src/majin_app.h:212-213`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L212-L213) (Application configuration overrides)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:7346-7354`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354) (CPU draw dropping)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:5138-5186`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5138-L5186) (Presentation gate)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:9292-9328`](../../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L9292-L9328) (`Fh1SkipMustHoldFrame`)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:1896-1914`](../../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1896-L1914) (Placeholder PSO creation)
+  - [`tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp:2458-2461`](../../tools/source/rexglue-sdk/src/graphics/d3d12/command_processor.cpp#L2458-L2461) (D3D12 unconditional drop)
+  - [`src/majin_app.h:212-213`](../../src/majin_app.h#L212-L213) (Application configuration overrides)
 - **Binary Cache Evidence**:
-  - Vulkan FBO: [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)
-  - D3D12 RTV: [`game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso) (`295` PSOs)
+  - Vulkan FBO: [`game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso`](../../game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso) (`342` PSOs)
+  - D3D12 RTV: [`game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso`](../../game-data/runtime/cache/d3d12-default/release/shaders/shareable/4E4D0816.rtv.d3d12.xpso) (`295` PSOs)

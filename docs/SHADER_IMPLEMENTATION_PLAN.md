@@ -3,8 +3,8 @@
 > **Date**: 2026-11-11  
 > **Status**: **REVISION 4 — EXTERNAL REFERENCES INTEGRATION (POST-RESEARCH SCAN)**  
 > **Target Title**: *Majin and the Forsaken Kingdom* (Title ID `4E4D0816`)  
-> **Preceding Reference Document**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md)  
-> **Discovery Evidentiary Corpus**: [`docs/discovery/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/) (Phases D1 through D8)  
+> **Preceding Reference Document**: [`docs/SHADER_PRECOMPILATION_PLAN.md`](SHADER_PRECOMPILATION_PLAN.md)  
+> **Discovery Evidentiary Corpus**: [`docs/discovery/`](discovery/) (Phases D1 through D8)  
 > **External Reference Corpus**: See §7 — External Implementation References  
 > **Target Hardware & Driver Environment**: Windows 11 AMD64, NVIDIA GeForce RTX 3060 Ti (driver `621.14`, Vulkan `1.4.357`, DirectX 12 Agility / Feature Level 12_1).  
 > **Legal & Compliance Boundary**: Absolute clean-room zero-distribution principle. Zero distribution of copyrighted game assets, guest shader microcode, `.xsh` dumps, binary driver caches (`.vkpc`, `GLCache`, `DXCache`), prebuild pipeline manifests (`.xpl`), hash lists, state lists, or commercial binaries. All transformations, extractions, and compilations execute exclusively on the player's PC from their legally owned game copy. The first-playthrough cold stutter mitigation MUST succeed independently without any distributed cache, hash database, or shipped pipeline manifest.
@@ -13,14 +13,14 @@
 
 ## 1. Executive Summary & Architectural Recalibration
 
-The 8-phase Discovery Gate ([D1](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/D1-stutter-attribution.md) through [D8](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/D8-baseline.md)) proved that **98.9%** of slow-frame hitching and **89.3%** of frame-time spikes in *Majin and the Forsaken Kingdom* stem from synchronous driver PSO compilation (`pipeline_ms`) and associated lookahead batch stalls (`Fh1WaitForAhead`).
+The 8-phase Discovery Gate ([D1](discovery/D1-stutter-attribution.md) through [D8](discovery/D8-baseline.md)) proved that **98.9%** of slow-frame hitching and **89.3%** of frame-time spikes in *Majin and the Forsaken Kingdom* stem from synchronous driver PSO compilation (`pipeline_ms`) and associated lookahead batch stalls (`Fh1WaitForAhead`).
 
 During a first-time player's cold launch on modern hardware, frame times collapse violently at the tail: **P99.9 reaches `443.77 ms`** (spiking up to `4,427.7 ms`), losing **`1,477.8 ms` of accumulated stutter per 1,000 frames** across an average of **`22.3` severe mid-gameplay stalls $> 100\text{ ms}$**. Conversely, when pipelines and driver caches are primed, P99.9 drops to **`30.42 ms` (`-93.1%`)**, severe $>100\text{ ms}$ stalls drop to **`0.0` (`100% elimination`)**, and excess time lost drops to **`14.9 ms / 1k frames` (`-99.0%`)**.
 
 Following exhaustive architectural review of the discovery findings, RexGlue source code (`command_processor.cpp`, `pipeline_cache.cpp`), and binary caches (`4E4D0816.fbo.vk.xpso` and `4E4D0816.rtv.d3d12.xpso`), this implementation plan addresses seven critical architectural realities:
 
 1. **The VS/PS Coupling Constraint & Draw-Time GPL Fast-Linking**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` depends on the paired pixel shader's input mask (`pixel_shader->GetInterpolatorInputMask(...)`). Consequently, a vertex shader cannot be translated to SPIR-V or compiled into a `VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT` library at ucode registration time in isolation. Instead, pre-rasterization and fragment libraries are keyed by `(vsHash, vsMod)` and `(psHash, psMod)`. When an unlinked pair of pre-compiled libraries or a new state combination is encountered at draw time, `VK_EXT_graphics_pipeline_library` executes a **fast-link in `< 1.0 ms`** (measured at 0.20–0.50 ms), which fits completely inside the 16.6 ms (60 FPS) or 33.3 ms (30 FPS) frame budget without missing a single frame. Any completely new guest shader encountered beyond the boot-primed set still incurs full driver compile latency on first encounter, mitigated by M3 restricted async for non-critical passes.
-2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M4.1) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. The critical path for a pristine cold launch operates 100% autonomously via runtime GPL fast-linking and restricted async.
+2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M4.1) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. The critical path for a pristine cold launch operates 100% autonomously via runtime GPL fast-linking and restricted async.
 3. **Rigorous M2a Validation Spike**: The M2a spike is expanded beyond a trivial fast-link test. It measures: (a) cold library creation for VS and PS with GLCache purged, (b) fast-link latency, (c) GPU runtime draw-call execution overhead of linked vs monolithic pipelines, and (d) validation across the full distribution of all 342 discovered in-game PSOs.
 4. **Correction of M1 Justification & `kStale` Redundancy**: The `+7.82 ms / PSO` overhead documented in D2 is attributed to CPU overhead in the temporary per-pipeline `VkPipelineCache` wrapper (`vkCreatePipelineCache(seed)`, `vkGetPipelineCacheData`, and FNV-1a checksumming of a 2 MB blob), not synchronous disk writes. Disabling `.vkpc` (`--vulkan_store_pipeline_cache=false`) eliminates this entire codepath, making `Outcome::kStale` handling automatically redundant.
 5. **Two-Layer Restricted Async (39.8% Ceiling & Category 6B Validation)**:
@@ -165,7 +165,7 @@ flowchart TD
 
 #### M0.1 Fix `fh1_frame_cost::Report::MainCause()` Lookahead Mislabeling
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h#L412)
+  - [`tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`](../tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h#L412)
 - **Problem**:
   When the Vulkan command processor thread sleeps in `Fh1WaitForAhead` waiting on background PSO worker threads, CPU cycle counters (`QueryThreadCycleTime`) do not advance. `Report::MainCause()` checks `if (slow_.cpu_per_frame && cpu > 0 && cpu + gpu_wait < 0.5 * ms) return Cause::kGame;` *before* checking subsystem cost timers. This mislabels severe PSO compilation stalls (`pipeline_ms = 91.4..410.6 ms`) as `"cause: the game (the command processor waited for its commands)"` in runtime logs.
 - **Fix**:
@@ -182,8 +182,8 @@ flowchart TD
 
 #### M0.1b Diagnostic Refinement: Separate `pipeline_compile_ms` from `pipeline_wait_ms`
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp)
+  - [`tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`](../tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp)
 - **Problem**:
   Currently, `pipeline_ms` aggregates both the synchronous CP-thread pipeline creation time (`EnsurePipelineCreated`) and the lookahead synchronization wait time (`Fh1WaitForAhead` / `finish_ahead`). This makes it impossible for CI benchmarks to isolate whether runtime stalls stem from driver compilation latency or lookahead queue starvation.
 - **Fix**:
@@ -193,14 +193,14 @@ flowchart TD
 
 #### M0.2 Enable Performance Counters in Release-Diagnostic Configuration
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/CMakeLists.txt`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/CMakeLists.txt#L31)
-  - [`CMakeLists.txt`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/CMakeLists.txt)
+  - [`tools/source/rexglue-sdk/CMakeLists.txt`](../tools/source/rexglue-sdk/CMakeLists.txt#L31)
+  - [`CMakeLists.txt`](../CMakeLists.txt)
 - **Fix**:
-  Provide an explicit CMake option `MAJIN_ENABLE_PERF_COUNTERS=ON` for `Release` and `RelWithDebInfo` builds, enabling atomic counters in [`tools/source/rexglue-sdk/src/core/perf/counter.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/core/perf/counter.cpp) so that `pipeline_cache_misses` and `texture_cache_misses` are populated in `.performance.csv` during benchmark validation.
+  Provide an explicit CMake option `MAJIN_ENABLE_PERF_COUNTERS=ON` for `Release` and `RelWithDebInfo` builds, enabling atomic counters in [`tools/source/rexglue-sdk/src/core/perf/counter.cpp`](../tools/source/rexglue-sdk/src/core/perf/counter.cpp) so that `pipeline_cache_misses` and `texture_cache_misses` are populated in `.performance.csv` during benchmark validation.
 
 #### M0.3 Standalone Performance Analysis CLI (`scripts/analyze-performance-csv.mjs`)
 - **Files Affected**:
-  - [`scripts/analyze-performance-csv.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/analyze-performance-csv.mjs) (implemented and verified)
+  - [`scripts/analyze-performance-csv.mjs`](../scripts/analyze-performance-csv.mjs) (implemented and verified)
 - **Design & Lifecycle Delimitation**:
   - Accepts single or multiple CSVs via `--input=<csv1,csv2,...>`.
   - Accepts `--log=<path_to_log>` to automatically correlate timestamps against engine log markers:
@@ -235,23 +235,23 @@ flowchart TD
 
 #### M1.1 Pure Bypass of `.vkpc` Per-Pipeline Mega-Blobs
 - **Files Affected**:
-  - [`src/majin_app.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L210-L235)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L569-L723)
+  - [`src/majin_app.h`](../src/majin_app.h#L210-L235)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L569-L723)
 - **Implementation**:
-  In [`src/majin_app.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L212):
+  In [`src/majin_app.h`](../src/majin_app.h#L212):
   ```cpp
   // Bypass per-pipeline .vkpc mega-blobs; delegate caching directly to native driver GLCache
   rex::cvar::SetFlagByName("vulkan_store_pipeline_cache", "false");
   ```
 - **Accurate Architectural Justification**:
-  - In [`pipeline_cache.cpp:570-620`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L570-L620), when `vulkan_store_pipeline_cache` is true, the engine creates a temporary `VkPipelineCache` for every single pipeline (`CreateDriverCache(seed.data.get())`, seeding ~1.88–2.11 MB). After compilation, it calls `vkGetPipelineCacheData` and computes an FNV-1a checksum over the entire 2 MB buffer.
-  - As proven in D2 ([`D2-miss-cost-breakdown.md:168-169`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/D2-miss-cost-breakdown.md#L168-L169)), this CPU wrapper overhead adds **`+7.82 ms / PSO`** (raw `vkCreateGraphicsPipelines` with warm GLCache takes **`0.20 ms`**, whereas `CreatePipelineWithDriverCache` takes **`8.02 ms`**).
+  - In [`pipeline_cache.cpp:570-620`](../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L570-L620), when `vulkan_store_pipeline_cache` is true, the engine creates a temporary `VkPipelineCache` for every single pipeline (`CreateDriverCache(seed.data.get())`, seeding ~1.88–2.11 MB). After compilation, it calls `vkGetPipelineCacheData` and computes an FNV-1a checksum over the entire 2 MB buffer.
+  - As proven in D2 ([`D2-miss-cost-breakdown.md:168-169`](discovery/D2-miss-cost-breakdown.md#L168-L169)), this CPU wrapper overhead adds **`+7.82 ms / PSO`** (raw `vkCreateGraphicsPipelines` with warm GLCache takes **`0.20 ms`**, whereas `CreatePipelineWithDriverCache` takes **`8.02 ms`**).
   - Setting `vulkan_store_pipeline_cache=false` bypasses this entire wrapper, eliminates **`~900 ms`** of startup disk I/O, and removes the 512 MiB cache limit.
-  - **`Outcome::kStale` Automatic Resolution**: `Outcome::kStale` only executes inside the `driver_cache_file::Outcome` switch ([`pipeline_cache.cpp:655`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L655)) when `driver_cache_enabled_` is true. Bypassing `.vkpc` skips this entire block, making dedicated `kStale` resolution automatically redundant.
+  - **`Outcome::kStale` Automatic Resolution**: `Outcome::kStale` only executes inside the `driver_cache_file::Outcome` switch ([`pipeline_cache.cpp:655`](../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L655)) when `driver_cache_enabled_` is true. Bypassing `.vkpc` skips this entire block, making dedicated `kStale` resolution automatically redundant.
 
 #### M1.2 Re-Port D3D12 Multi-Threaded Pre-Compilation (`d3d12-blocking-pso-precompile.patch`)
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L480-L720)
+  - [`tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp`](../tools/source/rexglue-sdk/src/graphics/d3d12/pipeline_cache.cpp#L480-L720)
 - **Fix**:
   Re-apply parallel worker thread dispatching from `d3d12-blocking-pso-precompile.patch` into `ReIGlue` D3D12 `PipelineCache::InitializeShaderStorage()`. Distribute stored pipeline creation tasks across available CPU cores, reducing D3D12 startup compilation from single-threaded **`75.02–81.04 ms / PSO`** down to parallel **`6.49–11.99 ms / PSO`** wall-clock.
 
@@ -345,7 +345,7 @@ Before writing the M2a harness from scratch, port the standalone headless Vulkan
    - Verify that all 342 PSOs succeed in linking with 0 Vulkan validation layer warnings/errors.
    - Audit interface compatibility: verify that NVIDIA driver 621.14 accepts libraries where the pre-rasterization library outputs match the fragment library inputs directly via `(vsHash, vsMod)` and `(psHash, psMod)`.
 5. **Explicit Enumeration of (vsHash, vsMod, interpolator_mask) & IndependentInterpolationDecoration Verification**:
-   - In RexGlue's SPIR-V translator ([`spirv_translator.h:54`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/pipeline/shader/spirv_translator.h#L54)), `interpolator_mask` occupies bits 0..15 of `Modification.vertex` (`vsMod`).
+   - In RexGlue's SPIR-V translator ([`spirv_translator.h:54`](../tools/source/rexglue-sdk/include/rex/graphics/pipeline/shader/spirv_translator.h#L54)), `interpolator_mask` occupies bits 0..15 of `Modification.vertex` (`vsMod`).
    - For all 99 unique `(vsHash, vsMod)` pre-rasterization libraries, measure and verify whether `unique(vsHash, vsMod) == unique(vsHash, interpolator_mask)`.
    - **Empirical Baseline Confirmed (v3)**: Across the 342 real game PSOs in `4E4D0816.fbo.vk.xpso`, there are exactly **97 unique VS hashes**, **99 unique `(vsHash, vsMod)` tuples**, and **99 unique `(vsHash, interpMask)` tuples**. Exactly 2 VS hashes have 2 variants (`interpMask = 0` vs `1`), while 95 VS hashes have strictly 1 variant.
    - **New verification (v4)**: Confirm that the RTX 3060 Ti driver reports `graphicsPipelineLibraryIndependentInterpolationDecoration = true`. **If yes**, then per the Vulkan spec, "any geometry stage decorations are ignored" when building pre-raster libraries — meaning **a single VS pre-raster library per `(vsHash, vsMod)`** suffices for **all** paired PS variants, regardless of their interpolator declarations. This eliminates the library multiplication risk outright and is a hard prerequisite for M2's viability on any hardware.
@@ -394,8 +394,8 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M2.1 Device Extension Negotiation & Physical Feature Probing
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L310)
-  - [`tools/source/rexglue-sdk/include/rex/ui/vulkan/vulkan_device.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/ui/vulkan/vulkan_device.h)
+  - [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp`](../tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L310)
+  - [`tools/source/rexglue-sdk/include/rex/ui/vulkan/vulkan_device.h`](../tools/source/rexglue-sdk/include/rex/ui/vulkan/vulkan_device.h)
 - **Negotiation**:
   Query and enable `VK_EXT_graphics_pipeline_library`, `VK_KHR_pipeline_library`, and `VK_EXT_extended_dynamic_state` (1, 2, 3). Probe physical device feature flags:
   - `graphicsPipelineLibrary`
@@ -418,8 +418,8 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M2.3 Four-Part `VkPipelineLibrary` Implementation
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1000-L1600)
+  - [`tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h`](../tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1000-L1600)
 
 > **Reference**: See §M2.0 and §7 (R2) for DXVK's production implementation of this exact pattern. The code below is structurally equivalent to DXVK's `createBasePipeline`, with the addition of the RexGlue `(vsHash, vsMod)` / `(psHash, psMod)` keying scheme and the M1.5-CPU state cache integration.
 
@@ -444,7 +444,7 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M2.4 Extended Dynamic State (EDS 1, 2, 3) Implementation
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7300-L7500, #L10300)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7300-L7500, #L10300)
 - **Implementation**:
   Remove `// TODO(Triang3l): VK_EXT_extended_dynamic_state` at line `10300`. Bind dynamic culling, depth test/write, stencil, and blend equations dynamically in `IssueDraw`.
   - Under **EDS 1 & 2**, fixed-function states collapse from 94 down to **28 states**, removing **92 PSO misses (26.9% reduction)** on the real game cache.
@@ -460,11 +460,11 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M3.1 Layer 1: PSO-Level Positive Allowlist (`IsAsyncSafePass`)
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/include/rex/graphics/pipeline_description.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/pipeline_description.h)
-  - [`tools/source/rexglue-sdk/src/graphics/pipeline_description.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/pipeline_description.cpp)
+  - [`tools/source/rexglue-sdk/include/rex/graphics/pipeline_description.h`](../tools/source/rexglue-sdk/include/rex/graphics/pipeline_description.h)
+  - [`tools/source/rexglue-sdk/src/graphics/pipeline_description.cpp`](../tools/source/rexglue-sdk/src/graphics/pipeline_description.cpp)
 - **Layout Specification & Bitfields**:
-  - Vulkan FBO layout ([`vulkan/pipeline_cache.h:225`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h#L225)): Word 1 (w1) bit 15 encodes `depth_write_enable` (`(w1 >> 15) & 1`).
-  - D3D12 layout ([`d3d12/pipeline_cache.h:206`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/d3d12/pipeline_cache.h#L206)): Word 0 (w0) bit 17 encodes `depth_write`.
+  - Vulkan FBO layout ([`vulkan/pipeline_cache.h:225`](../tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h#L225)): Word 1 (w1) bit 15 encodes `depth_write_enable` (`(w1 >> 15) & 1`).
+  - D3D12 layout ([`d3d12/pipeline_cache.h:206`](../tools/source/rexglue-sdk/include/rex/graphics/d3d12/pipeline_cache.h#L206)): Word 0 (w0) bit 17 encodes `depth_write`.
 - **Blend Enum Reconciliation**:
   | Graphics API | `kZero` | `kOne` | `kSrcColor` | `kInvSrcColor` | `kSrcAlpha` | `kInvSrcAlpha` | `kDestColor` |
   | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -504,7 +504,7 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M3.2 Layer 2: Draw-Level Screen Quad Guard in `IssueDraw`
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7346-L7354)
 - **Rationale**:
   Vertex count is a draw-time primitive processor property (`primitive_processing_result.host_draw_vertex_count`), not a static PSO property. Even if a draw uses an allowlisted blend mode, if it is a full-screen quad ($\le 6$ vertices, such as additive bloom compositing), dropping it causes full-screen brightness flashing.
 - **Implementation**:
@@ -544,7 +544,7 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M3.4 Redesigned Presentation Gate
 - **Files Affected**:
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5155-L5165)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L5155-L5165)
 - **Design**:
   Because unsafe passes and screen quads are never skipped in `IssueDraw`, `fh1_frame_skipped_critical_` is never asserted during gameplay. For allowlisted safe passes that do skip, `held_for_stale_contents` remains false. The presentation gate presents frames immediately at the display refresh boundary, completely eliminating the 45–205 ms presentation holding deadlock.
 
@@ -559,8 +559,8 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M4.1 Local Session Pipeline Manifest (`.xpl`) & Local Cache Pre-warming [Non-Distributed]
 - **Files Affected**:
-  - [`scripts/export-pipeline-manifest.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/export-pipeline-manifest.mjs)
-  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1017)
+  - [`scripts/export-pipeline-manifest.mjs`](../scripts/export-pipeline-manifest.mjs)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp#L1017)
 - **Legal Compliance Guarantee**:
   - **Zero Distribution**: No `.xpl` file, hash list, or pipeline database is ever committed to Git, bundled in release packages, or hosted on remote distribution endpoints.
   - Distributing an `.xpl` derived from complete game playthroughs exposes proprietary material topologies and risks copyright or trade secret claims.
@@ -571,13 +571,13 @@ Before writing the 4-part library architecture, study and mirror the production-
 
 #### M4.2 Offline Local Shader Pre-Translation Tool
 - **Files Affected**:
-  - [`scripts/extract-local-shaders.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/extract-local-shaders.mjs)
+  - [`scripts/extract-local-shaders.mjs`](../scripts/extract-local-shaders.mjs)
 - **Role**: Parses local installed game packages (`HexaEngineXbox.knl`, `start.pak`, `eff.pak`, `static.pak`) on the user's PC, translates 130 PS and 94 VS templates to SPIR-V/DXBC at install time ($< 500\text{ ms}$). Eliminates the remaining $1.4\%$ of CPU translation work during boot.
 
 #### M4.3 Launcher Pre-Compilation UI Feedback
 - **Files Affected**:
-  - [`scripts/launcher.ps1`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/launcher.ps1)
-  - [`private/launcher-usa.json`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/private/launcher-usa.json)
+  - [`scripts/launcher.ps1`](../scripts/launcher.ps1)
+  - [`private/launcher-usa.json`](../private/launcher-usa.json)
 - **Role**: Displays a progress bar and remaining ETA when the user chooses full boot pre-compilation on hardware lacking GPL.
 
 ---

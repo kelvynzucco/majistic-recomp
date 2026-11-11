@@ -1,7 +1,7 @@
 # Shader Stutter Mitigation: Execution Tracker & Step-by-Step Progress Log
 
 > **Target Title**: *Majin and the Forsaken Kingdom* (Title ID `4E4D0816`)  
-> **Master Architecture Document**: [`docs/SHADER_IMPLEMENTATION_PLAN.md`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/SHADER_IMPLEMENTATION_PLAN.md)  
+> **Master Architecture Document**: [`docs/SHADER_IMPLEMENTATION_PLAN.md`](SHADER_IMPLEMENTATION_PLAN.md)  
 > **Created**: 2026-11-11  
 > **Status**: **READY TO EXECUTE PHASE A (MILESTONE M0)**  
 

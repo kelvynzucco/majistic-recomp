@@ -3,8 +3,8 @@
 > **Date**: 2026-11-11  
 > **Target Title**: *Majin and the Forsaken Kingdom* (Title ID `4E4D0816`)  
 > **Hardware / Environment**: Windows 11 AMD64, NVIDIA GeForce RTX 3060 Ti (`vendor 0x10DE`, `device 0x2489`, 8 GB GDDR6), NVIDIA Game Ready Driver `621.14` (`0x9B438000`, Vulkan API `1.4.357`).  
-> **Reproducible Script**: [`scripts/discovery/d8-baseline.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/discovery/d8-baseline.mjs) (`node scripts/discovery/d8-baseline.mjs`)  
-> **Dataset Artifacts**: [`reports/baseline-shader/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/reports/baseline-shader) (12 normalized per-frame CSVs, `baseline-summary.csv`, `baseline-summary.json`)  
+> **Reproducible Script**: [`scripts/discovery/d8-baseline.mjs`](../../scripts/discovery/d8-baseline.mjs) (`node scripts/discovery/d8-baseline.mjs`)  
+> **Dataset Artifacts**: [`reports/baseline-shader/`](../../reports/baseline-shader) (12 normalized per-frame CSVs, `baseline-summary.csv`, `baseline-summary.json`)  
 > **Decision Unlocked**: **DISCOVERY GATE COMPLETE (GO TO IMPLEMENTATION PLAN)**. Fixed the concrete, measured baseline across triplicate cold runs and triplicate warm reference runs on both Vulkan and D3D12. Established immutable, quantitative **Pass/Fail Thresholds** (P99.9 frame time $< 33.33\text{ ms}$, excess spike time $< 50\text{ ms} / 1\text{k frames}$, and zero mid-gameplay stalls $> 100\text{ ms}$) that every future shader precompilation and stutter mitigation PR must beat.
 
 ---
@@ -39,7 +39,7 @@ Triplicate baseline benchmarks ($N = 3$) were conducted for each configuration a
 
 ### 1.1 Complete Multi-Run Baseline Summary Table
 
-The following table summarizes all 12 evaluated runs and their respective group averages stored in [`reports/baseline-shader/baseline-summary.csv`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/reports/baseline-shader/baseline-summary.csv):
+The following table summarizes all 12 evaluated runs and their respective group averages stored in [`reports/baseline-shader/baseline-summary.csv`](../../reports/baseline-shader/baseline-summary.csv):
 
 | Run ID | Group / Backend | Cache State | Edition | Frames | Duration | FPS | P50 (ms) | P95 (ms) | P99 (ms) | P99.9 (ms) | Max (ms) | Spikes | Excess ms | Excess / 1k | Frames > 100ms | Runtime PSOs |
 | :--- | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -102,19 +102,19 @@ To guarantee reproducibility across development runs and future verification bui
 
 ### 2.1 Standard Configuration Flags & Runtime Environment
 
-All baseline measurements were recorded using the identical production engine configuration defined in [`src/majin_app.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L173-L235):
+All baseline measurements were recorded using the identical production engine configuration defined in [`src/majin_app.h`](../../src/majin_app.h#L173-L235):
 - **Vulkan Backend**:
   - `gpu_backend = vulkan`
-  - `render_target_path_vulkan = fbo` ([`src/majin_app.h:178`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L178))
-  - `vulkan_dynamic_rendering = false` ([`src/majin_app.h:183`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L183))
-  - `vulkan_async_skip_incomplete_frames = false` ([`src/majin_app.h:212`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L212))
-  - `async_shader_compilation = false` ([`src/majin_app.h:213`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L213))
+  - `render_target_path_vulkan = fbo` ([`src/majin_app.h:178`](../../src/majin_app.h#L178))
+  - `vulkan_dynamic_rendering = false` ([`src/majin_app.h:183`](../../src/majin_app.h#L183))
+  - `vulkan_async_skip_incomplete_frames = false` ([`src/majin_app.h:212`](../../src/majin_app.h#L212))
+  - `async_shader_compilation = false` ([`src/majin_app.h:213`](../../src/majin_app.h#L213))
   - `vulkan_store_pipeline_cache = true` (default `.vkpc` disk cache active)
-  - `texture_cache_memory_limit_soft = 4096`, `hard = 8192` ([`src/majin_app.h:221-224`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L221-L224))
+  - `texture_cache_memory_limit_soft = 4096`, `hard = 8192` ([`src/majin_app.h:221-224`](../../src/majin_app.h#L221-L224))
 - **D3D12 Backend**:
   - `gpu_backend = d3d12`
-  - `render_target_path_d3d12 = rtv` ([`src/majin_app.h:187`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L187))
-  - `d3d12_allow_variable_refresh_rate_and_tearing = true` ([`src/majin_app.h:189`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/src/majin_app.h#L189))
+  - `render_target_path_d3d12 = rtv` ([`src/majin_app.h:187`](../../src/majin_app.h#L187))
+  - `d3d12_allow_variable_refresh_rate_and_tearing = true` ([`src/majin_app.h:189`](../../src/majin_app.h#L189))
 - **Presentation & Pacing**:
   - Resolution: 1920x1080 swapchain (internal 1x 1280x720 scene upscaled via FSR `present_effect = fsr`).
   - Target Frame Rate: 60 FPS opt-in (`guest_vblank_hz = 120`, VSync enabled with `vulkan_allow_present_mode_fifo_latest_ready = true`).
@@ -202,13 +202,13 @@ Based on the measured baselines, any candidate PR or implementation addressing s
    - For an unsegmented full session run, the threshold is **$\le 8\text{ frames}$** ($\ge 78.0\%$ drop from cold baseline's 36.3 frames).
    - When bounded to active 3D gameplay using log lifecycle markers (`--gameplay-only`), the threshold is **$\le 3\text{ frames}$**.
 5. **Threshold 5 — Strict Visual Integrity (Zero Glitches)**:
-   - As established in [D6](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/D6-async-safety.md), skipping draws via global async compilation resulted in missing terrain, transparent characters, and black shadow flashes. Any implementation utilizing restricted async compilation (e.g., for safe blended VFX passes) or GPL fast-linking must produce zero missing geometry and zero shadow acne.
+   - As established in [D6](D6-async-safety.md), skipping draws via global async compilation resulted in missing terrain, transparent characters, and black shadow flashes. Any implementation utilizing restricted async compilation (e.g., for safe blended VFX passes) or GPL fast-linking must produce zero missing geometry and zero shadow acne.
 
 ---
 
 ## 5. Artifact Inventory in `reports/baseline-shader/`
 
-All generated baseline files are committed under [`reports/baseline-shader/`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/reports/baseline-shader):
+All generated baseline files are committed under [`reports/baseline-shader/`](../../reports/baseline-shader):
 
 ```
 reports/baseline-shader/

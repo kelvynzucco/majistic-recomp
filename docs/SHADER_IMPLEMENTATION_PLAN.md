@@ -94,12 +94,12 @@ Following exhaustive architectural review of the discovery findings, RexGlue sou
 |       4. Explicit decision gate: if T_cold_lib >= 0.5 * T_cold_monolithic, skip GPL to save 3-5 days.|
 |       5. GPU runtime execution cost: linked pipeline vs monolithic SASS draw-call time (< 2% target).|
 |                                                                                                       |
-|   LAYER 3: Core Engine 4-Part GPL Fast-Linking & 5-Tier Fallback Matrix (Milestones M2.2/M2.3)        |
+|   LAYER 3: Core Engine 4-Part GPL Fast-Linking & Fallback Matrix (Milestones M2.2/M2.3)        |
 |   ============================================================================================        |
 |   - Conditioned on M2a gate: 4-part VkPipelineLibrary architecture indexed by (hash, mod) (ref: DXVK).|
 |   - Sub-millisecond draw-time fast-linking eliminates cold SASS compilation stalls for state variants.|
 |   - First-encounter cold libraries compile in background or sync; masked by M3 restricted async.      |
-|   - Enforce explicit 5-tier hardware fallback matrix (T1, T2, T2b, T3, T4, T5).                       |
+|   - Enforce explicit hardware fallback matrix (6 entries: T1, T2, T2b, T3, T4, T5).                   |
 |                                                                                                                       |
 |   LAYER 4: Narrow Restricted Async with Two-Layer Defense-in-Depth (Milestone M3)                                     |
 |   ================================================================================                                    |
@@ -325,23 +325,38 @@ flowchart TD
 - **Files Affected**:
   - [`tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp`](../tools/source/rexglue-sdk/src/ui/vulkan/vulkan_device.cpp#L220-L310)
   - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](../tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L7300-L7500, #L10300)
-- **Implementation**:
-  - Negotiate `VK_EXT_extended_dynamic_state`, `VK_EXT_extended_dynamic_state2`, and `VK_EXT_extended_dynamic_state3` in `vulkan_device.cpp`.
-  - Remove `// TODO(Triang3l): VK_EXT_extended_dynamic_state` at line `10300`. Bind dynamic culling, depth test/write, stencil, and blend equations dynamically in `IssueDraw`.
-  - **Measured Permutation Collapse**:
-    - Under **EDS 1 & 2** (Vulkan 1.3 core features: `depthTestEnable`, `depthWriteEnable`, `cullMode`, `stencilTestEnable`), fixed-function states collapse from 94 down to **28 states**, removing **92 PSO misses (26.9% reduction)** on the real game cache.
-    - Under **EDS 3** (extension `VK_EXT_extended_dynamic_state3`: dynamic color blend enable, equation, and write masks), fixed-function states collapse further down to **9 states** (RenderPass attachment formats only), removing **123 PSO misses (36.0% reduction)**.
-  - **Significance**: 36.0% of all potential stutter events are eliminated unconditionally across all supporting GPUs, directly observable in gameplay without touching shader bytecode!
-  - **Post-EDS Universe**: Total PSOs drop from **342 down to 219**.
+- **Specific Vulkan Feature Flags Required**:
+  - **EDS 1 (`VK_EXT_extended_dynamic_state` / Vulkan 1.3 core)**:
+    - `extendedDynamicState`: enables `vkCmdSetCullModeEXT`, `vkCmdSetDepthTestEnableEXT`, `vkCmdSetDepthWriteEnableEXT`, `vkCmdSetDepthCompareOpEXT`, `vkCmdSetStencilTestEnableEXT`, `vkCmdSetStencilOpEXT`.
+  - **EDS 2 (`VK_EXT_extended_dynamic_state2` / Vulkan 1.3 core)**:
+    - `extendedDynamicState2`: enables `vkCmdSetDepthBiasEnableEXT`, `vkCmdSetPrimitiveRestartEnableEXT`, `vkCmdSetRasterizerDiscardEnableEXT`.
+  - **EDS 3 (`VK_EXT_extended_dynamic_state3` extension)**:
+    Requires probing specific boolean flags in `VkPhysicalDeviceExtendedDynamicState3FeaturesEXT`:
+    1. `extendedDynamicState3ColorBlendEnable`: enables `vkCmdSetColorBlendEnableEXT`
+    2. `extendedDynamicState3ColorBlendEquation`: enables `vkCmdSetColorBlendEquationEXT`
+    3. `extendedDynamicState3ColorWriteMask`: enables `vkCmdSetColorWriteMaskEXT`
+- **Host Capability Scenarios & Graceful Degradation in Hardware**:
+  - **Case A: Full EDS3 (Reference Hardware RTX 3060 Ti / NVIDIA Driver 621.14 / Mesa RADV 23.1+)**:
+    All 3 color blend flags are exposed $\to$ fixed-function blocks collapse from 94 down to **9 RenderPass attachment format states**, eliminating **123 PSO misses (36.0% reduction)** on the real game cache.
+  - **Case B: Partial EDS3 (ColorBlendEnable + ColorWriteMask exposed, ColorBlendEquation missing)**:
+    States collapse from 94 down to **~18 states**, eliminating **~105 PSO misses (~30.7%)**.
+  - **Case C: EDS 1 & 2 only (Vulkan 1.3 Core; EDS3 unsupported, common on some AMD Windows drivers)**:
+    Only depth, cull, and stencil are dynamic $\to$ states collapse from 94 down to **28 states**, eliminating **92 PSO misses (26.9%)** (Tier T4).
+  - **Device Negotiation Rule**: In `vulkan_device.cpp`, feature flags are queried individually; `IssueDraw` dynamically sets only features supported by the host device, retaining static PSO state fields for any unexposed feature.
+- **Significance**: 36.0% of all potential stutter events are eliminated unconditionally across all supporting GPUs, directly observable in gameplay without touching shader bytecode!
+- **Post-EDS Universe**: Total PSOs drop from **342 down to 219**.
 
 #### M2.1.2 PipelineDescription Schema Version Bump & Cache Invalidation
 - **Files Affected**:
   - [`tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h`](../tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h#L243)
-- **Technical Requirement**:
+- **Technical Requirement & Verification**:
+  - In `tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h:243`, the current version is `static constexpr uint32_t kVersion = 0x20260228;`.
   - Because EDS 1, 2, 3 transitions blend state, depth/stencil state, and cull mode from static PSO creation state into dynamic `vkCmdSet*` commands, the fields within `PipelineDescription` and its serialized representation in `.xpso` files change fundamentally.
   - Previous player `.xpso` files (`4E4D0816.fbo.vk.xpso`) contain legacy static state fields that are no longer valid PSO creation inputs.
-  - **Action**: Bump `PipelineDescription::kVersion` (from `0x20260228` to `0x20260301`).
+  - **Action**: Bump `PipelineDescription::kVersion` to `0x20260301`.
   - When `pipeline_store_file::ReadHeader()` detects the version mismatch on startup, it returns `Header::kNone`, safely discarding/archiving the stale pre-EDS cache and regenerating clean post-EDS records without runtime assertion crashes or invalid pipeline states.
+  - **D3D12 Invariance**: D3D12 `include/rex/graphics/d3d12/pipeline_cache.h:222` (`kVersion = 0x20210425`) does **NOT** require a bump because EDS is a Vulkan-only extension (`VK_EXT_extended_dynamic_state*`). D3D12 PSO layouts and `.rtv.d3d12.xpso` stores remain completely unaffected.
+  - **Baseline Preservation Safeguard**: Milestone M0.4 baseline recapture executes strictly in **Phase A** (before Phase B M2.1), guaranteeing that the pristine official baseline CSVs and JSONs are recaptured, committed, and archived in Git before any local Vulkan cache version bump occurs.
 
 ---
 
@@ -388,17 +403,24 @@ To maintain strict clean-room licensing integrity (*TheSimpsonsGameRecomp* is GP
 ##### The Cold Break-Even Physics (244 Libraries vs 219 Post-EDS PSOs)
 After Milestone M2.1 collapses fixed-function permutations via Extended Dynamic State, the active workload drops from 342 down to **219 monolithic PSOs**. Under 4-part GPL, however, the engine must compile **99 VS + 145 PS = 244 cold libraries**. On a pristine first boot with GLCache purged, **GPL actually submits MORE cold compilation tasks to the GPU driver than the monolithic pipeline (244 vs 219, an +11.4% increase in driver compilation events)**.
 
-Therefore, for GPL to achieve break-even in total cold driver compilation latency on initial launch, the average cold library creation time must be strictly below:
-$$\text{Cold Break-Even Ratio} = \frac{219\text{ post-EDS PSOs}}{244\text{ cold libraries}} \approx 0.898 \approx 0.90 \times T_{\text{cold\_monolithic}}$$
+Therefore, evaluating total cold driver compilation wall-clock time compares the aggregate sum of all library compilations against all monolithic PSOs:
+$$\Sigma T_{\text{cold\_libs}} = \sum_{i=1}^{99} T_{\text{vs\_lib}_i} + \sum_{j=1}^{145} T_{\text{ps\_lib}_j} \quad \text{vs} \quad \Sigma T_{\text{cold\_mono}} = \sum_{k=1}^{219} T_{\text{mono\_pso}_k}$$
 
-Because vertex and fragment shaders remain coupled by interface layout without translator rewrites, fast-link provides minimal first-boot value over EDS 3 unless cold libraries compile substantially faster than monolithic PSOs.
+The theoretical break-even point occurs when:
+$$\text{Cold Break-Even Ratio} = \frac{\Sigma T_{\text{cold\_mono}}}{\Sigma T_{\text{cold\_libs}}} = \frac{219}{244} \approx 0.898 \approx 0.90$$
+
+##### Justification for the Strict 0.50x Gate Threshold (Engineering ROI vs. Marginal Win)
+Between $0.50\times$ and $0.90\times$, GPL would still technically compile fewer total milliseconds than monolithic PSOs on a first boot. However, the gate threshold is intentionally set to **`< 0.50x`** for critical engineering reasons:
+1. **High Complexity vs. Marginal Return**: A ratio between $0.50$ and $0.90$ represents a marginal 10%–25% reduction in cold compilation latency. This modest gain does not justify spending 3–5 days refactoring the engine core, managing 4-part library state lifetimes, and maintaining interface coupling workarounds across GPU driver updates.
+2. **Alternative Zero-Risk Mitigations**: Milestones M3 (Restricted Async) and M4.1 (Local Session Persistence) already eliminate stutter for non-critical VFX and 100% of repeat-run stutters without touching compiler internals or risking rendering regressions.
+3. **High-Value ROI Requirement**: 4-part GPL refactoring is only worth its architectural weight if the driver compiles split libraries $> 2\times$ faster than full PSOs ($\Sigma T_{\text{cold\_libs}} < 0.50 \times \Sigma T_{\text{cold\_mono}}$), providing an undeniable, dramatic stutter reduction on cold installs.
 
 ##### Mathematical Gate Decision Rules
 The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor of EDS + Async is governed by an explicit, unambiguous rule without disjunctive loopholes:
 
 - **Fail / Trigger Contingency R1 (Formally Abandon GPL & Advance Directly to M3)**:
   GPL implementation is **formally rejected** if **ANY** of the following conditions evaluate to true:
-  1. **Cold Ratio**: $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ (compiling cold libraries offers no significant speed advantage over compiling full post-EDS PSOs); **OR**
+  1. **Cold Ratio**: $\Sigma T_{\text{cold\_libs}} \ge 0.50 \times \Sigma T_{\text{cold\_mono}}$ (split libraries fail to demonstrate a $> 2\times$ compilation speedup over post-EDS monolithic PSOs); **OR**
   2. **Slow Link**: $P_{95}(\text{fast-linking latency}) \ge 1.0\text{ ms}$ (linking fails to complete within sub-millisecond draw budgets); **OR**
   3. **GPU Overhead**: $\text{GPU Runtime Overhead} \ge 5.0\%$ compared to monolithic SASS; **OR**
   4. **Validation Failure**: Vulkan Validation Layer errors $> 0$.
@@ -407,7 +429,7 @@ The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor o
 
 - **Pass / Proceed to Milestone M2.2 (GPL Refactoring)**:
   GPL implementation is approved if and only if **ALL FOUR** conditions are satisfied simultaneously:
-  1. $T_{\text{cold\_lib}} < 0.5 \times T_{\text{cold\_monolithic}}$ (demonstrating $> 2\times$ faster driver compilation for split stages); **AND**
+  1. $\Sigma T_{\text{cold\_libs}} < 0.50 \times \Sigma T_{\text{cold\_mono}}$ (demonstrating $> 2\times$ faster driver compilation for split stages); **AND**
   2. $P_{95}(\text{fast-linking latency}) < 1.0\text{ ms}$ ($\ge 95\%$ of all 219 post-EDS tuples link in $< 1.0\text{ ms}$); **AND**
   3. $\text{GPU Runtime Overhead} < 2.0\%$; **AND**
   4. Vulkan Validation Layer errors/warnings $= 0$.
@@ -673,7 +695,7 @@ The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor o
 The shader precompilation and stutter elimination initiative is officially complete and ready for public merge when:
 
 ### 6.1a Vulkan Tier T1 Acceptance Criteria — First Playthrough (Conditioned on M2a GPL Pass)
-*Applies strictly if Milestone M2a approves 4-part GPL linking. During a pristine cold first launch (purged driver GLCache, empty local session cache, zero distributed cache or manifest) on reference hardware (RTX 3060 Ti) validated via `scripts/analyze-performance-csv.mjs`:*
+*Applies strictly if Milestone M2a approves 4-part GPL linking. These cold first-boot figures represent target acceptance criteria to be validated and empirically calibrated by the M2a spike and post-M2.1 telemetry measurements. During a pristine cold first launch (purged driver GLCache, empty local session cache, zero distributed cache or manifest) on reference hardware (RTX 3060 Ti) validated via `scripts/analyze-performance-csv.mjs`:*
 1. **Excess Spike Time Lost**: Must be **`< 250.0 ms / 1,000 frames`** ($\ge 83.1\%$ reduction from the $1,477.8\text{ ms}$ cold baseline mean).
 2. **Severe Mid-Gameplay Stalls**: Must be **`<= 5 frames > 100 ms`** ($\ge 77.6\%$ reduction from $22.3\text{ frames}$ cold baseline mean; the remaining $\le 5$ stalls correspond exclusively to unavoidable cold SASS compilations for major unseen opaque mesh shaders on first encounter).
 3. **P99.9 Frame Time**: Must be **`< 50.0 ms`** (down from cold baseline P99.9 mean of **`443.77 ms`** and peak spike of **`4,427.7 ms`**).

@@ -41,7 +41,7 @@
 ### 🏛️ Fase B: Prioridade Imediata — Extended Dynamic State (Estimativa: 2–3 dias)
 - [ ] **M2.1: Extended Dynamic State (EDS 1, 2, 3) (`feat/vulkan-eds-and-gpl`)**
   - [ ] **M2.1a**: Implementar EDS 1 & 2 no `IssueDraw` (culling, depth test/write, stencil) $\to$ Colapso para 28 estados (-26.9% misses).
-  - [ ] **M2.1b**: Implementar EDS 3 (blend enable, blend equations, write masks) $\to$ Colapso para 9 estados (-36.0% misses / -123 PSOs).
+  - [ ] **M2.1b**: Implementar EDS 3 via probing de feature flags específicas (`extendedDynamicState3ColorBlendEnable`, `ColorBlendEquation`, `ColorWriteMask`) $\to$ Colapso para 9 estados (-36.0% misses / -123 PSOs). Em drivers com suporte parcial, degradar graciosamente para 18 ou 28 estados.
   - [ ] **M2.1c**: Incrementar versão do esquema de cache em `pipeline_cache.h` (`PipelineDescription::kVersion`) para invalidar caches `.xpso` legados pré-EDS com segurança.
   - [ ] **M2.1d**: Validar em jogo que 123 PSOs são eliminados sem necessidade de GPL e sem risco ao tradutor SPIR-V.
   - [ ] **M2.1e**: Reduzir o universo de PSOs de 342 para 219, preparando o cenário real pós-EDS para o spike M2a.
@@ -106,6 +106,15 @@
 | **Tempo Perdido (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | - | - | - | - | - | - |
 | **Boot D3D12 (s)** | `~24.0` | `~3.5` | **`<= 3.5`** | **`<= 3.5`** | - | - | - | - | - | - |
 | **Visual Integrity** | 100% | 100% | **0 artefatos** | **0 artefatos** | - | - | - | - | - | - |
+
+### 🎯 Metas Intermediárias & Critérios de Validação por Marco (Projeções de Gate)
+- **Pós-M0 (Telemetria & CI)**: Baseline controlado recapturado com `.vkpc=false` e `PERF_COUNTERS=ON`; thresholds oficiais calibrados no JSON de CI.
+- **Pós-M1 (Bypass & Cache Monolítico)**: Sobrecarga de CPU por PSO reduzida de $8.02\text{ ms} \to 0.20\text{ ms}$; boot D3D12 paralelo $\le 3.5\text{ s}$.
+- **Pós-M2.1 (EDS 1, 2, 3)**: Redução de **36.0% (123 misses)** nos PSOs; P99.9 projetado $\approx 90\text{ ms}$; stalls $> 100\text{ ms}$ projetados $\approx 14$; bump em `kVersion = 0x20260301`.
+- **Pós-M2a (Spike de Gate)**: Validação matemática empírica: $\Sigma T_{\text{cold\_libs}} < 0.50 \times \Sigma T_{\text{cold\_mono}}$, Fast-link $P_{95} < 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 erros.
+- **Pós-M3 (Final — Caminho com GPL Aprovado)**: P99.9 $< 50.0\text{ ms}$; stalls $> 100\text{ ms} \le 5$; tempo perdido $< 250\text{ ms}/1\text{k frames}$.
+- **Pós-M3 (Final — Fallback sem GPL se M2a Reprovar)**: P99.9 $< 60.0\text{ ms}$; stalls $> 100\text{ ms} \le 8$; tempo perdido $< 450\text{ ms}/1\text{k frames}$.
+- **Pós-M4.1 (Sessões Repetidas com Cache Local)**: P99.9 $< 33.33\text{ ms}$; **0 stalls $> 100\text{ ms}$**; tempo perdido $< 50\text{ ms}/1\text{k frames}$.
 
 ---
 

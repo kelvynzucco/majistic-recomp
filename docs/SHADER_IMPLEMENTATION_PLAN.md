@@ -19,8 +19,22 @@ During a first-time player's cold launch on modern hardware, frame times collaps
 
 Following exhaustive architectural review of the discovery findings, RexGlue source code (`command_processor.cpp`, `pipeline_cache.cpp`, `spirv_translator.cpp`), and binary caches (`4E4D0816.fbo.vk.xpso` and `4E4D0816.rtv.d3d12.xpso`), this implementation plan addresses seven critical architectural realities:
 
-1. **The VS/PS Coupling Constraint & Location Layout Reality**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` is the intersection of what the VS outputs and what the PS needs ([`spirv_translator.cpp:3040-3056`](../tools/source/rexglue-sdk/src/graphics/pipeline/shader/spirv_translator.cpp#L3040-L3056)). Locations are assigned packed sequentially via `builder_->addDecoration(interpolator, spv::DecorationLocation, int(input_location)); ++input_location;`. While Vulkan's `graphicsPipelineLibraryIndependentInterpolationDecoration` allows ignoring decoration qualifiers (`flat`, `noperspective`, `centroid`), it **DOES NOT alter the numeric Location indices of the interface**. Unless the SPIR-V translator is refactored to assign fixed 1:1 locations (`Location i = interpolator_index` for $i \in [0, 15]$), pre-raster and fragment libraries remain strictly coupled to the specific pair's interpolator mask.
-   Furthermore, GPL fast-linking **does not eliminate cold driver SASS compilation on first encounter; it redistributes it across libraries** (99 VS + 145 PS = 244 cold libraries vs 342 PSOs, a ~28.6% reduction). Because shaders are submitted only ~1.33 ms before draw (D4), compiling any unseen library cold stalls the command processor thread for 46–205 ms (3 to 12 frames). Fast-link (< 1.0 ms) eliminates hitches for *subsequent* state permutations of already compiled libraries, while initial cold encounters rely on M3 restricted async for non-critical VFX, with remaining opaque shaders being cached locally (M4.1) for 100% elimination on subsequent playthroughs.
+1. **The VS/PS Coupling Constraint, Location Layout Reality, and Cold Break-Even Physics**: In RexGlue/Xenia, `vertex_shader_modification.vertex.interpolator_mask` is the intersection of what the VS outputs and what the PS needs ([`spirv_translator.cpp:3040-3056`](../tools/source/rexglue-sdk/src/graphics/pipeline/shader/spirv_translator.cpp#L3040-L3056)). Locations are assigned packed sequentially via `builder_->addDecoration(interpolator, spv::DecorationLocation, int(input_location)); ++input_location;`. While Vulkan's `graphicsPipelineLibraryIndependentInterpolationDecoration` allows ignoring decoration qualifiers (`flat`, `noperspective`, `centroid`), it **DOES NOT alter the numeric Location indices of the interface**. Unless the SPIR-V translator is refactored to assign fixed 1:1 locations (`Location i = interpolator_index` for $i \in [0, 15]$), pre-raster and fragment libraries remain strictly coupled to the specific pair's interpolator mask.
+   Furthermore, GPL fast-linking **does not eliminate cold driver SASS compilation on first encounter; it redistributes it across libraries** (99 VS + 145 PS = 244 cold libraries). Critically, **after Milestone M2.1 (EDS 1, 2, 3), the monolithic universe collapses from 342 down to 219 PSOs**. Therefore, on a cold first launch, **GPL actually requires MORE driver compilations than monolithic PSOs (244 cold libraries vs 219 PSOs, a +11.4% increase in compilation events)**!
+   For GPL to merely break even in total cold compilation time on a clean install, each cold library must compile in less than:
+   $$\text{Break-Even Ratio} = \frac{219\text{ monolithic PSOs}}{244\text{ cold libraries}} \approx 0.898 \approx 0.90 \times T_{\text{cold\_monolithic}}$$
+   If compiling a cold library costs $\ge 0.5 \times$ a full monolithic PSO, GPL offers zero cold compilation advantage. Fast-link (< 1.0 ms) eliminates hitches strictly for *subsequent* state permutations of already compiled libraries, while initial cold encounters rely on M3 restricted async for non-critical VFX, with remaining opaque shaders being cached locally (M4.1) for 100% elimination on subsequent playthroughs.
+
+#### Milestone-by-Milestone Stutter Mitigation & Compilation Projection
+
+| Milestone & Pipeline State | Active Mechanisms | Total Cold Compilations | Cold Stutter Reduction | Severe Stalls $> 100\text{ ms}$ (1st Boot) | P99.9 (1st Boot) | Repeat Sessions (Warm) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Baseline (D8)** | None (Synchronous Monolithic) | 342 PSOs | 0.0% | 22.3 frames (mean) | 443.77 ms | 30.42 ms |
+| **Post-M1.1** | Monolithic Cache (CPU wrapper bypassed) | 342 PSOs | ~0.0% GPU (-8ms CPU) | 22.3 frames | 443.77 ms | 30.42 ms |
+| **Post-M2.1** | Extended Dynamic State (EDS 1, 2, 3) | 219 PSOs | **-36.0%** (123 misses cut) | ~14 frames | ~90.0 ms | 30.42 ms |
+| **Post-M3 (without GPL)** | Restricted Async 6A (Additive VFX) | 175 PSOs | **-48.8% (~49%)** | **$\le 8$ frames** | **$< 60.0\text{ ms}$** | $< 33.33\text{ ms}$ (T3/T4) |
+| **Post-M2.2 (with GPL)** | 4-Part GPL Fast-Link Recombinations | ~70 primary libs | **~-78% to -82%** | **$\le 5$ frames** | **$< 50.0\text{ ms}$** | $< 33.33\text{ ms}$ (T1) |
+| **Post-M4.1 (2nd Run)** | Primed Local Session Cache | 0 cold PSOs | **-100.0%** | **0 frames** | **$< 33.33\text{ ms}$** | $< 33.33\text{ ms}$ |
 2. **Absolute Clean-Room Legal Boundary (Zero Shipped `.xpl` or Hash Lists)**: Conforming strictly to the foundational constraint in [`docs/SHADER_PRECOMPILATION_PLAN.md:11`](SHADER_PRECOMPILATION_PLAN.md#L11), **no pipeline lists, hash databases, `.xpl` manifests, or game-derived execution traces will ever be distributed in releases or committed to Git**. Distributing an `.xpl` derived from playthrough traces exposes proprietary engine material topologies and creates unnecessary legal vulnerabilities. Any `.xpl` functionality (Milestone M4.1) is reclassified as **purely local, client-side session caching**: the player's local client may record tuples discovered during their own gameplay to accelerate *subsequent* launches on their machine. On a pristine cold first boot, the engine operates autonomously via runtime Extended Dynamic State (EDS), GPL fast-linking (where viable), and restricted async.
 3. **Recalibrated M2a Validation Spike (Clean-Room Post-EDS Benchmarking)**: Executed *after* EDS 1, 2, 3 is in place, the M2a spike is centered on two fundamental empirical questions: (a) *What is the exact wall-clock latency of compiling a cold pre-rasterization and fragment library on NVIDIA with GLCache purged vs a monolithic post-EDS PSO?* and (b) *Does the cold library latency justify 3–5 days of 4-part GPL refactoring if libraries remain pair-coupled?* Fast-link latency (< 1.0 ms) and GPU runtime draw overhead (< 2.0%) are measured across all real PSOs using a 100% clean-room CLI harness built in `tools/` (treating *TheSimpsonsGameRecomp* as an architectural design reference, without copying GPL code into the MIT-derived SDK).
 4. **Monolithic Shared `VkPipelineCache` (Replacing Pure Bypass as Final Target)**: The `+7.82 ms / PSO` overhead documented in D2 comes from the CPU wrapper creating a temporary `VkPipelineCache(seed)` per pipeline, extracting data, and checksumming 2 MB. While `--vulkan_store_pipeline_cache=false` serves as an immediate 1-line diagnostic validation (8.02 -> 0.20 ms), relying solely on driver GLCache risks cache purges resetting the player's compilation. M1.1 implements a single monolithic shared `VkPipelineCache` loaded once at boot, serialized periodically at save checkpoints (`ContentCreateEx`, `flow_a`), and written to disk at `Shutdown()`. While driver updates invalidate `pipelineCacheUUID` (causing the driver to regenerate blobs per Vulkan spec), an application-level monolithic cache protects against Windows GLCache resets, eliminates wrapper CPU overhead, and provides cross-vendor stability without crash data loss.
@@ -251,13 +265,15 @@ flowchart TD
   rex::cvar::SetFlagByName("vulkan_store_pipeline_cache", "false");
   ```
   Immediately captures the **`8.02 -> 0.20 ms / PSO`** reduction in runtime CPU overhead documented in D2.
-- **Phase 2: Single Monolithic Shared `VkPipelineCache` Implementation**:
-  - **The Problem with Pure Bypass**: Depending entirely on `--vulkan_store_pipeline_cache=false` leaves persistence entirely to the GPU vendor's driver cache (`GLCache`/`DXCache`). If the driver updates or clears its internal cache, the player loses all compiled shaders and incurs full cold compilation again. Additionally, driver cache behavior is less consistent across AMD and Intel GPUs.
-  - **The Solution**: Refactor `VulkanPipelineCache` to manage a **single global `VkPipelineCache`** object:
+- **Phase 2: Single Monolithic Shared `VkPipelineCache` with Checkpoints**:
+  - **The Problem with Pure Bypass**: Depending entirely on `--vulkan_store_pipeline_cache=false` leaves persistence entirely to the GPU vendor's driver cache (`GLCache`/`DXCache`). Windows Storage Sense and vendor disk cleaners frequently purge `GLCache`, resetting the player to full cold compilation. Moreover, driver cache retention policies differ significantly across NVIDIA, AMD, and Intel.
+  - **The Problem with Per-Pipeline `.vkpc`**: The original wrapper creates a temporary `VkPipelineCache(seed)` per PSO, copies ~2 MB of data, and calculates an FNV-1a checksum synchronously on the CP thread, adding **`+7.82 ms / PSO`** of pure CPU overhead.
+  - **The Solution**: Refactor `VulkanPipelineCache` to manage a **single global `VkPipelineCache`** object with checkpoint serialization:
     1. **Startup**: Seed the monolithic cache from `game-data/runtime/cache/vulkan-vulkan/release/shaders/pipeline_cache.bin` on disk via `vkCreatePipelineCache`.
-    2. **Runtime**: Pass this single cache handle to all `vkCreateGraphicsPipelines` calls. Completely eliminate the per-pipeline wrapper (`CreateDriverCache(seed)`, `vkGetPipelineCacheData`, and FNV-1a checksum of 2 MB per PSO).
-    3. **Shutdown**: Call `vkGetPipelineCacheData` once on engine exit and write the unified binary blob to disk.
-  - **Outcome**: Retains the fast **`0.20 ms / PSO`** hot creation speed while guaranteeing robust local disk persistence across driver updates on all GPU vendors.
+    2. **Runtime**: Pass this single cache handle to all `vkCreateGraphicsPipelines` calls. Completely eliminate the per-pipeline wrapper (`CreateDriverCache(seed)`, `vkGetPipelineCacheData`, and FNV-1a checksum).
+    3. **Periodic Checkpoint Persistence**: Call `vkGetPipelineCacheData` and serialize the unified cache binary at critical lifecycle boundaries (`flow_a` on gameplay start, and `ContentCreateEx` on save container creation), preventing data loss in the event of an abnormal application termination or crash.
+    4. **Shutdown**: Call `vkGetPipelineCacheData` once on clean exit and write the final unified binary blob to disk.
+  - **Driver UUID Invalidation Reality**: Note that `VkPipelineCache` embeds `VkPhysicalDeviceProperties::pipelineCacheUUID` in its header. When the GPU driver updates or device hardware changes, the Vulkan driver discards the binary blob as incompatible by design. The monolithic cache's true purpose is **surviving OS/driver disk cleanups and guaranteeing deterministic, zero-wrapper-overhead persistence across repeat gameplay sessions on the same driver version**.
 
 #### M1.2 Re-Port D3D12 Multi-Threaded Pre-Compilation (`d3d12-blocking-pso-precompile.patch`)
 - **Files Affected**:
@@ -269,8 +285,8 @@ flowchart TD
 
 ### Milestone M1.5 (Optional Bonus): Command Processor CPU Optimization Port (CrownParkComputing)
 
-> **Goal**: Port three low-risk, high-value CPU optimization patches from the CrownParkComputing `Xbox360-Native-Ports` fork to `rexglue-sdk`. These reduce the overall Command Processor CPU load during gameplay (independent of PSO compilation overhead).  
-> **Positioning**: **Complementary, not critical-path.** These optimizations reduce total CP CPU time but do **not** address the primary `pipeline_ms` stutter target. They can be delivered in parallel with M2a/M2 (same author context) or deferred to backlog.  
+> **Goal**: Port three low-risk, high-value CPU optimization concepts from the CrownParkComputing `Xbox360-Native-Ports` fork to `rexglue-sdk`. These reduce the overall Command Processor CPU load during gameplay (independent of PSO compilation overhead).  
+> **Positioning**: **Complementary, not critical-path.** These optimizations reduce total CP CPU time but do **not** address the primary `pipeline_ms` stutter target. Because recompilation forks often carry GPL-3.0 licenses, these concepts are implemented **100% clean-room** in `rexglue-sdk` (MIT/BSD). They can be delivered in parallel with M2a/M2 or deferred to backlog.  
 > **Estimated Effort**: 0.5–1 Day  
 > **Target Branch**: `feat/cp-cpu-optimizations`
 
@@ -318,12 +334,21 @@ flowchart TD
   - **Significance**: 36.0% of all potential stutter events are eliminated unconditionally across all supporting GPUs, directly observable in gameplay without touching shader bytecode!
   - **Post-EDS Universe**: Total PSOs drop from **342 down to 219**.
 
+#### M2.1.2 PipelineDescription Schema Version Bump & Cache Invalidation
+- **Files Affected**:
+  - [`tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h`](../tools/source/rexglue-sdk/include/rex/graphics/vulkan/pipeline_cache.h#L243)
+- **Technical Requirement**:
+  - Because EDS 1, 2, 3 transitions blend state, depth/stencil state, and cull mode from static PSO creation state into dynamic `vkCmdSet*` commands, the fields within `PipelineDescription` and its serialized representation in `.xpso` files change fundamentally.
+  - Previous player `.xpso` files (`4E4D0816.fbo.vk.xpso`) contain legacy static state fields that are no longer valid PSO creation inputs.
+  - **Action**: Bump `PipelineDescription::kVersion` (from `0x20260228` to `0x20260301`).
+  - When `pipeline_store_file::ReadHeader()` detects the version mismatch on startup, it returns `Header::kNone`, safely discarding/archiving the stale pre-EDS cache and regenerating clean post-EDS records without runtime assertion crashes or invalid pipeline states.
+
 ---
 
 ### Milestone M2a: Empirical Validation Spike — Clean-Room Post-EDS GPL Benchmarking
 
 > **Goal**: De-risk Milestone M2.2 before committing 3–5 days of architectural refactoring. Build a clean-room empirical spike harness in `tools/gpl-spike/` measuring cold library compilation latency vs monolithic post-EDS PSOs, fast-link latency, GPU runtime draw cost, and distribution-wide compatibility across the 219 post-EDS PSOs on the maintainer's RTX 3060 Ti.  
-> **Estimated Effort**: 2–3 Days  
+> **Estimated Effort**: 1–2 Days  
 > **Target Branch**: `spike/gpl-cleanroom-validation`
 
 #### M2a.0 Clean-Room Headless Harness Architecture in `tools/gpl-spike/`
@@ -359,23 +384,39 @@ To maintain strict clean-room licensing integrity (*TheSimpsonsGameRecomp* is GP
    - Measure the synchronous CPU cost of creating the `kPlaceholderPixelShaderSource` (`discard;`) pipeline with `vkCreateGraphicsPipelines`.
 
 #### M2a.2 Explicit Go / No-Go Decision Gate for GPL (Milestone M2.2)
-The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor of EDS + Async is governed by an explicit mathematical rule:
 
-- **Pass / Proceed to M2.2 (GPL Refactoring)**:
-  1. **Fast-Linking Latency**: $\ge 95\%$ of PSOs fast-link in $< 1.0\text{ ms}$.
-  2. **GPU Execution Overhead**: $< 2.0\%$ compared to monolithic SASS.
-  3. **Vulkan Validation**: 0 errors/warnings.
-  4. **Cold Library Compilation Benefit**: Either $T_{\text{cold\_lib}} < 0.5 \times T_{\text{cold\_monolithic}}$ (proving driver compiles libraries significantly faster than full PSOs) OR fast-linking provides quantifiable stutter reduction across post-EDS material variants.
-- **Fail / Trigger Contingency R1 (Skip GPL, Proceed to M3)**:
-  - If $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ AND fast-linking fails to exceed 1.0 ms OR GPU overhead $\ge 5\%$:
-  - **GPL is formally abandoned**: Because libraries are pair-coupled, compiling 244 cold libraries takes nearly the same time as compiling 219 post-EDS PSOs; fast-linking adds minimal value on top of EDS 3.
-  - The project proceeds directly to **Milestone M3 (Restricted Async)** and **Milestone M4.1 (Local Session Persistence)**, saving 3–5 days of risky architectural refactoring with zero compromise to end-user smoothness.
+##### The Cold Break-Even Physics (244 Libraries vs 219 Post-EDS PSOs)
+After Milestone M2.1 collapses fixed-function permutations via Extended Dynamic State, the active workload drops from 342 down to **219 monolithic PSOs**. Under 4-part GPL, however, the engine must compile **99 VS + 145 PS = 244 cold libraries**. On a pristine first boot with GLCache purged, **GPL actually submits MORE cold compilation tasks to the GPU driver than the monolithic pipeline (244 vs 219, an +11.4% increase in driver compilation events)**.
+
+Therefore, for GPL to achieve break-even in total cold driver compilation latency on initial launch, the average cold library creation time must be strictly below:
+$$\text{Cold Break-Even Ratio} = \frac{219\text{ post-EDS PSOs}}{244\text{ cold libraries}} \approx 0.898 \approx 0.90 \times T_{\text{cold\_monolithic}}$$
+
+Because vertex and fragment shaders remain coupled by interface layout without translator rewrites, fast-link provides minimal first-boot value over EDS 3 unless cold libraries compile substantially faster than monolithic PSOs.
+
+##### Mathematical Gate Decision Rules
+The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor of EDS + Async is governed by an explicit, unambiguous rule without disjunctive loopholes:
+
+- **Fail / Trigger Contingency R1 (Formally Abandon GPL & Advance Directly to M3)**:
+  GPL implementation is **formally rejected** if **ANY** of the following conditions evaluate to true:
+  1. **Cold Ratio**: $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ (compiling cold libraries offers no significant speed advantage over compiling full post-EDS PSOs); **OR**
+  2. **Slow Link**: $P_{95}(\text{fast-linking latency}) \ge 1.0\text{ ms}$ (linking fails to complete within sub-millisecond draw budgets); **OR**
+  3. **GPU Overhead**: $\text{GPU Runtime Overhead} \ge 5.0\%$ compared to monolithic SASS; **OR**
+  4. **Validation Failure**: Vulkan Validation Layer errors $> 0$.
+
+  *Architectural Action on Fail*: Milestone M2.2 is formally bypassed. The project proceeds directly to **Milestone M3 (Restricted Async)** and **Milestone M4.1 (Local Session Persistence)**. This saves 3–5 days of high-risk translator refactoring and focuses effort on predictable stutter mitigation via EDS3 and particle async, achieving the fallback acceptance criteria defined in §6.1c.
+
+- **Pass / Proceed to Milestone M2.2 (GPL Refactoring)**:
+  GPL implementation is approved if and only if **ALL FOUR** conditions are satisfied simultaneously:
+  1. $T_{\text{cold\_lib}} < 0.5 \times T_{\text{cold\_monolithic}}$ (demonstrating $> 2\times$ faster driver compilation for split stages); **AND**
+  2. $P_{95}(\text{fast-linking latency}) < 1.0\text{ ms}$ ($\ge 95\%$ of all 219 post-EDS tuples link in $< 1.0\text{ ms}$); **AND**
+  3. $\text{GPU Runtime Overhead} < 2.0\%$; **AND**
+  4. Vulkan Validation Layer errors/warnings $= 0$.
 
 ---
 
 ### Milestone M2.2: Core Engine 4-Part GPL Libraries & Fallback Matrix
 
-> **Goal**: Implement the 4-part `VkPipelineLibrary` architecture, eliminate draw-time SASS compilation stutters for recombined shaders by reducing creation to sub-millisecond fast-linking, and enforce the 5-tier hardware fallback matrix. *(Conditioned on M2a Gate approval)*.  
+> **Goal**: Implement the 4-part `VkPipelineLibrary` architecture, eliminate draw-time SASS compilation stutters for recombined shaders by reducing creation to sub-millisecond fast-linking, and enforce the hardware fallback matrix (5 tiers + T2b sub-tier). *(Conditioned on M2a Gate approval)*.  
 > **Estimated Effort**: 3–5 Days  
 > **Target Branch**: `feat/vulkan-gpl-linking`
 
@@ -386,7 +427,7 @@ The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor o
   2. **Fast-link at draw time** (`createBasePipeline`): pass the 4 libraries to `VkPipelineLibraryCreateInfoKHR` with `flags = 0`.
   3. **`canUseGraphicsPipelineLibrary` guard**: require `graphicsPipelineLibrary && graphicsPipelineLibraryIndependentInterpolationDecoration`.
 
-#### M2.2.2 Explicit Five-Tier Hardware Capability Fallback Matrix (5 Tiers + T2b Sub-Tier)
+#### M2.2.2 Explicit Hardware Capability Fallback Matrix (5 Tiers + T2b Sub-Tier: 6 Entries Total)
 
 | Tier | Hardware Capabilities Detected | Compilation & Linking Strategy | Objective Acceptance Criteria |
 | :---: | :--- | :--- | :--- |
@@ -570,33 +611,33 @@ The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor o
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M1        | Monolithic Shared VkPipelineCache & D3D12 Multi-Threading        | 1-1.5 Days  | feat/monolithic-vkpc-and-d3d12-parallel|
 |           | - Phase 1: Pure 1-line bypass of .vkpc (diagnostic baseline)     |             |                        |
-|           | - Phase 2: Monolithic shared VkPipelineCache saved at Shutdown() |             |                        |
+|           | - Phase 2: Monolithic shared VkPipelineCache with checkpoints    |             |                        |
 |           | - Re-port d3d12-blocking-pso-precompile.patch to D3D12           |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
-| M1.5      | CP CPU Optimization Bonus (CrownParkComputing Port) [Optional]   | 0.5-1 Day   | feat/cp-cpu-optimizations|
+| M1.5      | CP CPU Optimization Bonus (CrownParkComputing Clean-Room) [Opt]  | 0.5-1 Day   | feat/cp-cpu-optimizations|
 |           | - MRU PipelineDescription state cache (64 entries)               |             |                        |
 |           | - Stable-binding fast path (16 entries)                          |             |                        |
 |           | - Bulk register writes (memcpy for sequential PM4)               |             |                        |
-|           | - Complementary to shader stutter fix; ~4% CP CPU reduction      |             |                        |
+|           | - Clean-room reimplementation; ~4% CP CPU reduction              |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2.1      | Priority Intermediate: Extended Dynamic State (EDS 1, 2, 3)      | 2-3 Days    | feat/vulkan-eds-and-gpl|
 |           | - Implement EDS 1 & 2 (dynamic depth, cull, stencil)             |             |                        |
 |           | - Implement EDS 3 (dynamic color blend enable, equation, mask)   |             |                        |
+|           | - Bump PipelineDescription::kVersion & invalidate legacy .xpso   |             |                        |
 |           | - Collapse 94 fixed states to 9 render passes (-36% misses)      |             |                        |
-|           | - Immediate high ROI with ZERO risk to SPIR-V interface          |             |                        |
 |           | - Reduces PSO universe from 342 to 219 prior to GPL benchmarking |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M2a       | Empirical Validation Spike (Clean-Room Post-EDS Benchmark)       | 1-2 Days    | spike/gpl-cleanroom-validation|
 |           | - Standalone clean-room CLI harness in tools/ (Simpsons pattern) |             |                        |
 |           | - Measure cold library latency on post-EDS universe (219 PSOs)   |             |                        |
 |           | - Evaluate SPIR-V interface location layout: fixed vs packed     |             |                        |
-|           | - Mathematical gate: if T_cold_lib >= 0.5 * T_monolithic, skip M2|             |                        |
-|           | - Measure fast-link latency (< 1.0 ms) & GPU draw overhead (< 2%)|             |                        |
+|           | - Strict Gate: if T_lib >= 0.5*T_mono OR link >= 1ms OR GPU >= 5%|             |                        |
+|           |   then abort GPL and advance to M3, saving 3-5 days              |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
-| M2.2/2.3  | Core Engine 4-Part GPL Libraries & 5-Tier Fallback Matrix        | 3-5 Days    | feat/vulkan-eds-and-gpl|
+| M2.2/2.3  | Core Engine 4-Part GPL Libraries & Fallback Matrix (6 Entries)   | 3-5 Days    | feat/vulkan-eds-and-gpl|
 |           | - Conditioned on M2a gate: 4-part VkPipelineLibrary (DXVK ref)   |             |                        |
 |           | - Sub-millisecond draw-time fast-linking for state combinations  |             |                        |
-|           | - Enforce explicit 5-tier fallback matrix (T1, T2, T2b, T3, T4, T5)|            |                        |
+|           | - Enforce explicit fallback matrix (T1, T2, T2b, T3, T4, T5)    |             |                        |
 +-----------+------------------------------------------------------------------+-------------+------------------------+
 | M3        | Narrow Restricted Async with Two-Layer Defense-in-Depth          | 2-3 Days    | feat/narrow-async      |
 |           | - Layer 1: PipelineDescription::IsAsyncSafePass() allowlist      |             |                        |
@@ -631,11 +672,11 @@ The decision to implement 4-part GPL libraries (M2.2) vs skipping GPL in favor o
 
 The shader precompilation and stutter elimination initiative is officially complete and ready for public merge when:
 
-### 6.1a Vulkan Tier T1 Acceptance Criteria — First Playthrough (100% Pristine Cold Boot)
-During a pristine cold first launch (purged driver GLCache, empty local session cache, zero distributed cache or manifest) on reference hardware (RTX 3060 Ti) validated via `scripts/analyze-performance-csv.mjs`:
+### 6.1a Vulkan Tier T1 Acceptance Criteria — First Playthrough (Conditioned on M2a GPL Pass)
+*Applies strictly if Milestone M2a approves 4-part GPL linking. During a pristine cold first launch (purged driver GLCache, empty local session cache, zero distributed cache or manifest) on reference hardware (RTX 3060 Ti) validated via `scripts/analyze-performance-csv.mjs`:*
 1. **Excess Spike Time Lost**: Must be **`< 250.0 ms / 1,000 frames`** ($\ge 83.1\%$ reduction from the $1,477.8\text{ ms}$ cold baseline mean).
 2. **Severe Mid-Gameplay Stalls**: Must be **`<= 5 frames > 100 ms`** ($\ge 77.6\%$ reduction from $22.3\text{ frames}$ cold baseline mean; the remaining $\le 5$ stalls correspond exclusively to unavoidable cold SASS compilations for major unseen opaque mesh shaders on first encounter).
-3. **P99.9 Frame Time**: Must be **`< 50.0 ms`** (down from cold baseline P99.9 of $96.7\text{ ms}$ / peak $443.8\text{ ms}$).
+3. **P99.9 Frame Time**: Must be **`< 50.0 ms`** (down from cold baseline P99.9 mean of **`443.77 ms`** and peak spike of **`4,427.7 ms`**).
 4. **Visual Integrity**: Must exhibit **`0 visual artifacts`** (zero missing character meshes, zero transparent models, zero shadow strobing, zero bloom flashes, zero disappearing water or terrain).
 5. **Presentation Integrity**: **`0 deadlocks or frame-holds`** (`fh1_frame_skipped_critical_ = false` during gameplay; presentation proceeds at display refresh boundary).
 
@@ -650,12 +691,17 @@ During subsequent launches where the local session cache has been primed by M1.1
 4. **Frames Below 30 FPS**: Must be **`<= 8 frames > 33.33 ms`** for full unsegmented session ($\ge 78.0\%$ drop from $36.3\text{ frames}$ cold baseline; warm baseline achieves $7.0\text{ frames}$ mean), or **`<= 3 frames`** for active gameplay window (`--gameplay-only`).
 5. **Visual Integrity**: Must exhibit **`0 visual artifacts`**.
 
-### 6.1c Vulkan Tier T2 / T3 / T4 Fallback Acceptance Criteria (Hardware Lacking GPL Fast-Linking)
-For fallback hardware or early drivers where GPL fast-linking is unavailable or fails M2a:
-1. **P99.9 Frame Time**: Must be **`< 40.0 ms`** (warm) / **`< 60.0 ms`** (cold).
-2. **Severe Mid-Gameplay Stalls**: Must be **`<= 1 frame > 100 ms`** (warm) / **`<= 8 frames > 100 ms`** (cold; enabled by EDS3 dynamic state collapsing 123 PSOs).
-3. **Excess Spike Time Lost**: Must be **`< 250.0 ms / 1,000 frames`** on repeat runs ($\ge 83.1\%$ reduction).
-4. **Visual Integrity**: Must exhibit **`0 visual artifacts`**.
+### 6.1c Vulkan Tier T2 / T3 / T4 Fallback Acceptance Criteria (Hardware Lacking GPL Fast-Linking or M2a Fail)
+*Applies if hardware lacks GPL fast-linking (Tiers T3/T4) OR if Milestone M2a triggers Contingency R1 (abandoning GPL in favor of EDS + Async):*
+1. **Cold First-Boot Performance (EDS + Async 6A: ~49% Cold Miss Reduction)**:
+   - **Severe Mid-Gameplay Stalls**: Must be **`<= 8 frames > 100 ms`** ($\ge 64.1\%$ reduction from $22.3\text{ frames}$ cold baseline mean; enabled by EDS3 eliminating 123 PSOs and Async 6A masking 44 PSOs).
+   - **P99.9 Frame Time**: Must be **`< 60.0 ms`** (down from cold baseline mean of $443.77\text{ ms}$).
+   - **Excess Spike Time Lost**: Must be **`< 450.0 ms / 1,000 frames`** ($\ge 69.5\%$ reduction from $1,477.8\text{ ms}$).
+2. **Repeat Playthrough Performance (Local Session Cache Primed)**:
+   - **P99.9 Frame Time**: Must be **`< 35.0 ms`** (multi-run aggregate) / **`< 40.0 ms`** (single-run).
+   - **Severe Mid-Gameplay Stalls**: Must be **`<= 1 frame > 100 ms`** ($\ge 95.5\%$ reduction).
+   - **Excess Spike Time Lost**: Must be **`< 100.0 ms / 1,000 frames`** ($\ge 93.2\%$ reduction).
+3. **Visual Integrity**: Must exhibit **`0 visual artifacts`** across all gameplay zones.
 
 ### 6.2 D3D12 Backend Acceptance Criteria
 1. **Parallel Cold Startup Compilation Rate**: Multi-threaded worker compilation must achieve **`<= 12.0 ms / PSO`** parallel wall-clock (total cold startup warm-up for ~295 PSOs **`<= 3.5 seconds`**, down from single-threaded $75\text{--}81\text{ ms / PSO}$).
@@ -672,7 +718,7 @@ For fallback hardware or early drivers where GPL fast-linking is unavailable or 
    - *TheSimpsonsGameRecomp* is licensed under **GPL-3.0**.
    - `rexglue-sdk` is licensed under **MIT / BSD** upstream terms.
    - **Mandatory Policy**: Code from *TheSimpsonsGameRecomp* will **NOT** be copied into `rexglue-sdk`. The M2a validation harness will be built as a standalone binary in `tools/gpl-spike/` using a **100% clean-room approach**, referencing public Vulkan specifications and using the Simpsons project strictly as a conceptual design pattern.
-   - DXVK is `zlib`-licensed, and CrownParkComputing patches are BSD/MIT compatible.
+   - DXVK is `zlib`-licensed. Related Xbox 360 recompilation forks (such as CrownParkComputing) often use GPL-3.0; therefore, no external code will be copied directly into `rexglue-sdk`. Instead, all CP CPU optimization concepts (MRU state cache, stable bindings, memcpy PM4 register writes) are re-implemented clean-room to preserve SDK licensing.
 2. **Provenance Documented**: Every PR that references external patterns must include a `PROVENANCE.md` entry specifying:
    - Source repository URL and commit SHA
    - Exact architectural pattern referenced
@@ -734,11 +780,12 @@ This section documents the four external reference implementations identified du
 
 - **Repository**: [`CrownParkComputing/Xbox360-Native-Ports`](https://github.com/CrownParkComputing/Xbox360-Native-Ports)
 - **Key file**: `docs/REXGLUE_FORK_CHANGES.md`
-- **Three patches**:
+- **Three optimization concepts**:
   1. **MRU state cache (64 entries)** in `ConfigurePipeline` → `GetCurrentStateDescription` from ~0.3% to ~0.02% of CP CPU.
   2. **Stable-binding fast path (16 entries)** in `UpdateBindings` → ~3.2% to ~1.9% of CP CPU.
   3. **Bulk register writes** (`memcpy` for sequential PM4) → `WriteRegister` from ~5.9% to ~0.5% of CP CPU.
-- **What it is NOT**: These do not reduce `pipeline_ms` or eliminate stutter. They reduce steady-state CP CPU overhead during normal gameplay.
+- **Licensing Directive**: Recompilation forks in this domain frequently use GPL-3.0. To protect `rexglue-sdk`'s MIT/BSD licensing, **no external code will be copied directly**. The three optimization patterns are simple state caching mechanisms and will be re-implemented **100% clean-room** in `rexglue-sdk`.
+- **What it is NOT**: These do not reduce `pipeline_ms` or eliminate shader stutter. They reduce steady-state CP CPU overhead during normal gameplay.
 - **Integration directive**: M1.5 — treat as an **optional bonus** (0.5–1 day), deliverable in parallel with M2a/M2. Documented as complementary in the roadmap. Acceptance requires "no regression in D8 warm baseline" rather than "improvement in cold baseline".
 
 ### R5 — Community Contacts & Context

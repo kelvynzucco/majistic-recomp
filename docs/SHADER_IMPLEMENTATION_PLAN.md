@@ -166,24 +166,28 @@ flowchart TD
 - **Files Affected**:
   - [`scripts/analyze-performance-csv.mjs`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/analyze-performance-csv.mjs) (implemented and verified)
 - **Design & Lifecycle Delimitation**:
-  - Accepts `--input=<path_to_csv>` via CLI arguments.
-  - Accepts optional `--log=<path_to_log>` to automatically bound the evaluation window using deterministic runtime markers:
-    - **Window Start**: First occurrence of `[Majin loading ...] flow_a returned` (confirms loading screen completion and first gameplay draw).
-    - **Window End**: Occurrence of `[Majin save ...] ContentCreateEx` (save checkpoint completion before exit).
-  - Calculates P50, P90, P95, P99, P99.9, maximum frame time, stalls $> 33.33\text{ ms}$, stalls $> 50.0\text{ ms}$, stalls $> 100.0\text{ ms}$, and excess spike time lost per 1,000 frames.
-  - Outputs pure, structured JSON to `stdout` for automated consumption.
+  - Accepts single or multiple CSVs via `--input=<csv1,csv2,...>`.
+  - Accepts `--log=<path_to_log>` to automatically correlate timestamps against engine log markers:
+    - **Session Anchor**: Matches `[Majin performance] Release counter mode:` to anchor frame 0 wall-clock time.
+    - **Active 3D Gameplay Start**: Detects `flow_a returned` (PAL), `8236FBF0 returned` (USA), or cutscene bypass, computing the exact frame index where 3D draws begin.
+    - **Save I/O Window**: Correlates `ContentCreateEx` save container initialization, allowing isolated analysis (`--exclude-save-io` or `--gameplay-only`).
+  - Computes P50, P90, P95, P99, P99.9, maximum frame time, stalls $> 33.33\text{ ms}$, stalls $> 50.0\text{ ms}$, stalls $> 100.0\text{ ms}$, rolling 60-frame median spikes, and excess time lost per 1,000 frames.
+  - Multi-run aggregation: Computes mean, min, max, and sample standard deviation across $N$ sessions.
+  - Automated verification gate: `--gate` / `--verify` evaluates measured results against official D8 thresholds, returning exit code 0 on pass or 1 on failure.
 
 #### M0.4 Controlled Baseline Recapture & Threshold Calibration
 - **Protocol**:
   - **Title Edition**: USA Title ID `4E4D0816` exclusively.
   - **Configuration**: `MAJIN_ENABLE_PERF_COUNTERS=ON` and `--vulkan_store_pipeline_cache=false` (M1 state) to capture the true baseline without wrapper distortion.
   - **Purge Audit**: Verify deletion of `game-data/runtime/cache/` and `%LOCALAPPDATA%\NVIDIA\GLCache\*`.
-  - **Statistical Calibration**:
-    Warm reference runs exhibit P99.9 of **`33.67–33.74 ms`** and **`14 frames > 33.33 ms`** (due to background zone streaming and save I/O). Demanding `P99.9 < 33.33 ms` and `<= 5 frames > 33 ms` would cause 100% false-positive CI failures. The calibrated thresholds are:
-    - **P99.9 Frame Time**: Must be **`< 35.0 ms`** (within 4% of warm baseline).
-    - **Severe Stalls $> 100\text{ ms}$**: Must be **`0 frames`** (100% elimination; cold baseline has 27–35).
-    - **Excess Spike Time Lost**: Must be **`< 50.0 ms / 1,000 frames`** ($\ge 96.5\%$ reduction from $1,505\text{ ms}$ cold rate).
-    - **Frames Below 30 FPS**: Must be **`<= 15 frames > 33.33 ms`** (aligned with warm baseline's 14 streaming frames).
+  - **Measured Baseline Source of Truth (D8 Mean)**:
+    - **Vulkan Cold**: Mean P99.9 = **`443.77 ms`**, severe stalls $> 100\text{ ms}$ = **`22.3 frames`** (27, 19, 21), excess time lost = **`1,477.8 ms / 1k frames`** (1,505.3, 2,018.6, 909.5).
+    - **Vulkan Warm**: Mean P99.9 = **`30.42 ms`** (stdDev 4.64), severe stalls $> 100\text{ ms}$ = **`0.0 frames`**, stalls $> 33.33\text{ ms}$ = **`7.0 frames`** (14 in Warm Run 1 due to save container initialization, 2 in Warm Run 2, 5 in Warm Run 3), excess time lost = **`14.9 ms / 1k frames`**.
+  - **Official Unified Pass Criteria (Synchronized with D8)**:
+    - **P99.9 Frame Time**: Must be **`< 33.33 ms`** (strict 30 FPS boundary; warm baseline achieves 30.42 ms).
+    - **Severe Stalls $> 100\text{ ms}$**: Must be **`0 frames`** (100% elimination; cold baseline has 22.3).
+    - **Excess Spike Time Lost**: Must be **`< 50.0 ms / 1,000 frames`** ($\ge 96.5\%$ reduction from $1,477.8\text{ ms}$ cold rate; warm baseline achieves 14.9 ms).
+    - **Frames Below 30 FPS (> 33.33 ms)**: Must be **`<= 8 frames`** for full unsegmented session ($\ge 78.0\%$ drop from 36.3), or **`<= 3 frames`** for active 3D gameplay (`--gameplay-only`).
 
 ---
 
@@ -337,7 +341,8 @@ flowchart TD
     // Excludes Screen Post-FX/HUD/Bloom (RP 0x8) and offscreen targets (0xe018, 0xee18)
     if (render_pass_key != 0x8c) return false;
 
-    // RULE 4: POSITIVE ALLOWLIST: Pure Additive VFX (sparks, dust, magic hits)
+    // RULE 4: POSITIVE ALLOWLIST: Pure Additive VFX (Pass 6A: 44 PSOs, 12.9% on Vulkan; 35 PSOs, 11.9% on D3D12)
+    // Transient 3D particles (sparks, impact bursts, magic dust) with zero depth impact
     const auto src_blend = render_targets[0].src_color_blend_factor;
     const auto dst_blend = render_targets[0].dst_color_blend_factor;
 
@@ -345,13 +350,13 @@ flowchart TD
         (src_blend == PipelineBlendFactor::kSrcAlpha && dst_blend == PipelineBlendFactor::kOne) ||
         (src_blend == PipelineBlendFactor::kOne && dst_blend == PipelineBlendFactor::kOne);
 
-    // Category 6B (Provisional): Secondary Fur Shells & Foliage
-    // Subject to M3.3 shader name validation; excluded if mapped to water/fog/glass
-    const bool is_alpha_secondary_shell =
-        (src_blend == PipelineBlendFactor::kSrcAlpha && dst_blend == PipelineBlendFactor::kInvSrcAlpha) &&
-        !IsExcludedTranslucentMaterial();
+    // Category 6B (92 PSOs, 37 unique PS hashes): STRICTLY PROVISIONAL
+    // Standard alpha blend (SrcAlpha, InvSrcAlpha) without depth write.
+    // Kept DISABLED by default because translucent materials include water surfaces (KbWaterModel)
+    // and environmental glass. Only enabled if a verified psHash allowlist is provided.
+    const bool is_category_6b_allowlisted = false; // Pending offline hash audit
 
-    return (is_additive_vfx || is_alpha_secondary_shell);
+    return (is_additive_vfx || is_category_6b_allowlisted);
   }
   ```
 
@@ -385,15 +390,15 @@ flowchart TD
   }
   ```
 
-#### M3.3 Category 6B Validation Protocol (Fur Shells vs. Water / Fog / Glass)
+#### M3.3 Category 6B Validation Protocol (37 Unique PS Hashes & Placeholder Cost)
 - **Problem**:
-  Category 6B comprises 92 PSOs with blend `(SrcAlpha, InvSrcAlpha)` in RP 0x8c without depth write. If any of these shaders correspond to translucent water surfaces, glass windows, or volumetric fog meshes ($> 6$ vertices), dropping them for 46–205 ms (3 to 12 frames) causes visible environmental popping.
+  Category 6B comprises 92 PSOs (Vulkan) / 77 PSOs (D3D12) with blend `(SrcAlpha, InvSrcAlpha)` in RP 0x8c without depth write, utilizing exactly **37 unique pixel shader hashes**.
+  In the game archives (`static.pak`, `HexaEngineXbox.knl`, `eff.pak`), shader containers include `KbBase`, `KbIns`, `Kemumaki` (character fur shell multi-pass), and `KbWaterModel` (water surfaces).
+  If any of these 37 hashes correspond to water surfaces or translucent geometry ($> 6$ vertices), dropping them for 46–205 ms (3 to 12 frames at 60 FPS) causes visible environmental popping and missing surfaces.
 - **Validation Methodology**:
-  1. Map the 37 unique pixel shader hashes in Category 6B against the local `fxb0` shader names extracted from `static.pak`, `HexaEngineXbox.knl`, and `eff.pak`.
-  2. Identify and classify all 37 shaders:
-     - Confirmed Safe: `Kemumaki` (character fur shell multi-pass), `KbGrass` (ground vegetation billboard layers), `KbEffBase` (smoke/dust particle clouds).
-     - Disqualified / Must Be Synchronous: `KbWater` (rivers/ponds), `KbGlass` (windows/reflections), `KbFogVolume` (volumetric atmosphere).
-  3. Until this symbol cross-reference audit is complete, the **conservative safe async pool is strictly Category 6A (44 PSOs, 12.9%)**.
+  1. The conservative safe async pool is strictly **Category 6A (44 PSOs, 12.9%)**.
+  2. Category 6B shaders can only be enabled via an offline allowlist of verified safe `psHash` values (e.g. fur shells), never via runtime string lookups.
+  3. **Placeholder Pipeline Driver Overhead Audit**: Creating a placeholder pipeline with `kPlaceholderPixelShaderSource` (`discard;`) still requires calling `vkCreateGraphicsPipelines` with the real vertex shader. The synchronous CPU cost of compiling this placeholder must be measured in M2a to confirm it does not create its own draw stall.
 
 #### M3.4 Redesigned Presentation Gate
 - **Files Affected**:
@@ -488,9 +493,9 @@ flowchart TD
 | :--- | :--- | :---: | :---: | :--- |
 | **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. Fall back to **Tier T2**: Slower link offloaded via **M3 Narrow Async** for safe passes; on hardware lacking GPL, rely on **Tier T3/T4 Extended Dynamic State** (collapsing 26.9% to 36.0% of misses). |
 | **R2** | Fast-linked pipelines exhibit $> 5\%$ GPU execution overhead vs monolithic SASS. | Low | Medium | **Evaluated in M2a Spike**. If GPU overhead is unacceptable, restrict GPL to foreground draw pacing and trigger background monolithic compilation to hot-swap. |
-| **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 fxb0 symbol audit**. Category 6B is provisional; only confirmed fur shells (`Kemumaki`) and foliage billboards are admitted. All unverified shaders default to synchronous. |
-| **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver has the world's most mature GPL implementation (`radv_fast_linking = true` active by default since Mesa 23.1). |
-| **R5** | Vertex/Pixel shader interface mismatch across separate libraries. | Low | Medium | Audited in M2a across all 342 PSOs. 97.9% of VS have a unique `vsMod` and fixed interpolator mask, preventing interface divergence. |
+| **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 allowlist**. Category 6B is kept disabled by default; only confirmed pure additive VFX (Category 6A) are admitted. All unverified shaders default to synchronous. |
+| **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver implements `VK_EXT_graphics_pipeline_library` with `radv_fast_linking = true` enabled by default in Mesa 23.1+. |
+| **R5** | Vertex/Pixel shader interface mismatch across separate libraries. | Low | Medium | Audited in M2a across all 342 real game PSOs to verify interface layout match. |
 
 ---
 
@@ -498,13 +503,13 @@ flowchart TD
 
 The shader precompilation and stutter elimination initiative is officially complete and ready for public merge when:
 
-### 6.1 Vulkan Backend Acceptance Criteria (Validated via `verify-shader-mitigation.ps1`)
+### 6.1 Vulkan Backend Acceptance Criteria (Validated via `scripts/analyze-performance-csv.mjs --gate`)
 During a **100% cold first-time launch** (clean `game-data/runtime/cache/` and purged driver GLCache) on the reference RTX 3060 Ti:
-1. **P99.9 Frame Time**: Must be **`< 35.0 ms`** (calibrated against warm baseline's $33.67\text{ ms}$; $> 92.1\%$ reduction from $443.8\text{ ms}$ baseline).
-2. **Excess Spike Time Lost**: Must be **`< 50.0 ms / 1,000 frames`** ($\ge 96.7\%$ reduction from $1,505.3\text{ ms}$ cold baseline).
-3. **Severe Mid-Gameplay Stalls**: Must be **`0 frames > 100 ms`** ($100\%$ elimination from $27\text{--}35\text{ frames}$ cold baseline).
-4. **Frames Below 30 FPS**: Must be **`<= 15 frames > 33.33 ms`** (aligned with warm baseline's 14 streaming/save frames).
-5. **Visual Integrity**: Must exhibit **`0 visual artifacts`** (zero missing character meshes, zero transparent models, zero shadow strobing, zero bloom flashes, zero disappearing water or fog).
+1. **P99.9 Frame Time**: Must be **`< 33.33 ms`** (strict 30 FPS boundary; $\ge 92.5\%$ reduction from $443.77\text{ ms}$ cold baseline; warm baseline achieves $30.42\text{ ms}$ mean).
+2. **Excess Spike Time Lost**: Must be **`< 50.0 ms / 1,000 frames`** ($\ge 96.6\%$ reduction from $1,477.8\text{ ms}$ cold baseline; warm baseline achieves $14.9\text{ ms}$ mean).
+3. **Severe Mid-Gameplay Stalls**: Must be **`0 frames > 100 ms`** ($100\%$ elimination from $22.3\text{ frames}$ cold baseline mean).
+4. **Frames Below 30 FPS**: Must be **`<= 8 frames > 33.33 ms`** for full unsegmented session ($\ge 78.0\%$ drop from $36.3\text{ frames}$ cold baseline; warm baseline achieves $7.0\text{ frames}$ mean), or **`<= 3 frames`** for active gameplay window (`--gameplay-only`).
+5. **Visual Integrity**: Must exhibit **`0 visual artifacts`** (zero missing character meshes, zero transparent models, zero shadow strobing, zero bloom flashes, zero disappearing water or terrain).
 
 ### 6.2 D3D12 Backend Acceptance Criteria
 1. **Parallel Cold Startup Compilation Rate**: Multi-threaded worker compilation must achieve **`<= 12.0 ms / PSO`** parallel wall-clock (total cold startup warm-up for ~295 PSOs **`<= 3.5 seconds`**, down from single-threaded $75\text{--}81\text{ ms / PSO}$).

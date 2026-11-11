@@ -162,8 +162,8 @@ sequenceDiagram
     CP->>CP: Force Sync / Fast GPL Link -> Pipeline Bound
     CP->>FBO: Normal depth and color rendered
     Engine->>CP: Draw Spark / Fire Particle (Pass 6A)
-    CP-->>CP: Particle Pipeline Compiling -> DROP DRAW (1 frame)
-    CP->>FBO: Particle omitted for 33 ms
+    CP-->>CP: Particle Pipeline Compiling -> DROP DRAW (3-12 frames, 46-205 ms)
+    CP->>FBO: Transient particles omitted while background workers compile
     FBO-->>Screen: PRESENT CLEAN: Opaque world & shadows 100% solid, particle imperceptibly delayed!
     end
 ```
@@ -276,7 +276,7 @@ flowchart TD
     
     PassCheck -->|NO: Critical Pass (60.2%)| SyncPath["SYNCHRONOUS PATH / FAST GPL LINK (D7)\n- EnsurePipelineCreated / Fh1WaitForAhead\n- OR link pre-compiled GPL libraries in < 1 ms\n- ZERO GLITCHES GUARANTEED"]
     
-    PassCheck -->|YES: Non-Critical Pass (39.8%)| AsyncPath["RESTRICTED ASYNC PATH\n- Return true immediately / skip draw for 1 frame\n- Queue PSO creation to worker threads\n- Frame presentation is NEVER held\n- Visual impact: Imperceptible"]
+    PassCheck -->|YES: Non-Critical Pass (39.8%)| AsyncPath["RESTRICTED ASYNC PATH\n- Return true immediately / skip transient VFX draws\n- Queue PSO creation to worker threads (46-205 ms / 3-12 frames)\n- Frame presentation is NEVER held\n- Visual impact: Imperceptible transient particle delay"]
 ```
 
 ### 6.1 Gating Rules for the Restricted Async Path

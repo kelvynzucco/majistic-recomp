@@ -180,10 +180,11 @@ Based on the measured baselines, any candidate PR or implementation addressing s
 +-------------------------------------------------------------------------------------------------------------------------+
 | # | Metric                               | Cold Baseline  | Pass Threshold     | Target Reduction | Verification Tool   |
 +---+--------------------------------------+----------------+--------------------+------------------+---------------------+
-| 1 | P99.9 Frame Time                     | 443.77 ms      | < 33.33 ms         | >= 92.5% drop    | d8-baseline.mjs     |
-| 2 | Excess Spike Time Lost / 1,000 Frames| 1,477.8 ms     | < 50.0 ms          | >= 96.5% drop    | d8-baseline.mjs     |
-| 3 | Severe Mid-Gameplay Stalls (> 100 ms)| 22.3 frames    | 0 frames           | 100.0% elimin.   | d8-baseline.mjs     |
-| 4 | Stalled Frames Below 30 FPS (> 33 ms)| 36.3 frames    | <= 5 frames (I/O)  | >= 86.2% drop    | d8-baseline.mjs     |
+| 1 | P99.9 Frame Time                     | 443.77 ms      | < 33.33 ms         | >= 92.5% drop    | analyze-perf CLI    |
+| 2 | Excess Spike Time Lost / 1,000 Frames| 1,477.8 ms     | < 50.0 ms          | >= 96.5% drop    | analyze-perf CLI    |
+| 3 | Severe Mid-Gameplay Stalls (> 100 ms)| 22.3 frames    | 0 frames           | 100.0% elimin.   | analyze-perf CLI    |
+| 4 | Stalled Frames Below 30 FPS (> 33 ms)| 36.3 frames    | <= 8 frames (Full) | >= 78.0% drop    | analyze-perf CLI    |
+|   |                                      |                | <= 3 frames (Play) |                  |                     |
 | 5 | Visual Correctness & Glitch Freedom  | Flashing/holes | 0 visual artifacts | 100.0% clean     | D6 pass taxonomy    |
 +-------------------------------------------------------------------------------------------------------------------------+
 ```
@@ -191,13 +192,15 @@ Based on the measured baselines, any candidate PR or implementation addressing s
 ### Detailed Rationale for Each Threshold:
 
 1. **Threshold 1 — P99.9 Frame Time $< 33.33\text{ ms}$ ($\ge 92.5\%$ reduction)**:
-   - At 60 FPS, the target frame interval is 16.67 ms. Missing a VSync tick pushes the presentation to 33.33 ms (a single 30 FPS boundary). Any spike exceeding 33.33 ms represents a visible, jarring hitch to the human eye. P99.9 must not exceed 33.33 ms during continuous gameplay.
+   - At 60 FPS, the target frame interval is 16.67 ms. Missing a VSync tick pushes the presentation to 33.33 ms (a single 30 FPS boundary). Any spike exceeding 33.33 ms represents a visible, jarring hitch to the human eye. The warm baseline achieves a mean P99.9 of **30.42 ms**; the cold mitigation must beat **33.33 ms** during active gameplay.
 2. **Threshold 2 — Excess Spike Time $< 50.0\text{ ms} / 1\text{k frames}$ ($\ge 96.5\%$ reduction)**:
-   - On the warm reference baseline, accumulated excess time lost is only 14.9 ms / 1k frames (mostly unbuffered disk I/O at save load). A threshold of 50.0 ms / 1k frames guarantees that the cold-run experience is virtually indistinguishable from a warm run.
+   - On the warm reference baseline, accumulated excess time lost is only **14.9 ms / 1k frames** (mean across 3 runs: 8.5 ms, 20.0 ms, 16.3 ms). A threshold of 50.0 ms / 1k frames guarantees that the cold-run experience is virtually indistinguishable from a warm run.
 3. **Threshold 3 — Zero Mid-Gameplay Stalls $> 100\text{ ms}$ ($100\%$ elimination)**:
-   - Stalls exceeding 100 ms are unacceptable: they cause audio dropouts in `XMA` decoding, hitch the game's internal physics tick, and disconnect player control. Mid-gameplay $>100\text{ ms}$ stalls must be zero. (Startup I/O before `flow_a result` is excluded).
-4. **Threshold 4 — Stalled Frames $> 33.33\text{ ms} \le 5\text{ frames}$ ($\ge 86.2\%$ reduction)**:
-   - During a 120-second session, no more than 5 frames may drop below 30 FPS, restricted strictly to level loading screen boundaries (`flow_a`) or synchronous save file initialization.
+   - Stalls exceeding 100 ms are unacceptable: they cause audio dropouts in `XMA` decoding, hitch the game's internal physics tick, and disconnect player control. The cold baseline averages **22.3 severe stalls** (27 in Run 1, 19 in Run 2, 21 in Run 3). The warm baseline achieves **0.0 stalls $> 100\text{ ms}$**. The cold mitigation must achieve **0 stalls**.
+4. **Threshold 4 — Stalled Frames $> 33.33\text{ ms} \le 8\text{ frames}$ (Full Session) / $\le 3\text{ frames}$ (Gameplay-Only)**:
+   - Across the warm reference runs, stalled frames $> 33.33\text{ ms}$ average **7.0 frames** across the entire session (14 frames in Warm Run 1, 2 frames in Warm Run 2, and 5 frames in Warm Run 3), occurring strictly during initial profile / save container loading (`ContentCreateEx`) and background asset stream-in.
+   - For an unsegmented full session run, the threshold is **$\le 8\text{ frames}$** ($\ge 78.0\%$ drop from cold baseline's 36.3 frames).
+   - When bounded to active 3D gameplay using log lifecycle markers (`--gameplay-only`), the threshold is **$\le 3\text{ frames}$**.
 5. **Threshold 5 — Strict Visual Integrity (Zero Glitches)**:
    - As established in [D6](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/docs/discovery/D6-async-safety.md), skipping draws via global async compilation resulted in missing terrain, transparent characters, and black shadow flashes. Any implementation utilizing restricted async compilation (e.g., for safe blended VFX passes) or GPL fast-linking must produce zero missing geometry and zero shadow acne.
 

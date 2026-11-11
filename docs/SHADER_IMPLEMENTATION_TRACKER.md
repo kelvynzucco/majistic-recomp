@@ -11,12 +11,12 @@
 
 | Metric / Dimension | Current State | Notes |
 | :--- | :--- | :--- |
-| **Current Active Phase** | **Fase A (Preparação & Ganhos Rápidos)** | Pronto para iniciar Milestone M0. |
-| **Current Active Milestone** | **`M0: Telemetry Integrity & CI Gate`** | Telemetria no SDK + Script de automação CI. |
-| **Current Working Branch** | `main` | Próxima branch de trabalho: `feat/telemetry-and-gate` |
-| **Overall Execution Progress** | **7% Completed (1 / 15 Subtasks)** | `analyze-performance-csv.mjs` pronto e validado. |
-| **GPL Spike Gate Status (M2a)** | ⏳ **Pending Phase A completion** | Spike clean-room aguarda conclusão de M0 e M1. |
-| **Clean-Room Compliance** | 🟢 **100% Verified** | Zero assets/manifests distribuídos; harness externo mantido clean-room em `tools/`. |
+| **Current Active Phase** | **Fase D: Async Restrito em 2 Camadas** | Fase C1 (M2a) concluída com reprovação do gate; Fase C2 descartada. |
+| **Current Active Milestone** | **`M3: Mascaramento Seguro de Shaders Não Compilados`** | Categoria 6A com allowlist e guarda $\le 6$ vértices. |
+| **Current Working Branch** | `spike/gpl-cleanroom-validation` | Próxima branch: `feat/restricted-async` |
+| **Overall Execution Progress** | **67% Concluído (4 / 6 Marcos Arquiteturais)** | M0, M1, M2.1 e M2a 100% executados; M2.2/M2.3 descartados via R1. |
+| **GPL Spike Gate Status (M2a)** | 🔴 **REPROVADO (Contingência R1 Acionada)** | Custo frio $0.827\times$ (limiar $< 0.50\times$) e overhead GPU $12.5\%$ (limiar $< 5\%$). GPL descartado formalmente. |
+| **Clean-Room Compliance** | 🟢 **100% Verified** | Harness CLI clean-room em `tools/gpl-spike/`, zero assets/shaders em Git. |
 
 ---
 
@@ -58,24 +58,27 @@
 ---
 
 ### 🔬 Fase C1: Spike de Validação Clean-Room Pós-EDS (Estimativa: 1–2 dias | Gate Bloqueante)
-- [ ] **M2a: Spike de Validação GPL Clean-Room (`spike/gpl-cleanroom-validation`)**
-  - [ ] **M2a.0**: Construir harness CLI headless clean-room em `tools/gpl-spike/` (sem código GPL-3 no SDK MIT).
-  - [ ] **M2a.1**: Alimentar as 219 tuplas reais pós-EDS da cache `4E4D0816.fbo.vk.xpso` para o harness.
-  - [ ] **M2a.2 (Gate Central - Custo Frio)**: Medir latência de compilação de biblioteca fria no driver NVIDIA com GLCache purgado.
-  - [ ] **M2a.3 (Regra Estrita de Gate & Break-Even)**: Reprovar se $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OU $P_{95}(\text{fast-link}) \ge 1.0\text{ ms}$ OU Overhead GPU $\ge 5.0\%$ (ponto de empate: 244 libs vs 219 PSOs $\approx 0.90\times$). Se reprovado $\to$ Abandonar GPL formalmente (Contingência R1) e avançar direto para M3 Async (economia de 3–5 dias).
-  - [ ] **M2a.4 (Layout de Locations)**: Avaliar viabilidade de `Location i = i` 1:1 vs pareamento fixo `(vsHash, vsMod)`.
-  - [ ] **M2a.5**: Medir latência de fast-link no driver RTX 3060 Ti (Threshold: $\ge 95\%$ em $< 1.0\text{ ms}$).
-  - [ ] **M2a.6**: Medir overhead de execução na GPU (Draw time de pipeline linkado vs monolítico $< 2\%$).
-  - [ ] **M2a.7**: Validar 0 erros/avisos nas camadas de validação Vulkan.
-  - [ ] **GATE DECISION**: Se aprovado $\to$ Avançar para Fase C2 (GPL). Se reprovado $\to$ Avançar direto para Fase D (M3 Async).
+- [x] **M2a: Spike de Validação GPL Clean-Room (`spike/gpl-cleanroom-validation`)**
+  - [x] **M2a.0**: Construir harness CLI headless clean-room em `tools/gpl-spike/` (sem código GPL-3 no SDK MIT).
+  - [x] **M2a.1**: Alimentar as 233 tuplas reais pós-EDS da cache `4E4D0816.fbo.vk.xpso` e `4E4D0816.xsh` para o harness.
+  - [x] **M2a.2 (Gate Central - Custo Frio)**: Medir latência de compilação de biblioteca fria no driver NVIDIA com GLCache purgado (Monolítico: 16.49s vs GPL: 13.64s).
+  - [x] **M2a.3 (Regra Estrita de Gate & Break-Even)**: Reprovar se $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OU $P_{95}(\text{fast-link}) \ge 1.0\text{ ms}$ OU Overhead GPU $\ge 5.0\%$ (ponto de empate: 243 libs vs 233 PSOs $\approx 0.898\times$). **Resultado: Razão fria = 0.827x (FAIL vs limiar 0.50x), Overhead GPU = 12.5% (FAIL vs limiar 5.0%)**.
+  - [x] **M2a.4 (Layout de Locations)**: Avaliar viabilidade de locations esparsas vs tradutor acoplado (desnecessário refatorar compilador face à rejeição de gate).
+  - [x] **M2a.5**: Medir latência de fast-link no driver RTX 3060 Ti (Threshold: $\ge 95\%$ em $< 1.0\text{ ms}$). **Resultado: P95 = 0.0023 ms (PASS)**.
+  - [x] **M2a.6**: Medir overhead de execução na GPU (Draw time de pipeline linkado vs monolítico $< 2\%$, reprova se $\ge 5\%$). **Resultado: Overhead = 12.5% (FAIL)**.
+  - [x] **M2a.7**: Validar 0 erros/avisos nas camadas de validação Vulkan. **Resultado: 0 erros / 0 avisos (PASS)**.
+  - [x] **GATE DECISION: REPROVADO (REJECTED)**. Acionada formalmente a **Contingência R1**: GPL abandonado, economia de 3–5 dias de refatoração, avanço direto para Fase D (M3 Async).
 
 ---
 
-### 🏛️ Fase C2: Núcleo Vulkan GPL & Fallback (Estimativa: 3–5 dias | Condicionado ao Gate M2a)
-- [ ] **M2.2/M2.3: Arquitetura de 4 Bibliotecas & Fallback (6 Entradas: 5 Tiers + T2b) (`feat/vulkan-eds-and-gpl`)**
-  - [ ] **M2.2**: Negociação de extensões no `vulkan_device.cpp` e implementação da Matriz de Fallback (5 Tiers + sub-tier T2b).
-  - [ ] **M2.3**: Implementação das 4 bibliotecas (`Vertex Input`, `Pre-Raster`, `Fragment Shader`, `Fragment Output`).
-  - [ ] **M2.4**: Verificação de fast-link instantâneo no draw-call para novas variações de estado de shaders já compilados.
+### 🏛️ Fase C2: Núcleo Vulkan GPL & Fallback (DESCARTADA VIA CONTINGÊNCIA R1)
+> [!NOTE]
+> Esta fase foi formalmente dispensada após a reprovação empírica do gate no spike M2a. A arquitetura de 4 bibliotecas e o desacoplamento de interpoladores SPIR-V não serão implementados, preservando o código do tradutor e evitando regressão de performance de GPU.
+
+- [ ] ~~**M2.2/M2.3: Arquitetura de 4 Bibliotecas & Fallback**~~ *(Descartado via R1)*
+  - [ ] ~~**M2.2**: Negociação de extensões no `vulkan_device.cpp` e implementação da Matriz de Fallback.~~
+  - [ ] ~~**M2.3**: Implementação das 4 bibliotecas (`Vertex Input`, `Pre-Raster`, `Fragment Shader`, `Fragment Output`).~~
+  - [ ] ~~**M2.4**: Verificação de fast-link instantâneo no draw-call para novas variações de estado.~~
 
 ---
 
@@ -98,7 +101,7 @@
 
 ## 3. Matriz Evolutiva de Métricas de Performance (v5)
 
-| Métrica | Baseline Frio (D8) | Baseline Quente (D8 Ref) | Meta T1 (1º Boot Frio) | Meta T1 (Sessões Repetidas) | Pós-M0 (Recaptura) | Pós-M1 (Monolítico) | Pós-M2.1 (EDS) | Pós-M2a | Pós-M2 (GPL) | Pós-M3 (Final) |
+| Métrica | Baseline Frio (D8) | Baseline Quente (D8 Ref) | Meta T1 (1º Boot Frio) | Meta T1 (Sessões Repetidas) | Pós-M0 (Recaptura) | Pós-M1 (Monolítico) | Pós-M2.1 (EDS) | Pós-M2a (Spike) | Pós-M2 (GPL) | Pós-M3 (Final) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **P99.9 (ms)** | `443.77` | `30.42` | **`< 50.0`** | **`< 33.33` (agg)** | `39.44` | `40.65` (cold) / `38.25` (warm) | `58.91` (cold) / `42.20` (warm) | - | - | - |
 | **Stalls > 100 ms** | `22.3` | `0.0` | **`<= 5`** | **`0.0`** | `0` | `0` | `1` (cold) / `0` (warm) | - | - | - |
@@ -106,7 +109,10 @@
 | **Tempo Perdido (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | `0.0` | `0.0` | `287.91` (cold) / `0.0` (warm) | - | - | - |
 | **Boot D3D12 (s)** | `~24.0` | `~3.5` | **`<= 3.5`** | **`<= 3.5`** | - | `< 3.5` | `< 3.5` | - | - | - |
 | **Visual Integrity** | 100% | 100% | **0 artefatos** | **0 artefatos** | 100% | 100% | 100% (0 artefatos) | - | - | - |
-| **Shader Compile (ms)** | - | - | - | - | `53.66` (45.9%) | `28.82` (cold) / `0.00` (warm) | `405.15` (cold) / `0.00` (warm) | - | - | - |
+| **Shader Compile (ms)** | - | - | - | - | `53.66` (45.9%) | `28.82` (cold) / `0.00` (warm) | `405.15` (cold) / `0.00` (warm) | 16,493 ms (mono) / 13,644 ms (gpl) | *Dispensado* | - |
+| **Fast-Link P95 (ms)** | - | - | - | - | - | - | - | `0.0023 ms` (PASS) | *Dispensado* | - |
+| **GPU Draw Overhead** | - | - | - | - | - | - | - | `12.5%` (FAIL) | *Dispensado* | - |
+| **Decisão Gate M2a** | - | - | - | - | - | - | - | **REPROVADO (R1)** | *Dispensado* | - |
 | **Shader Wait (ms)** | - | - | - | - | `63.36` (54.1%) | `25.92` (cold) / `0.17` (warm) | `149.77` (cold) / `0.06` (warm) | - | - | - |
 | **Total Pipeline (ms)**| - | - | - | - | `117.03` | `54.74` (cold) / `0.17` (warm) | `554.91` (cold) / `0.06` (warm) | - | - | - |
 
@@ -190,6 +196,35 @@
 - **Status Atual**: Marco M2.1 100% concluído e validado em hardware real.
 - **Próximo Passo Imediato**: Iniciar **Fase C1 / Marco M2a** (Spike de Validação Clean-Room Pós-EDS em `tools/gpl-spike/`).
 
+### 📝 Entrada 005 — 2026-11-11: Execução e Conclusão do Marco M2a (Spike de Validação GPL Clean-Room)
+- **Fase / Tarefa**: Marco M2a completo na branch `spike/gpl-cleanroom-validation`.
+- **Branch**: `spike/gpl-cleanroom-validation`
+- **Ações Realizadas**:
+  - **Construção do Harness Clean-Room (`tools/gpl-spike/`)**:
+    - Implementado CLI headless em C++23 (`main.cpp`, `CMakeLists.txt`), compilado com Clang 19.1.5 e vinculado às bibliotecas runtime do SDK (`rexruntime.lib`, `SPIRV.lib`, `glslang.lib`, etc.).
+    - Isolamento clean-room absoluto: zero código importado ou copiado de *TheSimpsonsGameRecomp* (preservando integridade MIT do SDK).
+    - Parsing nativo de dados reais: `4E4D0816.xsh` (239 shaders) e `4E4D0816.fbo.vk.xpso` (342 PSOs brutos colapsados via regras de EDS 1-3 em 233 PSOs únicos pós-EDS: 99 VS e 144 PS).
+    - Tradução completa em memória para SPIR-V usando `SpirvShaderTranslator`.
+  - **Execução dos 4 Benchmarks em Hardware Real (NVIDIA GeForce RTX 3060 Ti, Driver 621.14)**:
+    1. **Monolítico Frio (233 PSOs)**: Purgado `%LOCALAPPDATA%\NVIDIA\GLCache`. Tempo total: `16,493.4 ms` (Média: 70.8 ms, Mediana: 58.0 ms, P95: 206.9 ms, Max: 244.4 ms).
+    2. **Bibliotecas GPL Frias (243 libs: 99 VS + 144 PS)**: Purgado GLCache. Tempo total: `13,644.4 ms` (VS: 3,395.5 ms, PS: 10,248.9 ms). Razão Fria: **0.8273x** (vs Limiar estrito de aprovação: `< 0.50x` | Ponto de empate: `0.8975x`).
+    3. **Fast-Linking Latency (233 pipelines linkados)**: Média: `0.0018 ms`, Mediana: `0.0017 ms`, P95: `0.0023 ms` (Threshold: `< 1.0 ms` $\to$ **PASS**).
+    4. **Overhead de Draw na GPU (1.000 draws offscreen)**: Monolítico: `0.008192 ms`, Linked: `0.009216 ms`. Overhead: **12.5%** (Threshold: reprova se $\ge 5.0\%$ $\to$ **FAIL**).
+    5. **Camada de Validação Vulkan**: 0 erros, 0 avisos (Threshold: 0 $\to$ **PASS**).
+  - **Decisão Matemática do Gate**:
+    - Condição 1 (Cold Ratio < 0.50x): **FAIL** (0.8273x)
+    - Condição 2 (Fast-Link P95 < 1.0 ms): **PASS** (0.0023 ms)
+    - Condição 3 (GPU Draw Overhead < 5.0%): **FAIL** (12.5%)
+    - Condição 4 (Validation Errors == 0): **PASS** (0 erros)
+    - **RESULTADO FINAL: REPROVADO (REJECTED)**.
+  - **Acionamento da Contingência R1**:
+    - O ganho líquido de compilação a frio do GPL (243 bibliotecas a 0.827x de um PSO) economiza apenas ~2.8 segundos no primeiro boot total do jogo, ao custo contínuo de 12.5% de overhead de GPU e enorme esforço de refatoração do compilador SPIR-V para desacoplamento de interpoladores.
+    - O GPL é **formalmente descartado**, pulando a Fase C2 (M2.2/M2.3) e economizando 3 a 5 dias de desenvolvimento.
+    - O avanço prossegue diretamente para a **Fase D / Marco M3 (Async Restrito)**, que ataca cirurgicamente os shaders da Categoria 6A com mascaramento transparente.
+  - **Relatório Estruturado JSON**: Exportado para `reports/gpl-spike/gpl-spike-results.json`.
+- **Status Atual**: Marco M2a 100% concluído com decisão de gate soberana.
+- **Próximo Passo Imediato**: Iniciar **Fase D / Marco M3** (`feat/restricted-async`) implementando o Mascaramento Seguro em 2 Camadas.
+
 ---
 
 ## 5. Log de Decisões Técnicas & Desvios
@@ -206,3 +241,4 @@
 | **DEC-08** | 2026-11-11 | **Divisão da Definição de Pronto (DoD) em Fria vs Repetida** | Shaders opacos inéditos causam compilação SASS fria inevitável no 1º boot. Metas separadas entre 1ª execução com GPL ($\ge 83\%$ redução, $\le 5$ stalls $> 100\text{ ms}$), fallback sem GPL (~49% redução, $\le 8$ stalls $> 100\text{ ms}$) e sessões repetidas (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$). |
 | **DEC-09** | 2026-11-11 | **Bump de Versão de Cache `.xpso` no EDS (M2.1)** | A transição para estados dinâmicos (blend, depth, cull) altera o layout e hashing de `PipelineDescription`. O incremento de `PipelineDescription::kVersion` força a rejeição/invalidação limpa de arquivos `.xpso` legados incompatíveis. |
 | **DEC-10** | 2026-11-11 | **Regra Estrita de Gate M2a e Ponto de Empate Frio** | No 1º boot pós-EDS, GPL compila 244 bibliotecas frias vs 219 PSOs monolíticos (+11.4%). O ponto de empate em tempo de compilação exige $T_{\text{cold\_lib}} \le 0.90 \times T_{\text{cold\_monolithic}}$. Reprovação estrita sem brechas se $T_{\text{lib}} \ge 0.5 \cdot T_{\text{mono}}$ OU link $\ge 1\text{ ms}$ OU overhead GPU $\ge 5\%$. |
+| **DEC-11** | 2026-11-11 | **Rejeição Empírica do GPL e Acionamento da Contingência R1** | Spike M2a mediu razão fria de $0.827\times$ (falha no gate $< 0.50\times$) e overhead de GPU de $12.5\%$ (falha no gate $< 5\%$). Com 233 PSOs pós-EDS, GPL compila 243 bibliotecas frias, economizando meros 2.8s no boot frio inteiro em troca de degradação contínua de GPU e refatoração de risco no tradutor SPIR-V. Fase C2 descartada; avanço direto para Fase D (M3 Async). |

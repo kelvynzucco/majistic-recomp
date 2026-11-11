@@ -1,0 +1,36 @@
+{
+  "timestamp": "17944267829933563",
+  "device": {
+    "name": "NVIDIA GeForce RTX 3060 Ti",
+    "driver_version": "621.14",
+    "gpl_supported": true,
+    "fast_linking_supported": true
+  },
+  "metrics": {
+    "monolithic_cold_sum_ms": 16493.4,
+    "monolithic_cold_p95_ms": 206.903,
+    "monolithic_cold_count": 233,
+    "gpl_cold_lib_sum_ms": 13644.4,
+    "gpl_vs_cold_count": 99,
+    "gpl_ps_cold_count": 144,
+    "cold_ratio": 0.827264,
+    "fast_link_mean_ms": 0.00175365,
+    "fast_link_p95_ms": 0.0023,
+    "fast_link_max_ms": 0.0099,
+    "gpu_draw_overhead_percent": 12.5,
+    "validation_errors": 0,
+    "validation_warnings": 0
+  },
+  "gate": {
+    "cold_ratio_threshold": 0.50,
+    "cold_ratio_breakeven": 0.897541,
+    "cold_ratio_passed": false,
+    "fast_link_threshold_ms": 1.0,
+    "fast_link_passed": true,
+    "gpu_overhead_threshold_percent": 5.0,
+    "gpu_overhead_passed": false,
+    "validation_passed": true,
+    "overall_gate_passed": false,
+    "recommended_action": "ABANDON_GPL_ADVANCE_TO_M3_ASYNC"
+  }
+}

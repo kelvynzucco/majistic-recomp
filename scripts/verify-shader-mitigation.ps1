@@ -41,7 +41,7 @@ param(
     [switch]$VerifyGate,
     [switch]$GameplayOnly,
     [switch]$Json,
-    [string]$Vkpc = 'false',
+    [string]$Vkpc = 'true',
     [string]$GameDataRoot = 'game-data',
     [string]$Configuration = 'Release',
     [string]$OutputPath = ''
@@ -103,9 +103,9 @@ if ($Cold) {
     }
 } else {
     Write-Host "[verify-shader-mitigation] WARM run requested: Retaining existing cache at $cacheRoot." -ForegroundColor Cyan
-    $existingCaches = Get-ChildItem -Path $cacheRoot -Filter "*.xpso" -ErrorAction SilentlyContinue
+    $existingCaches = Get-ChildItem -Path $cacheRoot -Include "*.xpso","*.vkpc" -Recurse -ErrorAction SilentlyContinue
     if (-not $existingCaches -or $existingCaches.Count -eq 0) {
-        Write-Warning "[verify-shader-mitigation] WARM run requested but no .xpso cache found in $cacheRoot! Results may reflect cold run."
+        Write-Warning "[verify-shader-mitigation] WARM run requested but no cache found in $cacheRoot! Results may reflect cold run."
     }
 }
 
@@ -135,7 +135,7 @@ $launchArgs = @(
     '--render_target_path_vulkan=fbo',
     '--vulkan_dynamic_rendering=false',
     '--vulkan_async_skip_incomplete_frames=false',
-    "--vulkan_pipeline_cache=$Vkpc",
+    "--vulkan_store_pipeline_cache=$Vkpc",
     '--mnk_mode=false',
     '--mnk_mouse=false',
     '--majin_window_fps=true',

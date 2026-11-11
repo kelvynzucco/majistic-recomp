@@ -169,4 +169,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Telemetry cost attribution patch application'
 }
 
-Write-Host "[1.1 - 1.9] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.10: Apply monolithic shared VkPipelineCache patch
+$monolithicPatch = Join-Path $patchRoot 'vulkan-monolithic-pipeline-cache.patch'
+git -C $source apply --reverse --check $monolithicPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $monolithicPatch
+    Check-Native 'Monolithic pipeline cache patch check'
+    git -C $source apply $monolithicPatch
+    Check-Native 'Monolithic pipeline cache patch application'
+}
+
+Write-Host "[1.1 - 1.10] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

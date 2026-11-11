@@ -189,4 +189,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Extended Dynamic State patch application'
 }
 
-Write-Host "[1.1 - 1.11] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.12: Apply Restricted 2-Layer Async Pipeline (M3) patch
+$asyncPatch = Join-Path $patchRoot 'vulkan-restricted-async.patch'
+git -C $source apply --reverse --check $asyncPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $asyncPatch
+    Check-Native 'Restricted Async Pipeline patch check'
+    git -C $source apply $asyncPatch
+    Check-Native 'Restricted Async Pipeline patch application'
+}
+
+Write-Host "[1.1 - 1.12] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

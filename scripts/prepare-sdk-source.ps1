@@ -159,4 +159,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan command processor patch application'
 }
 
-Write-Host "[1.1 - 1.8] ReXGlue SDK v0.10.1 source checked out, 14 submodules initialized, and all patches applied successfully!"
+# 1.9: Apply telemetry attribution fix and compile/wait metrics
+$telemetryPatch = Join-Path $patchRoot 'telemetry-cost-attribution.patch'
+git -C $source apply --reverse --check $telemetryPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $telemetryPatch
+    Check-Native 'Telemetry cost attribution patch check'
+    git -C $source apply $telemetryPatch
+    Check-Native 'Telemetry cost attribution patch application'
+}
+
+Write-Host "[1.1 - 1.9] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

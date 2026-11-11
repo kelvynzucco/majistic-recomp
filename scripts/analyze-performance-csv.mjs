@@ -34,6 +34,8 @@ Options:
   --end-frame=<N>       Explicit ending frame index (inclusive). Overrides log detection.
   --gameplay-only       Restrict metrics and gate evaluation to active 3D gameplay window.
   --exclude-save-io     Exclude frames occurring during ContentCreateEx save disk I/O.
+  --cold                Evaluate against Cold first-boot DoD §6.1a thresholds (P99.9 <= 50ms, stalls > 100ms <= 5).
+  --warm                Evaluate against Warm subsequent-session DoD §6.1b thresholds (P99.9 <= 33.3ms, stalls > 100ms == 0).
   --verify, --gate      Evaluate against official D8 thresholds (exit code 1 if failed).
   --max-p999=<ms>       Custom P99.9 threshold in ms (default: 33.33).
   --max-stalls-100=<N>  Custom stalls > 100 ms threshold (default: 0).
@@ -58,6 +60,8 @@ let threshP999 = 33.33;
 let threshStalls100 = 0;
 let threshStalls33 = null; // null = set dynamically based on gameplayOnly
 let threshExcessRate = 50.0;
+let isColdRun = false;
+let isWarmRun = false;
 
 for (const arg of args) {
   if (arg.startsWith('--input=')) {
@@ -78,6 +82,18 @@ for (const arg of args) {
     gameplayOnly = true;
   } else if (arg === '--exclude-save-io') {
     excludeSaveIO = true;
+  } else if (arg === '--cold') {
+    isColdRun = true;
+    threshP999 = 50.0;
+    threshStalls100 = 5;
+    threshStalls33 = 12;
+    threshExcessRate = 150.0;
+  } else if (arg === '--warm') {
+    isWarmRun = true;
+    threshP999 = 33.33;
+    threshStalls100 = 0;
+    threshStalls33 = null;
+    threshExcessRate = 50.0;
   } else if (arg === '--verify' || arg === '--gate') {
     verifyGate = true;
   } else if (arg === '--json') {
@@ -188,7 +204,19 @@ function computeMetrics(frames) {
       totalExcessTimeMs: parseFloat(excessSpikeMs.toFixed(2)),
       excessRatePer1kFrames: parseFloat(excessRate1k.toFixed(2)),
       worstSpikeMs: parseFloat(worstSpikeMs.toFixed(2))
-    }
+    },
+    shaderTelemetry: (() => {
+      const hasTel = frames.some(f => f.pipelineMs !== undefined || f.pipelineCompileMs !== undefined || f.pipelineMisses !== undefined);
+      if (!hasTel) return undefined;
+      return {
+        totalPipelineMs: parseFloat(frames.reduce((a, f) => a + (f.pipelineMs || 0), 0).toFixed(2)),
+        totalCompileMs: parseFloat(frames.reduce((a, f) => a + (f.pipelineCompileMs || 0), 0).toFixed(2)),
+        totalWaitMs: parseFloat(frames.reduce((a, f) => a + (f.pipelineWaitMs || 0), 0).toFixed(2)),
+        totalShaderMs: parseFloat(frames.reduce((a, f) => a + (f.shaderMs || 0), 0).toFixed(2)),
+        pipelineCacheHits: frames.reduce((a, f) => a + (f.pipelineHits || 0), 0),
+        pipelineCacheMisses: frames.reduce((a, f) => a + (f.pipelineMisses || 0), 0)
+      };
+    })()
   };
 }
 
@@ -210,7 +238,8 @@ function parseLogLifecycle(logPath) {
 
     if (!firstLogMs) firstLogMs = ts;
 
-    if (line.includes('[Majin performance] Release counter mode:')) {
+    if (line.includes('[Majin performance] Release counter mode:') ||
+        line.includes('[Majin performance] Perf counters enabled:')) {
       swapStartMs = ts;
     }
 
@@ -260,10 +289,20 @@ function processSingleFile(csvPath, matchingLogPath) {
     if (ftIdx !== -1) ftIsMs = true;
   }
   if (ftIdx === -1) {
-    throw new Error(`Neither 'frame_time_us' nor 'frame_time_ms' found in ${csvPath}`);
+    ftIdx = header.indexOf('ms');
+    if (ftIdx !== -1) ftIsMs = true;
+  }
+  if (ftIdx === -1) {
+    throw new Error(`Neither 'frame_time_us', 'frame_time_ms', nor 'ms' found in ${csvPath}`);
   }
 
   const frameIdxCol = header.indexOf('frame_index');
+  const pipeIdx = header.indexOf('pipeline_ms');
+  const pipeCompIdx = header.indexOf('pipeline_compile_ms');
+  const pipeWaitIdx = header.indexOf('pipeline_wait_ms');
+  const shaderIdx = header.indexOf('shader_ms');
+  const pipeHitsIdx = header.indexOf('pipeline_cache_hits');
+  const pipeMissIdx = header.indexOf('pipeline_cache_misses');
 
   // Parse log if available
   let autoLog = matchingLogPath;
@@ -292,13 +331,48 @@ function processSingleFile(csvPath, matchingLogPath) {
     const isGameplay = (!lifecycle || !lifecycle.gameplayStartMs || (frameTimestampMs !== null && frameTimestampMs >= lifecycle.gameplayStartMs));
     const isSaveIO = lifecycle && lifecycle.saveEventMs.some(sMs => Math.abs(frameTimestampMs - sMs) <= 600);
 
+    const pipelineMs = pipeIdx !== -1 ? parseFloat(parts[pipeIdx]) || 0 : undefined;
+    const pipelineCompileMs = pipeCompIdx !== -1 ? parseFloat(parts[pipeCompIdx]) || 0 : undefined;
+    const pipelineWaitMs = pipeWaitIdx !== -1 ? parseFloat(parts[pipeWaitIdx]) || 0 : undefined;
+    const shaderMs = shaderIdx !== -1 ? parseFloat(parts[shaderIdx]) || 0 : undefined;
+    const pipelineHits = pipeHitsIdx !== -1 ? parseInt(parts[pipeHitsIdx], 10) || 0 : undefined;
+    const pipelineMisses = pipeMissIdx !== -1 ? parseInt(parts[pipeMissIdx], 10) || 0 : undefined;
+
     allFrames.push({
       frameNum,
       us,
       timestampMs: frameTimestampMs,
       isGameplay,
-      isSaveIO
+      isSaveIO,
+      pipelineMs,
+      pipelineCompileMs,
+      pipelineWaitMs,
+      shaderMs,
+      pipelineHits,
+      pipelineMisses
     });
+  }
+
+  // If analyzing fh1.csv and companion .performance.csv exists, pull pipeline hits/misses
+  if (pipeHitsIdx === -1 && csvPath.endsWith('.fh1.csv')) {
+    const perfCompanion = csvPath.replace(/\.fh1\.csv$/, '.performance.csv');
+    if (fs.existsSync(perfCompanion)) {
+      try {
+        const perfLines = fs.readFileSync(perfCompanion, 'utf8').trim().split(/\r?\n/);
+        if (perfLines.length > 1) {
+          const pHeader = perfLines[0].split(',').map(s => s.trim());
+          const pHitsIdx = pHeader.indexOf('pipeline_cache_hits');
+          const pMissIdx = pHeader.indexOf('pipeline_cache_misses');
+          if (pHitsIdx !== -1 || pMissIdx !== -1) {
+            for (let i = 1; i < perfLines.length && (i - 1) < allFrames.length; i++) {
+              const pParts = perfLines[i].split(',');
+              if (pHitsIdx !== -1) allFrames[i - 1].pipelineHits = parseInt(pParts[pHitsIdx], 10) || 0;
+              if (pMissIdx !== -1) allFrames[i - 1].pipelineMisses = parseInt(pParts[pMissIdx], 10) || 0;
+            }
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   // Filter frames according to flags

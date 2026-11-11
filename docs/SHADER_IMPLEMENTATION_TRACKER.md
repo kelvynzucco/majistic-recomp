@@ -23,13 +23,13 @@
 ## 2. Milestone Execution Roadmap & Checklist
 
 ### 🏁 Fase A: Telemetria & Ganhos Imediatos (Estimativa: 1–2 dias)
-- [ ] **M0: Telemetria & CI Gate (`feat/telemetry-and-gate`)**
-  - [ ] **M0.1**: Corrigir bug de atribuição em `fh1_frame_cost.h` (`MainCause` culpando o jogo em vez de `Fh1WaitForAhead`).
-  - [ ] **M0.1b**: Separar diagnósticos no CSV: `pipeline_compile_ms` (SASS síncrono) vs `pipeline_wait_ms` (bloqueio de thread em `Fh1WaitForAhead`).
-  - [ ] **M0.2**: Habilitar `REXGLUE_ENABLE_PERF_COUNTERS` na configuração Release-Diagnostic do CMake.
-  - [x] **M0.3a**: Entregar CLI autônomo `scripts/analyze-performance-csv.mjs` (suporte a slicing de gameplay e agregação multi-run).
-  - [ ] **M0.3b**: Entregar suite de automação `scripts/verify-shader-mitigation.ps1` com exit codes estritos de CI.
-  - [ ] **M0.4**: Recapturar baseline oficial sob ambiente controlado com contadores ativados (salvar JSON de referência).
+- [x] **M0: Telemetria & CI Gate (`feat/telemetry-and-gate`)**
+  - [x] **M0.1**: Corrigir bug de atribuição em `fh1_frame_cost.h` (`MainCause` culpando o jogo em vez de `Fh1WaitForAhead`).
+  - [x] **M0.1b**: Separar diagnósticos no CSV: `pipeline_compile_ms` (SASS síncrono) vs `pipeline_wait_ms` (bloqueio de thread em `Fh1WaitForAhead`).
+  - [x] **M0.2**: Habilitar `REXGLUE_ENABLE_PERF_COUNTERS` na configuração Release-Diagnostic do CMake via `REXGLUE_FORCE_PERF_COUNTERS=ON`.
+  - [x] **M0.3a**: Entregar CLI autônomo `scripts/analyze-performance-csv.mjs` (suporte a coluna `ms`, fallback de frame time, extração de telemetria de shaders e agregação multi-run).
+  - [x] **M0.3b**: Entregar suite de automação `scripts/verify-shader-mitigation.ps1` com modos `-Cold`, `-Warm`, `-DurationSeconds` e `-VerifyGate`.
+  - [x] **M0.4**: Recapturar baseline oficial sob ambiente controlado com contadores ativados (`reports/baseline-shader/baseline-vulkan-cold-m0.json`).
 - [ ] **M1: Monolithic Shared VkPipelineCache & D3D12 Multi-Thread (`feat/monolithic-vkpc-and-d3d12-parallel`)**
   - [ ] **M1.1a (Diagnóstico)**: Validar baseline imediato com `--vulkan_store_pipeline_cache=false` (8.02 $\to$ 0.20 ms/PSO).
   - [ ] **M1.1b (Persistência)**: Implementar `VkPipelineCache` monolítico compartilhado (carregado no boot, salvo em checkpoints periódicos e no `Shutdown()`).
@@ -98,14 +98,17 @@
 
 ## 3. Matriz Evolutiva de Métricas de Performance (v5)
 
-| Métrica | Baseline Frio (D8) | Baseline Quente (D8 Ref) | Meta T1 (1º Boot Frio) | Meta T1 (Sessões Repetidas) | Pós-M0 | Pós-M1 | Pós-M2.1 (EDS) | Pós-M2a | Pós-M2 (GPL) | Pós-M3 (Final) |
+| Métrica | Baseline Frio (D8) | Baseline Quente (D8 Ref) | Meta T1 (1º Boot Frio) | Meta T1 (Sessões Repetidas) | Pós-M0 (Recaptura) | Pós-M1 | Pós-M2.1 (EDS) | Pós-M2a | Pós-M2 (GPL) | Pós-M3 (Final) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **P99.9 (ms)** | `443.77` | `30.42` | **`< 50.0`** | **`< 33.33` (agg)** | - | - | - | - | - | - |
-| **Stalls > 100 ms** | `22.3` | `0.0` | **`<= 5`** | **`0.0`** | - | - | - | - | - | - |
-| **Stalls > 33.33 ms** | `34.7` | `7.0` | **`<= 12`** | **`<= 8` (sessão) / `<= 3` (gp)** | - | - | - | - | - | - |
-| **Tempo Perdido (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | - | - | - | - | - | - |
+| **P99.9 (ms)** | `443.77` | `30.42` | **`< 50.0`** | **`< 33.33` (agg)** | `39.44` | - | - | - | - | - |
+| **Stalls > 100 ms** | `22.3` | `0.0` | **`<= 5`** | **`0.0`** | `0` | - | - | - | - | - |
+| **Stalls > 33.33 ms** | `34.7` | `7.0` | **`<= 12`** | **`<= 8` (sessão) / `<= 3` (gp)** | `923` (30 FPS cap) | - | - | - | - | - |
+| **Tempo Perdido (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | `0.0` | - | - | - | - | - |
 | **Boot D3D12 (s)** | `~24.0` | `~3.5` | **`<= 3.5`** | **`<= 3.5`** | - | - | - | - | - | - |
-| **Visual Integrity** | 100% | 100% | **0 artefatos** | **0 artefatos** | - | - | - | - | - | - |
+| **Visual Integrity** | 100% | 100% | **0 artefatos** | **0 artefatos** | 100% | - | - | - | - | - |
+| **Shader Compile (ms)** | - | - | - | - | `53.66` (45.9%) | - | - | - | - | - |
+| **Shader Wait (ms)** | - | - | - | - | `63.36` (54.1%) | - | - | - | - | - |
+| **Total Pipeline (ms)**| - | - | - | - | `117.03` | - | - | - | - | - |
 
 ### 🎯 Metas Intermediárias & Critérios de Validação por Marco (Projeções de Gate)
 - **Pós-M0 (Telemetria & CI)**: Baseline controlado recapturado com `.vkpc=false` e `PERF_COUNTERS=ON`; thresholds oficiais calibrados no JSON de CI.
@@ -132,10 +135,28 @@
   - Recalibrada a Definição de Pronto (DoD) dividindo metas em **1ª Execução Fria** (condicionada à aprovação do GPL: $\ge 83\%$ redução, $\le 5$ stalls $> 100\text{ ms}$; ou fallback sem GPL: ~49% redução, $\le 8$ stalls $> 100\text{ ms}$) vs **Sessões Repetidas** (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$) (DEC-08).
   - Estabelecida a diretriz clean-room estrita para o harness do M2a (DEC-07) em `tools/gpl-spike/`, mantendo a separação entre a licença GPL-3 do *Simpsons* e a licença MIT/BSD do SDK.
   - Concluída a sanitização de 307 links absolutos no repositório.
-- **Status Atual**: Pronto para criar a branch `feat/telemetry-and-gate` e iniciar o **Milestone M0**.
-- **Próximo Passo Imediato**:
-  - Criar branch `feat/telemetry-and-gate`.
-  - Aplicar correções de telemetria em `tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h` (M0.1 e M0.1b).
+- **Status Atual**: Concluído.
+- **Próximo Passo Imediato**: Executar Milestone M0.
+
+### 📝 Entrada 002 — 2026-11-11: Execução e Conclusão do Marco M0 (Telemetria & CI Gate)
+- **Fase / Tarefa**: Marco M0 completo na branch `feat/telemetry-and-gate`.
+- **Branch**: `feat/telemetry-and-gate`
+- **Ações Realizadas**:
+  - **M0.1 (Bug de Atribuição)**: Corrigido em `tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`. Avaliação de custos (`costs[]`) antecipada ao teste de ociosidade, impedindo que esperas de compilação assíncrona (`Fh1WaitForAhead`) sejam erroneamente marcadas como `Cause::kGame`.
+  - **M0.1b (Separação Compile vs Wait)**: Adicionados campos `pipeline_compile_ms` (driver síncrono no thread do CP) e `pipeline_wait_ms` (bloqueios aguardando criação assíncrona/lookahead) em `Frame`, `Report`, `pipeline_cache.cpp` e nas colunas de exportação CSV em `command_processor.cpp`. `Timer` estendido para acumulação atômica simultânea sem overhead adicional de relógio.
+  - **M0.2 (Counters em Release)**: Adicionada opção `REXGLUE_FORCE_PERF_COUNTERS=ON` no CMake raiz do SDK, `src/core/CMakeLists.txt` e `src/system/CMakeLists.txt`, propagando `REXGLUE_ENABLE_PERF_COUNTERS` para builds Release. Anúncio em log `[Majin performance] Perf counters enabled:` implementado para sincronização determinística.
+  - **Exportação de Patch**: Modificações do SDK encapsuladas em `patches/rexglue-0.10.0/telemetry-cost-attribution.patch` e registradas como passo [1.9] idempotente em `scripts/prepare-sdk-source.ps1`.
+  - **Recompilação Local**: Compilado ReXGlue SDK local (`0.10.1.245-dev.ge38fb9a`) via `scripts/build-sdk-local.ps1` e recompilado `majin.exe` com novas bibliotecas `rexgpu-xenos.dll` e `rexruntime.dll` via `scripts/build-usa.ps1`.
+  - **M0.3a (CLI Analyzer)**: Atualizado `scripts/analyze-performance-csv.mjs` para aceitar a coluna `ms` (usada pelo `fh1_frame_cost_csv`), correlacionar logs com novos marcadores de perf counters, agregar métricas de shaders (`totalPipelineMs`, `totalCompileMs`, `totalWaitMs`, `pipelineCacheHits`, `pipelineCacheMisses`) e suportar flags `--cold` e `--warm`.
+  - **M0.3b (Harness Automatizado)**: Criado `scripts/verify-shader-mitigation.ps1` com modos `-Cold`, `-Warm`, `-DurationSeconds`, `-VerifyGate`, shutdown gracioso via `CloseMainWindow` e propagação de exit codes de CI.
+  - **M0.4 (Recaptura Controlada)**: Executada sessão de 60 segundos com cache frio purgado (`.vkpc=false`), gerando `reports/baseline-shader/baseline-vulkan-cold-m0.json`.
+- **Resultados M0.4 Recapturados**:
+  - Frames avaliados: 1951 em 65.02s (30.01 FPS).
+  - P99.9: 39.44 ms (P50: 33.33 ms, P90: 33.44 ms, P95: 33.49 ms, P99: 33.68 ms, Max: 44.44 ms).
+  - Stalls > 100 ms: 0; Stalls > 50 ms: 0; Spikes: 0.
+  - Telemetria de Pipeline: `totalPipelineMs`: 117.03 ms (`pipeline_compile_ms`: 53.66 ms / 45.9%, `pipeline_wait_ms`: 63.36 ms / 54.1%, `shader_ms`: 18.13 ms).
+- **Status Atual**: Marco M0 100% concluído e validado em hardware real.
+- **Próximo Passo Imediato**: Iniciar **Fase A / Marco M1** (`feat/monolithic-vkpc-and-d3d12-parallel`).
 
 ---
 

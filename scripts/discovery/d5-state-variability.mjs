@@ -123,6 +123,7 @@ const vkPsos = parseXpso(vkXpsoPath) || [];
 const d3d12Psos = parseXpso(d3d12XpsoPath) || [];
 
 function analyzeStates(psos, label) {
+  const pairsNoMod = new Map();
   const pairs = new Map();
   const stateBlocks = new Map();
   const rpKeys = new Set();
@@ -131,7 +132,11 @@ function analyzeStates(psos, label) {
   const rasterStates = new Set();
 
   for (const p of psos) {
-    const pairKey = `${p.vsHash}:${p.psHash}`;
+    const pairNoModKey = `${p.vsHash}:${p.psHash}`;
+    if (!pairsNoMod.has(pairNoModKey)) pairsNoMod.set(pairNoModKey, []);
+    pairsNoMod.get(pairNoModKey).push(p);
+
+    const pairKey = `${p.vsHash}:${p.vsMod}:${p.psHash}:${p.psMod}`;
     if (!pairs.has(pairKey)) pairs.set(pairKey, []);
     pairs.get(pairKey).push(p);
 
@@ -152,6 +157,7 @@ function analyzeStates(psos, label) {
   return {
     label,
     totalPsos: psos.length,
+    pairsHashOnly: pairsNoMod.size,
     uniquePairs: pairs.size,
     uniqueStates: stateBlocks.size,
     uniqueRenderPasses: rpKeys.size,
@@ -171,7 +177,8 @@ console.table([
   {
     'Backend & Cache': vkAnalysis.label,
     'Total PSOs': vkAnalysis.totalPsos,
-    'Unique (VS, PS) Pairs': vkAnalysis.uniquePairs,
+    'Pairs (Hash Only)': vkAnalysis.pairsHashOnly,
+    'Pairs (Hash+Mod)': vkAnalysis.uniquePairs,
     'Unique State Blocks': vkAnalysis.uniqueStates,
     'Mean Variants/Pair': vkAnalysis.meanVariantsPerPair,
     'RenderPass Keys': vkAnalysis.uniqueRenderPasses,
@@ -182,7 +189,8 @@ console.table([
   {
     'Backend & Cache': d3d12Analysis.label,
     'Total PSOs': d3d12Analysis.totalPsos,
-    'Unique (VS, PS) Pairs': d3d12Analysis.uniquePairs,
+    'Pairs (Hash Only)': d3d12Analysis.pairsHashOnly,
+    'Pairs (Hash+Mod)': d3d12Analysis.uniquePairs,
     'Unique State Blocks': d3d12Analysis.uniqueStates,
     'Mean Variants/Pair': d3d12Analysis.meanVariantsPerPair,
     'RenderPass Keys': d3d12Analysis.uniqueRenderPasses,
@@ -192,7 +200,7 @@ console.table([
   }
 ]);
 
-console.log('\n--- State Variant Distribution per (VS, PS) Pair (Vulkan FBO, N=183 Pairs) ---');
+console.log(`\n--- State Variant Distribution per (VS, PS) Pair (Vulkan FBO, N=${vkAnalysis.uniquePairs} Pairs with Hash+Mod) ---`);
 const distTable = [];
 let cum = 0;
 const sortedDist = Array.from(vkAnalysis.pairCounts.entries()).sort((a, b) => a[0] - b[0]);
@@ -376,10 +384,11 @@ if (finalLookahead) {
 console.log('\n>>> SECTION 5: OPTION 2 COMBINATORICS & FEASIBILITY VERDICT');
 console.log(`
 1. CARTESIAN PRODUCT vs. CONSTRAINED REALITY:
-   - Naive unconstrained product: (100 VS) x (139 PS) x (94 states) = 1,306,600 PSOs.
-     At 29.91 ms/PSO parallel compilation, 1.3M PSOs would require ~10.8 HOURS of CPU time!
-   - Actual observed gameplay reality: Exactly 183 pairs x 1.87 states/pair = 342 PSOs.
-   - 83.6% of pairs use only 1 or 2 state variants.
+   - Naive unconstrained product: (99 VS:mod) x (145 PS:mod) x (94 states) = 1,349,370 PSOs.
+     At 29.91 ms/PSO parallel compilation, ~1.35M PSOs would require ~11.2 HOURS of CPU time!
+   - Actual observed gameplay reality: Exactly 195 pairs (hash+mod) x 1.75 states/pair = 342 PSOs.
+     (Without shader modifications: 183 pairs x 1.87 states/pair).
+   - 86.7% of pairs use only 1 or 2 state variants (71.3% use exactly 1 variant). Only 13.3% have >= 3.
 
 2. ASSET EXTRACTION FEASIBILITY:
    - 93.5% of Pixel Shaders are extractable byte-for-byte from fxb0 effect files installed locally.

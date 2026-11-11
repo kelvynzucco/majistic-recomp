@@ -155,6 +155,17 @@ flowchart TD
   }
   ```
 
+#### M0.1b Diagnostic Refinement: Separate `pipeline_compile_ms` from `pipeline_wait_ms`
+- **Files Affected**:
+  - [`tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h)
+  - [`tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp)
+- **Problem**:
+  Currently, `pipeline_ms` aggregates both the synchronous CP-thread pipeline creation time (`EnsurePipelineCreated`) and the lookahead synchronization wait time (`Fh1WaitForAhead` / `finish_ahead`). This makes it impossible for CI benchmarks to isolate whether runtime stalls stem from driver compilation latency or lookahead queue starvation.
+- **Fix**:
+  Introduce distinct profiling sub-timers in `--fh1_frame_cost_csv`:
+  - `pipeline_compile_ms`: purely wall-clock time spent in `EnsurePipelineCreated` (direct driver SASS compilation).
+  - `pipeline_wait_ms`: purely wall-clock time spent blocked inside `Fh1WaitForAhead` awaiting background workers.
+
 #### M0.2 Enable Performance Counters in Release-Diagnostic Configuration
 - **Files Affected**:
   - [`tools/source/rexglue-sdk/CMakeLists.txt`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/CMakeLists.txt#L31)
@@ -243,6 +254,11 @@ flowchart TD
 4. **Compatibility & Verification**:
    - Verify that all 342 PSOs succeed in linking with 0 Vulkan validation layer warnings/errors.
    - Audit interface compatibility: verify that NVIDIA driver 621.14 accepts libraries where the pre-rasterization library outputs match the fragment library inputs directly via `(vsHash, vsMod)` and `(psHash, psMod)`.
+5. **Explicit Enumeration of (vsHash, vsMod, interpolator_mask)**:
+   - In RexGlue's SPIR-V translator ([`spirv_translator.h:54`](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/include/rex/graphics/pipeline/shader/spirv_translator.h#L54)), `interpolator_mask` occupies bits 0..15 of `Modification.vertex` (`vsMod`).
+   - For all 99 unique `(vsHash, vsMod)` pre-rasterization libraries, measure and verify whether `unique(vsHash, vsMod) == unique(vsHash, interpolator_mask)`.
+   - **Empirical Baseline Confirmed**: Across the 342 real game PSOs in `4E4D0816.fbo.vk.xpso`, there are exactly **97 unique VS hashes**, **99 unique `(vsHash, vsMod)` tuples**, and **99 unique `(vsHash, interpMask)` tuples**. Exactly 2 VS hashes have 2 variants (`interpMask = 0` vs `1`), while 95 VS hashes have strictly 1 variant.
+   - The spike will measure whether unencountered pixel shaders dynamically require new interpolator masks during gameplay, quantifying library multiplication risk prior to backend refactoring.
 - **Pass / Gate Criteria for M2a**:
   - **Success**: $\ge 95\%$ of PSOs fast-link in $< 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 validation errors. **PROCEED TO M2**.
   - **Failure / Warning**: Linking exceeds $1.0\text{ ms}$ or GPU overhead $\ge 5\%$. **TRIGGER CONTINGENCY R1** (rely on EDS permutation collapse [Tier T3/T4] + M3 Restricted Async).
@@ -491,7 +507,7 @@ flowchart TD
 
 | Risk ID | Potential Failure Mode | Likelihood | Impact | Architectural Mitigation & Fallback Strategy |
 | :--- | :--- | :---: | :---: | :--- |
-| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. Fall back to **Tier T2**: Slower link offloaded via **M3 Narrow Async** for safe passes; on hardware lacking GPL, rely on **Tier T3/T4 Extended Dynamic State** (collapsing 26.9% to 36.0% of misses). |
+| **R1** | Driver reports `graphicsPipelineLibrary = true` but `fastLinking = false` (slow link). | Low | High | **Caught early by M2a Validation Spike**. If fast-linking fails or driver lacks GPL, fall back to **Tier T2** (slower link offloaded via **M3 Narrow Async**) or **Tier T3/T4 Extended Dynamic State** (collapsing 26.9% to 36.0% of misses). **Explicit Scope Adjustment**: Without fast-linking and with zero distributed manifests, cold misses for unseen geometry still incur 46–205 ms driver SASS compilation; the objective in this contingency shifts from "100% elimination" to "partial best-effort mitigation (~50–55% combined miss reduction via 26.9–36.0% EDS + 39.8% Restricted Async)". |
 | **R2** | Fast-linked pipelines exhibit $> 5\%$ GPU execution overhead vs monolithic SASS. | Low | Medium | **Evaluated in M2a Spike**. If GPU overhead is unacceptable, restrict GPL to foreground draw pacing and trigger background monolithic compilation to hot-swap. |
 | **R3** | Translucent water or fog meshes misclassified as safe in Category 6B. | Medium | High | **Mitigated by M3.3 allowlist**. Category 6B is kept disabled by default; only confirmed pure additive VFX (Category 6A) are admitted. All unverified shaders default to synchronous. |
 | **R4** | Steam Deck / Linux Proton compatibility issues with GPL linking. | Very Low | High | Valve's RADV driver implements `VK_EXT_graphics_pipeline_library` with `radv_fast_linking = true` enabled by default in Mesa 23.1+. |
@@ -503,13 +519,23 @@ flowchart TD
 
 The shader precompilation and stutter elimination initiative is officially complete and ready for public merge when:
 
-### 6.1 Vulkan Backend Acceptance Criteria (Validated via `scripts/analyze-performance-csv.mjs --gate`)
-During a **100% cold first-time launch** (clean `game-data/runtime/cache/` and purged driver GLCache) on the reference RTX 3060 Ti:
-1. **P99.9 Frame Time**: Must be **`< 33.33 ms`** (strict 30 FPS boundary; $\ge 92.5\%$ reduction from $443.77\text{ ms}$ cold baseline; warm baseline achieves $30.42\text{ ms}$ mean).
+### 6.1 Vulkan Tier T1 Acceptance Criteria (Target Hardware with GPL Fast-Linking)
+During a **100% cold first-time launch** (clean `game-data/runtime/cache/` and purged driver GLCache) on reference hardware (RTX 3060 Ti) validated via `scripts/analyze-performance-csv.mjs --gate`:
+1. **P99.9 Frame Time**:
+   - Multi-Run Aggregate Mean ($N \ge 3$): Must be **`< 33.33 ms`** (strict 30 FPS boundary; warm baseline achieves $30.42\text{ ms}$ full session / $28.44\text{ ms}$ active gameplay).
+   - Single-Run Tolerance: Must be **`< 35.0 ms`** (to accommodate natural ~0.4 ms VSync jitter on isolated runs where warm reached 33.67–33.74 ms).
+   - Active 3D Gameplay Window (`--gameplay-only`): Must be **`< 33.33 ms`** across all runs.
 2. **Excess Spike Time Lost**: Must be **`< 50.0 ms / 1,000 frames`** ($\ge 96.6\%$ reduction from $1,477.8\text{ ms}$ cold baseline; warm baseline achieves $14.9\text{ ms}$ mean).
 3. **Severe Mid-Gameplay Stalls**: Must be **`0 frames > 100 ms`** ($100\%$ elimination from $22.3\text{ frames}$ cold baseline mean).
 4. **Frames Below 30 FPS**: Must be **`<= 8 frames > 33.33 ms`** for full unsegmented session ($\ge 78.0\%$ drop from $36.3\text{ frames}$ cold baseline; warm baseline achieves $7.0\text{ frames}$ mean), or **`<= 3 frames`** for active gameplay window (`--gameplay-only`).
 5. **Visual Integrity**: Must exhibit **`0 visual artifacts`** (zero missing character meshes, zero transparent models, zero shadow strobing, zero bloom flashes, zero disappearing water or terrain).
+
+### 6.1b Vulkan Tier T2 / Fallback Acceptance Criteria (Hardware Lacking GPL Fast-Linking)
+For fallback hardware or early drivers where GPL fast-linking is unavailable or fails M2a:
+1. **P99.9 Frame Time**: Must be **`< 40.0 ms`**.
+2. **Severe Mid-Gameplay Stalls**: Must be **`<= 1 frame > 100 ms`** ($\ge 95.5\%$ reduction from baseline).
+3. **Excess Spike Time Lost**: Must be **`< 250.0 ms / 1,000 frames`** ($\ge 83.1\%$ reduction).
+4. **Visual Integrity**: Must exhibit **`0 visual artifacts`**.
 
 ### 6.2 D3D12 Backend Acceptance Criteria
 1. **Parallel Cold Startup Compilation Rate**: Multi-threaded worker compilation must achieve **`<= 12.0 ms / PSO`** parallel wall-clock (total cold startup warm-up for ~295 PSOs **`<= 3.5 seconds`**, down from single-threaded $75\text{--}81\text{ ms / PSO}$).

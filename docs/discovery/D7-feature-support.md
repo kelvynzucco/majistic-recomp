@@ -135,17 +135,20 @@ xychart-beta
     title "Total PSOs in Early-Game Population vs. Mitigation Strategy"
     x-axis ["1. Baseline (Current SDK)", "2. + EDS 1 & 2", "3. + EDS 1, 2 & 3", "4. + GPL Fast-Linking"]
     y-axis "Total PSOs / Compilation Events" 0 --> 350
-    bar [342, 246, 208, 0]
+    bar [342, 250, 219, 0]
 ```
 
 ### 4.1 Permutation Reduction Table
 
-| Mitigation Strategy | Fixed State Blocks | Total PSOs in Early Game | Mean PSOs per `(VS, PS)` Pair | Per-Miss Latency (Cold) | Permutations Removed | Stutter Impact |
+| Mitigation Strategy | Fixed State Blocks | Total PSOs in Early Game | Mean PSOs per `(VS, PS)` Pair (Hash+Mod) | Per-Miss Latency (Cold) | Permutations Removed | Stutter Impact |
 | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **1. Baseline (Current SDK / Vulkan 1.0)** | **`94`** | **`342`** | **`1.87`** | **`46.8–205.3 ms`** | `0` (Baseline) | Severe `3–12` frame freezes on every miss. |
-| **2. + Extended Dynamic State (1 & 2)** | **`28`** | **`246`** | **`1.34`** | **`46.8–205.3 ms`** | **`96` PSOs (`-28.1%`)** | Eliminates 28% of all stutter events; remaining misses still freeze. |
-| **3. + Extended Dynamic State (1, 2 & 3)** | **`9`** | **`208`** | **`1.14`** | **`46.8–205.3 ms`** | **`134` PSOs (`-39.2%`)** | Eliminates 39% of stutter events; collapses states to only RenderPass keys. |
-| **4. + Graphics Pipeline Library (GPL)** | **Decoupled** | **`0` Cold Monolithic PSOs** | **N/A** | **`< 1.0 ms` (`0.2–0.5 ms`)** | **`100.0%` of Cold Spikes** | **100% ELIMINATION OF STUTTER** (fits within 16.6 ms frame budget). |
+| **1. Baseline (Current SDK / Vulkan 1.0)** | **`94`** | **`342`** | **`1.75`** | **`46.8–205.3 ms`** | `0` (Baseline) | Severe `3–12` frame freezes on every miss. |
+| **2. + Extended Dynamic State (1 & 2)** | **`28`** | **`250`** | **`1.28`** | **`46.8–205.3 ms`** | **`92` PSOs (`-26.9%`)** | Eliminates 26.9% of all stutter events; remaining misses still freeze. |
+| **3. + Extended Dynamic State (1, 2 & 3)** | **`9`** | **`219`** | **`1.12`** | **`46.8–205.3 ms`** | **`123` PSOs (`-36.0%`)** | Eliminates 36.0% of stutter events; collapses states to only RenderPass keys. |
+| **4. + Graphics Pipeline Library (GPL)** | **Decoupled** | **`0` Cold Monolithic PSOs** | **N/A** | **`< 1.0 ms` projected** | **`100.0%` of Cold Spikes** | **100% ELIMINATION OF STUTTER** (if fast-link <= 1.0 ms verified in M2a). |
+
+> **Methodological Note on Shader Modifications (`vsMod`, `psMod`)**:  
+> In initial hash-only analyses (183 pairs ignoring modifiers), EDS 1+2 projected 246 PSOs (-96, -28.1%) and EDS 1+2+3 projected 208 PSOs (-134, -39.2%). However, because RexGlue dynamically modifies vertex shaders based on interpolator masks (`vsMod`) and pixel shaders based on early-Z/depth flags (`psMod`), the real-world shader universe contains **195 unique (VS:mod, PS:mod) pairs**. Evaluating with full modifier precision yields **250 PSOs (-26.9%)** for EDS 1+2 and **219 PSOs (-36.0%)** for EDS 1+2+3.
 
 ### 4.2 Deconstruction of the Permutation Collapse
 1. **Extended Dynamic State 1 & 2**:
@@ -156,7 +159,7 @@ xychart-beta
    - `vkCmdSetColorBlendEnableEXT`, `vkCmdSetColorBlendEquationEXT`, and `vkCmdSetColorWriteMaskEXT` make all blend equations dynamic.
    - All **4 Blend Modes** are removed from the pipeline hash.
    - The state space collapses to **only the 9 RenderPass keys** (framebuffer attachment formats).
-   - The total number of PSOs drops from **`342` down to `208`** (almost 1:1 with the `183` unique shader pairs).
+   - The total number of PSOs drops from **`342` down to `219`** (closely tracking the `195` unique shader pairs).
 
 ---
 

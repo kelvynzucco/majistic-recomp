@@ -226,6 +226,15 @@ const elements = {
   precompileProgressBar: document.getElementById("precompileProgressBar"),
   precompileConsole: document.getElementById("precompileConsole"),
   btnClearPrecompileLog: document.getElementById("btnClearPrecompileLog"),
+
+  // Dev Shader Cache Elements
+  devShaderCacheCard: document.getElementById("devShaderCacheCard"),
+  devShaderTotalSize: document.getElementById("devShaderTotalSize"),
+  devShaderPipelineCount: document.getElementById("devShaderPipelineCount"),
+  devShaderVkpcSize: document.getElementById("devShaderVkpcSize"),
+  devShaderXshSize: document.getElementById("devShaderXshSize"),
+  devShaderLastUpdated: document.getElementById("devShaderLastUpdated"),
+  btnRefreshShaderCache: document.getElementById("btnRefreshShaderCache"),
 };
 
 // ==========================================
@@ -261,6 +270,7 @@ function switchTab(tab) {
     elements.tabBtnSettings.className = inactiveClass;
     if (elements.tabBtnFixes) elements.tabBtnFixes.className = inactiveClass;
     elements.tabBtnBuild.className = activeClass;
+    updateShaderCacheInfo();
   }
 }
 
@@ -700,6 +710,7 @@ listen("precompile-complete", () => {
   if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
   if (elements.btnLaunch) elements.btnLaunch.disabled = false;
   isPrecompiling = false;
+  updateShaderCacheInfo();
 });
 
 listen("precompile-error", (event) => {
@@ -715,6 +726,7 @@ listen("precompile-error", (event) => {
   if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
   if (elements.btnLaunch) elements.btnLaunch.disabled = false;
   isPrecompiling = false;
+  updateShaderCacheInfo();
 });
 
 if (elements.btnPrecompile) {
@@ -738,6 +750,43 @@ if (elements.btnClearPrecompileLog) {
     if (elements.precompileConsole) elements.precompileConsole.innerHTML = "";
   });
 }
+
+// ==========================================
+// Shader Cache Monitor (Dev Mode)
+// ==========================================
+async function updateShaderCacheInfo() {
+  if (!elements.devShaderTotalSize) return;
+  try {
+    const info = await invoke("get_shader_cache_info");
+    if (info) {
+      if (elements.devShaderTotalSize) {
+        elements.devShaderTotalSize.textContent = info.total_formatted || "--";
+      }
+      if (elements.devShaderPipelineCount) {
+        elements.devShaderPipelineCount.textContent = info.pipeline_count > 0 ? `${info.pipeline_count} PSOs` : "0";
+      }
+      if (elements.devShaderVkpcSize) {
+        elements.devShaderVkpcSize.textContent = info.vkpc_formatted || "--";
+      }
+      if (elements.devShaderXshSize) {
+        elements.devShaderXshSize.textContent = info.xsh_formatted || "--";
+      }
+      if (elements.devShaderLastUpdated) {
+        elements.devShaderLastUpdated.textContent = info.last_updated || "--";
+      }
+    }
+  } catch (err) {
+    console.warn("Could not query shader cache info:", err);
+  }
+}
+
+if (elements.btnRefreshShaderCache) {
+  elements.btnRefreshShaderCache.addEventListener("click", updateShaderCacheInfo);
+}
+
+window.addEventListener("focus", () => {
+  updateShaderCacheInfo();
+});
 
 // ==========================================
 // Launch & Exit
@@ -1103,6 +1152,7 @@ async function init() {
   initCustomSelects();
   populateForm(currentSettings);
   await updateGameStatus();
+  await updateShaderCacheInfo();
   await updateMaximizeIcon();
   logToBackend("init() completed successfully");
 

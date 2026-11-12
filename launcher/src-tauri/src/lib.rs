@@ -551,7 +551,7 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
         };
 
         emit_log("=== STARTING VULKAN SHADER PRECOMPILATION ===");
-        emit_progress(0, 171, "Starting Vulkan shader precompiler...");
+        emit_progress(0, 100, "Starting Vulkan shader precompiler...");
 
         let cmd_args = [
             "-NoLogo",
@@ -680,8 +680,8 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
                                         status: &'a str,
                                     }
                                     let _ = app_tail.emit("precompile-progress", ProgressPayload {
-                                        current: 171,
-                                        total: 171,
+                                        current: 100,
+                                        total: 100,
                                         status: "Monolithic driver cache saved to disk",
                                     });
                                 }
@@ -701,7 +701,7 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
 
         match child.wait() {
             Ok(status) if status.success() => {
-                emit_progress(171, 171, "Vulkan pipeline cache successfully created!");
+                emit_progress(100, 100, "Vulkan pipeline cache successfully created!");
                 emit_log("=== VULKAN SHADERS PRECOMPILED SUCCESSFULLY ===");
                 let _ = app.emit("precompile-complete", true);
             }

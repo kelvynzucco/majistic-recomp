@@ -646,7 +646,7 @@ async function startPrecompileShaders() {
     elements.btnLaunch.disabled = true;
   }
 
-  appendPrecompileLog("[Precompiler] Initializing Vulkan backend with 171 target pipelines...");
+  appendPrecompileLog("[Precompiler] Initializing Vulkan backend with cataloged target pipelines...");
 
   try {
     await invoke("precompile_shaders", { settings });

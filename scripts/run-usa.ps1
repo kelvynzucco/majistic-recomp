@@ -211,5 +211,6 @@ $workingDir = if (Test-Path (Split-Path $exe -Parent)) {
 } else {
     $projectRoot
 }
-$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle Normal -PassThru -Wait
+$windowStyle = if ($ShaderPrebuildOnly) { 'Hidden' } else { 'Normal' }
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle $windowStyle -PassThru -Wait
 Write-Output "majin.exe encerrado com ExitCode: $($process.ExitCode)"

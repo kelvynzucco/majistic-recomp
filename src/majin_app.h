@@ -357,6 +357,11 @@ class MajinApp : public rex::ReXApp {
 #if defined(_WIN32)
     title_window_ = static_cast<HWND>(window()->GetNativeWindowHandle());
     if (title_window_) {
+      const auto prebuild_flag = rex::cvar::GetFlagByName("shader_prebuild_only");
+      if (prebuild_flag == "true" || prebuild_flag == "1") {
+        ShowWindow(title_window_, SW_HIDE);
+        return true;
+      }
       if (!window()->IsFullscreen()) FitDecoratedWindow(title_window_);
       if (SetPropW(title_window_, kTitleOwner, this)) {
         // With an HWND, use our explicit ID for callback matching and KillTimer.

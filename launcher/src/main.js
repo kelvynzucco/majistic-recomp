@@ -215,6 +215,9 @@ const elements = {
   btnPrecompile: document.getElementById("btnPrecompile"),
   btnPrecompileText: document.getElementById("btnPrecompileText"),
   btnPrecompileInline: document.getElementById("btnPrecompileInline"),
+  btnCleanShaders: document.getElementById("btnCleanShaders"),
+  precompileStatusIcon: document.getElementById("precompileStatusIcon"),
+  precompileInlineStatusIcon: document.getElementById("precompileInlineStatusIcon"),
 
   // Precompile Modal Elements
   precompileModal: document.getElementById("precompileModal"),
@@ -752,13 +755,47 @@ if (elements.btnClearPrecompileLog) {
 }
 
 // ==========================================
-// Shader Cache Monitor (Dev Mode)
+// Shader Cache & Precompilation Status
 // ==========================================
+const ICON_CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+
+const ICON_UNCHECK_SVG = `<svg class="w-3.5 h-3.5 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+
+const ICON_CHECK_INLINE_SVG = `<svg class="w-3 h-3 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+
+const ICON_UNCHECK_INLINE_SVG = `<svg class="w-3 h-3 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+
 async function updateShaderCacheInfo() {
-  if (!elements.devShaderTotalSize) return;
   try {
     const info = await invoke("get_shader_cache_info");
     if (info) {
+      // 1. Update status icons on both precompile buttons (green check vs red uncheck)
+      if (elements.precompileStatusIcon) {
+        elements.precompileStatusIcon.innerHTML = info.is_precompiled ? ICON_CHECK_SVG : ICON_UNCHECK_SVG;
+      }
+      if (elements.precompileInlineStatusIcon) {
+        elements.precompileInlineStatusIcon.innerHTML = info.is_precompiled ? ICON_CHECK_INLINE_SVG : ICON_UNCHECK_INLINE_SVG;
+      }
+
+      if (elements.btnPrecompile) {
+        elements.btnPrecompile.title = info.is_precompiled
+          ? "Vulkan shaders precompiled in driver cache (Ready). Click to verify or re-compile."
+          : "Vulkan shaders not yet precompiled. Click to precompile now.";
+      }
+
+      // 2. Enable or disable Clean button depending on whether vkpc exists
+      if (elements.btnCleanShaders) {
+        elements.btnCleanShaders.disabled = !info.is_precompiled;
+        if (info.is_precompiled) {
+          elements.btnCleanShaders.classList.remove("opacity-50", "pointer-events-none");
+          elements.btnCleanShaders.title = "Purge compiled Vulkan driver cache (.vkpc) to allow a clean re-compilation";
+        } else {
+          elements.btnCleanShaders.classList.add("opacity-50", "pointer-events-none");
+          elements.btnCleanShaders.title = "Driver cache is already clean";
+        }
+      }
+
+      // 3. Update Dev Monitor Card (if in dev mode)
       if (elements.devShaderTotalSize) {
         elements.devShaderTotalSize.textContent = info.total_formatted || "--";
       }
@@ -782,6 +819,21 @@ async function updateShaderCacheInfo() {
 
 if (elements.btnRefreshShaderCache) {
   elements.btnRefreshShaderCache.addEventListener("click", updateShaderCacheInfo);
+}
+
+if (elements.btnCleanShaders) {
+  elements.btnCleanShaders.addEventListener("click", async () => {
+    try {
+      elements.btnCleanShaders.disabled = true;
+      elements.btnCleanShaders.classList.add("opacity-50", "pointer-events-none");
+      await invoke("clean_shader_cache");
+      await updateShaderCacheInfo();
+    } catch (err) {
+      alert("Failed to clean shader cache: " + err);
+    } finally {
+      await updateShaderCacheInfo();
+    }
+  });
 }
 
 window.addEventListener("focus", () => {

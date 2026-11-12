@@ -724,6 +724,7 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderCacheInfo {
     pub exists: bool,
+    pub is_precompiled: bool,
     pub xsh_bytes: u64,
     pub xsh_formatted: String,
     pub xpso_bytes: u64,
@@ -815,6 +816,7 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
 
     let total_bytes = xsh_bytes + xpso_bytes + vkpc_bytes;
     let exists = total_bytes > 0;
+    let is_precompiled = vkpc_bytes > 0;
 
     let last_updated = if let Some(time) = latest_time {
         let datetime: chrono::DateTime<chrono::Local> = time.into();
@@ -825,6 +827,7 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
 
     Ok(ShaderCacheInfo {
         exists,
+        is_precompiled,
         xsh_bytes,
         xsh_formatted: format_bytes(xsh_bytes),
         xpso_bytes,
@@ -836,6 +839,51 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
         total_formatted: format_bytes(total_bytes),
         last_updated,
     })
+}
+
+#[tauri::command]
+fn clean_shader_cache() -> Result<bool, String> {
+    let root = get_project_root();
+    let settings = load_settings().unwrap_or_default();
+    let folder_name = if settings.game_data_root.trim().is_empty() {
+        "game-data".to_string()
+    } else {
+        settings.game_data_root.trim().to_string()
+    };
+    let game_data_dir = if Path::new(&folder_name).is_absolute() {
+        PathBuf::from(&folder_name)
+    } else {
+        root.join(&folder_name)
+    };
+
+    let cache_dir = game_data_dir.join("runtime/cache/vulkan-vulkan");
+    let mut deleted_count = 0;
+
+    if cache_dir.exists() {
+        let local_dirs = [
+            cache_dir.join("release/shaders/local"),
+            cache_dir.join("debug/shaders/local"),
+        ];
+
+        for local_dir in &local_dirs {
+            if local_dir.exists() {
+                if let Ok(entries) = fs::read_dir(local_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|e| e.to_str()) == Some("vkpc")
+                            || path.to_string_lossy().ends_with(".monolithic.vkpc")
+                        {
+                            if fs::remove_file(&path).is_ok() {
+                                deleted_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(deleted_count > 0)
 }
 
 #[tauri::command]
@@ -1384,6 +1432,7 @@ pub fn run() {
             start_game_build,
             precompile_shaders,
             get_shader_cache_info,
+            clean_shader_cache,
             launch_game,
             minimize_window,
             toggle_maximize_window,

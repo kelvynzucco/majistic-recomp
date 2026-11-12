@@ -241,6 +241,26 @@
 - **Current Status**: Milestone M3 100% completed and validated on real hardware.
 - **Immediate Next Step**: Commit and push branch `feat/restricted-async` and evaluate Milestone M4 (Backlog/Polish).
 
+### Entry 007 — 2026-11-12: Extended Dynamic State Invalidation Fix and Attachment Count Conformance
+- **Phase / Task**: Vulkan In-Game Rendering Parity Fix
+- **Branch**: `feat/vulkan-precompile-tooling` (root), `fix/vulkan-reiglue-parity` (SDK)
+- **Actions Performed**:
+  - **Visual Diagnosis from Real In-Game Capture ([reports/Captura de tela 2026-11-12 114100.png](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/reports/Captura%20de%20tela%202026-11-12%20114100.png))**:
+    - Menus and 2D UI rendered cleanly, but active 3D gameplay displayed pitch-black rectangular bounding boxes around foliage/decals, semi-transparent character models (Majin's torso transparent against background rock meshes), and terrain z-fighting.
+  - **Root Cause Analysis**:
+    1. **Extended Dynamic State (EDS) Invalidation on External Pipeline Binds**: In [tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp:6580](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/tools/source/rexglue-sdk/src/graphics/vulkan/command_processor.cpp#L6580), `BindExternalGraphicsPipeline` binds transfer pipelines (resolve, clear, blit) without extended dynamic state in `pDynamicStates`. Per Vulkan Specification, binding a static pipeline makes command buffer dynamic states undefined. The method failed to invalidate EDS tracking flags (`dynamic_cull_mode_update_needed_`, `dynamic_depth_test_enable_update_needed_`, `dynamic_depth_write_enable_update_needed_`, `dynamic_depth_compare_op_update_needed_`, `dynamic_color_blend_enable_update_needed_`, `dynamic_color_write_mask_update_needed_`, etc.). Subsequent guest 3D draws skipped re-emitting dynamic state commands, causing the GPU to execute 3D draws with undefined depth test/write and color blend/write masks.
+    2. **Attachment Count Specification Violation in EDS3 Calls**: `CmdVkSetColorBlendEnableEXT`, `CmdVkSetColorBlendEquationEXT`, and `CmdVkSetColorWriteMaskEXT` hardcoded `attachment_count = 4`, violating Vulkan VUID-vkCmdSetColorWriteMaskEXT-firstAttachment-07368 (`firstAttachment + attachmentCount <= bound pipeline attachmentCount`) on single-attachment passes.
+    3. **Unconditional Depth/Stencil Enables on Depthless Passes**: `UpdateDynamicState` enabled depth and stencil tests even when the active render pass had no depth attachment (`(key.depth_and_color_used & 1) == 0`).
+  - **Code Implementations**:
+    - Updated `BindExternalGraphicsPipeline` to set all EDS update needed flags and reset `dynamic_color_attachment_count_ = 0`.
+    - Clamped EDS3 color blend and write mask calls to `color_attachment_count = 32 - rex::lzcnt(key.depth_and_color_used >> 1)`, skipping zero-attachment passes and tracking `dynamic_color_attachment_count_`.
+    - Guarded depth and stencil test/write enables with `has_depth_attachment`.
+    - Unconditionally invalidated dynamic state in `Fh1InvalidateBindings()`.
+    - Exported patch [patches/rexglue-0.10.0/vulkan-dynamic-state-and-barrier-fixes.patch](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/patches/rexglue-0.10.0/vulkan-dynamic-state-and-barrier-fixes.patch) and registered as step [1.13] in [scripts/prepare-sdk-source.ps1](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/prepare-sdk-source.ps1).
+    - Recompiled SDK and installed `majin.exe` into [game-data/bin](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/game-data/bin).
+- **Current Status**: Local ReXGlue SDK and runtime binaries updated and verified.
+- **Immediate Next Step**: Guide user through in-game verification using the updated executable.
+
 ---
 
 ## 5. Technical Decision Log & Deviations
@@ -259,3 +279,4 @@
 | **DEC-10** | 2026-11-11 | **Strict Gate Rule and Cold Break-Even Point in M2a** | On 1st boot post-EDS, GPL compiles 244 cold libraries vs 219 monolithic PSOs (+11.4%). Break-even in compilation time requires $T_{\text{cold\_lib}} \le 0.90 \times T_{\text{cold\_monolithic}}$. Strict rejection if $T_{\text{lib}} \ge 0.5 \cdot T_{\text{mono}}$ OR link $\ge 1\text{ ms}$ OR GPU overhead $\ge 5\%$. |
 | **DEC-11** | 2026-11-11 | **Empirical Rejection of GPL and Activation of Contingency R1** | Spike M2a measured cold ratio of $0.827\times$ (gate fail $< 0.50\times$) and GPU overhead of $12.5\%$ (gate fail $< 5\%$). With 233 post-EDS PSOs, GPL compiles 243 cold libraries, saving merely 2.8s across the entire cold boot in exchange for continuous GPU degradation and risky SPIR-V translator refactoring. Phase C2 discarded; advancing directly to Phase D (M3 Async). |
 | **DEC-12** | 2026-11-11 | **Adoption of 2-Layer Classifier and Category 6A Isolation** | To guarantee absolute visual integrity (zero pop-in in water, glass, or geometry) and framerate stability, Category 6B (`fxb0` symbols) remained disabled. Only 3D additive translucent particle passes (Category 6A) are eligible for async masking (Layer 1). Screen quads ($\le 6$ vertices) are rigidly blocked in Layer 2 to avoid black flashes in post-processing, and the Presentation Gate presents frames with benign drops immediately at 30/60 FPS without swapchain holds. |
+| **DEC-13** | 2026-11-12 | **EDS State Invalidation on Transfer Passes and Attachment Clamping** | External transfer/resolve pipelines lack EDS states, causing command buffer dynamic states to become undefined under the Vulkan Specification. Invalidation flags must be asserted upon every external pipeline binding, and EDS3 attachment counts must be dynamically clamped to the pipeline attachmentCount (`32 - lzcnt(rts_used)`) to eliminate Vulkan VUID violations on single-attachment passes. |

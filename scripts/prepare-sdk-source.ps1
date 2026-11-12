@@ -199,4 +199,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Restricted Async Pipeline patch application'
 }
 
-Write-Host "[1.1 - 1.12] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.13: Apply Extended Dynamic State Invalidation and Barrier Fixes patch
+$fixesPatch = Join-Path $patchRoot 'vulkan-dynamic-state-and-barrier-fixes.patch'
+git -C $source apply --reverse --check $fixesPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $fixesPatch
+    Check-Native 'Dynamic State and Barrier Fixes patch check'
+    git -C $source apply $fixesPatch
+    Check-Native 'Dynamic State and Barrier Fixes patch application'
+}
+
+Write-Host "[1.1 - 1.13] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

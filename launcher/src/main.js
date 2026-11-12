@@ -209,9 +209,23 @@ const elements = {
   iconMaximize: document.getElementById("iconMaximize"),
   iconRestore: document.getElementById("iconRestore"),
 
-  // Footer Buttons
+  // Footer & Action Buttons
   btnLaunch: document.getElementById("btnLaunch"),
   btnLaunchText: document.getElementById("btnLaunchText"),
+  btnPrecompile: document.getElementById("btnPrecompile"),
+  btnPrecompileText: document.getElementById("btnPrecompileText"),
+  btnPrecompileInline: document.getElementById("btnPrecompileInline"),
+
+  // Precompile Modal Elements
+  precompileModal: document.getElementById("precompileModal"),
+  btnClosePrecompileModal: document.getElementById("btnClosePrecompileModal"),
+  btnPrecompileDone: document.getElementById("btnPrecompileDone"),
+  precompileSpinner: document.getElementById("precompileSpinner"),
+  precompileStatusText: document.getElementById("precompileStatusText"),
+  precompilePercentText: document.getElementById("precompilePercentText"),
+  precompileProgressBar: document.getElementById("precompileProgressBar"),
+  precompileConsole: document.getElementById("precompileConsole"),
+  btnClearPrecompileLog: document.getElementById("btnClearPrecompileLog"),
 };
 
 // ==========================================
@@ -570,6 +584,160 @@ listen("build-error", async (event) => {
 
   await updateGameStatus();
 });
+
+// ==========================================
+// Shader Precompilation
+// ==========================================
+let isPrecompiling = false;
+
+function appendPrecompileLog(line) {
+  if (!elements.precompileConsole) return;
+  const lineDiv = document.createElement("div");
+  lineDiv.className = line.startsWith("ERROR") || line.startsWith("[stderr]")
+    ? "text-rose-400 font-semibold"
+    : line.startsWith("===")
+    ? "text-sky-300 font-bold border-t border-slate-800 pt-1 mt-1"
+    : line.includes("monolithic driver pipeline cache: saved")
+    ? "text-emerald-400 font-bold"
+    : "text-slate-300";
+  lineDiv.textContent = line;
+  elements.precompileConsole.appendChild(lineDiv);
+  elements.precompileConsole.scrollTop = elements.precompileConsole.scrollHeight;
+}
+
+async function startPrecompileShaders() {
+  if (isPrecompiling) return;
+  if (!gameStatus.isReady) {
+    switchTab("build");
+    return;
+  }
+
+  isPrecompiling = true;
+  const settings = readForm();
+
+  // Open modal and show initialization state
+  if (elements.precompileModal) {
+    elements.precompileModal.classList.remove("hidden");
+  }
+  if (elements.precompileSpinner) {
+    elements.precompileSpinner.classList.remove("hidden");
+  }
+  if (elements.precompileProgressBar) {
+    elements.precompileProgressBar.style.width = "5%";
+  }
+  if (elements.precompilePercentText) {
+    elements.precompilePercentText.textContent = "5%";
+  }
+  if (elements.precompileStatusText) {
+    elements.precompileStatusText.textContent = "Initializing Vulkan device and shader cache...";
+    elements.precompileStatusText.className = "font-semibold text-slate-200";
+  }
+  if (elements.precompileConsole) {
+    elements.precompileConsole.innerHTML = "";
+  }
+  if (elements.btnPrecompileDone) {
+    elements.btnPrecompileDone.disabled = true;
+    elements.btnPrecompileDone.textContent = "Compiling...";
+  }
+  if (elements.btnPrecompile) {
+    elements.btnPrecompile.disabled = true;
+  }
+  if (elements.btnLaunch) {
+    elements.btnLaunch.disabled = true;
+  }
+
+  appendPrecompileLog("[Precompiler] Initializing Vulkan backend with 171 target pipelines...");
+
+  try {
+    await invoke("precompile_shaders", { settings });
+  } catch (err) {
+    appendPrecompileLog(`ERROR starting shader precompiler: ${err}`);
+    if (elements.precompileStatusText) {
+      elements.precompileStatusText.textContent = `Error: ${err}`;
+      elements.precompileStatusText.className = "font-semibold text-rose-400";
+    }
+    if (elements.precompileSpinner) {
+      elements.precompileSpinner.classList.add("hidden");
+    }
+    if (elements.btnPrecompileDone) {
+      elements.btnPrecompileDone.disabled = false;
+      elements.btnPrecompileDone.textContent = "Close";
+    }
+    if (elements.btnPrecompile) {
+      elements.btnPrecompile.disabled = false;
+    }
+    if (elements.btnLaunch) {
+      elements.btnLaunch.disabled = false;
+    }
+    isPrecompiling = false;
+  }
+}
+
+listen("precompile-progress", (event) => {
+  const { current, total, status } = event.payload;
+  const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+  if (elements.precompileProgressBar) elements.precompileProgressBar.style.width = `${pct}%`;
+  if (elements.precompilePercentText) elements.precompilePercentText.textContent = `${pct}%`;
+  if (elements.precompileStatusText) elements.precompileStatusText.textContent = status;
+});
+
+listen("precompile-log", (event) => {
+  appendPrecompileLog(event.payload);
+});
+
+listen("precompile-complete", () => {
+  if (elements.precompileProgressBar) elements.precompileProgressBar.style.width = "100%";
+  if (elements.precompilePercentText) elements.precompilePercentText.textContent = "100%";
+  if (elements.precompileStatusText) {
+    elements.precompileStatusText.textContent = "All Vulkan shaders compiled successfully!";
+    elements.precompileStatusText.className = "font-semibold text-[#a3cc54]";
+  }
+  if (elements.precompileSpinner) elements.precompileSpinner.classList.add("hidden");
+  if (elements.btnPrecompileDone) {
+    elements.btnPrecompileDone.disabled = false;
+    elements.btnPrecompileDone.textContent = "Done";
+  }
+  if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
+  if (elements.btnLaunch) elements.btnLaunch.disabled = false;
+  isPrecompiling = false;
+});
+
+listen("precompile-error", (event) => {
+  if (elements.precompileStatusText) {
+    elements.precompileStatusText.textContent = `Error: ${event.payload}`;
+    elements.precompileStatusText.className = "font-semibold text-rose-400";
+  }
+  if (elements.precompileSpinner) elements.precompileSpinner.classList.add("hidden");
+  if (elements.btnPrecompileDone) {
+    elements.btnPrecompileDone.disabled = false;
+    elements.btnPrecompileDone.textContent = "Close";
+  }
+  if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
+  if (elements.btnLaunch) elements.btnLaunch.disabled = false;
+  isPrecompiling = false;
+});
+
+if (elements.btnPrecompile) {
+  elements.btnPrecompile.addEventListener("click", startPrecompileShaders);
+}
+if (elements.btnPrecompileInline) {
+  elements.btnPrecompileInline.addEventListener("click", startPrecompileShaders);
+}
+if (elements.btnClosePrecompileModal) {
+  elements.btnClosePrecompileModal.addEventListener("click", () => {
+    if (elements.precompileModal) elements.precompileModal.classList.add("hidden");
+  });
+}
+if (elements.btnPrecompileDone) {
+  elements.btnPrecompileDone.addEventListener("click", () => {
+    if (elements.precompileModal) elements.precompileModal.classList.add("hidden");
+  });
+}
+if (elements.btnClearPrecompileLog) {
+  elements.btnClearPrecompileLog.addEventListener("click", () => {
+    if (elements.precompileConsole) elements.precompileConsole.innerHTML = "";
+  });
+}
 
 // ==========================================
 // Launch & Exit

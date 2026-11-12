@@ -26,6 +26,7 @@ param(
     $AutoCapture = $false,
     $PresentDither = $false,
     [string]$GameDataRoot = 'game-data',
+    [switch]$ShaderPrebuildOnly,
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -111,6 +112,9 @@ if ($isVulkan) {
         '--vulkan_dynamic_rendering=false',
         '--vulkan_async_skip_incomplete_frames=false'
     )
+    if ($ShaderPrebuildOnly) {
+        $launchArgs += '--shader_prebuild_only=true'
+    }
 } else {
     $launchArgs += "--render_target_path_d3d12=$renderTarget"
 }

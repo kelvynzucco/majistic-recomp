@@ -261,6 +261,26 @@
 - **Current Status**: Local ReXGlue SDK and runtime binaries updated and verified.
 - **Immediate Next Step**: Guide user through in-game verification using the updated executable.
 
+### Entry 008 — 2026-11-12: Vulkan Shader Precompilation Integration into Launcher
+- **Phase / Task**: Launcher Precompilation UI and Runner Script Integration
+- **Branch**: `feat/vulkan-precompile-tooling`
+- **Actions Performed**:
+  - **Runner Script Extension ([scripts/run-usa.ps1](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/scripts/run-usa.ps1))**:
+    - Added `[switch]$ShaderPrebuildOnly` parameter. When asserted under Vulkan rendering paths, appends `--shader_prebuild_only=true` to engine launch arguments, enabling headless pipeline compilation and monolithic cache serialization without starting guest gameplay loops.
+  - **Tauri Backend Command ([launcher/src-tauri/src/lib.rs](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/launcher/src-tauri/src/lib.rs))**:
+    - Implemented `precompile_shaders` command running `run-usa.ps1 -ShaderPrebuildOnly -RenderingPath Vulkan` in a background thread.
+    - Implemented live stdout/stderr parsing and log-tailing to broadcast `precompile-progress` (tracking pipeline compilation milestones up to 171 PSOs), `precompile-log`, `precompile-complete`, and `precompile-error` Tauri events.
+    - Registered command in `tauri::generate_handler!`.
+  - **Launcher Frontend UI ([launcher/index.html](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/launcher/index.html), [launcher/src/main.js](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/launcher/src/main.js))**:
+    - Added "PRECOMPILE SHADERS" button in the launcher footer adjacent to "LAUNCH GAME", plus an inline shortcut in the Display & Graphics configuration card.
+    - Designed modal `precompileModal` featuring a real-time progress bar (0% to 100%), live pipeline progress indicators (`X/171`), terminal console output, and automatic completion states.
+    - Wired event listeners in `main.js` to orchestrate background compilation, disable launch controls during precompilation, and present clear completion feedback upon monolithic cache write.
+  - **Validation & Build**:
+    - Executed standalone prebuild test: compiled 171 Vulkan pipelines in 441 ms and confirmed monolithic driver cache creation (`4E4D0816-000010DE-00002489-9B438000.monolithic.vkpc`).
+    - Successfully compiled release frontend via Vite (`npm run build`) and release launcher binary via `scripts/build-launcher-usa.ps1`, producing [Majistic Launcher.exe](file:///C:/Users/kelvy/Desktop/Majin%20Recomp/Majistic%20Launcher.exe).
+- **Current Status**: Complete and fully verified.
+- **Immediate Next Step**: Present changes to user and prepare commit on branch `feat/vulkan-precompile-tooling`.
+
 ---
 
 ## 5. Technical Decision Log & Deviations
@@ -280,3 +300,4 @@
 | **DEC-11** | 2026-11-11 | **Empirical Rejection of GPL and Activation of Contingency R1** | Spike M2a measured cold ratio of $0.827\times$ (gate fail $< 0.50\times$) and GPU overhead of $12.5\%$ (gate fail $< 5\%$). With 233 post-EDS PSOs, GPL compiles 243 cold libraries, saving merely 2.8s across the entire cold boot in exchange for continuous GPU degradation and risky SPIR-V translator refactoring. Phase C2 discarded; advancing directly to Phase D (M3 Async). |
 | **DEC-12** | 2026-11-11 | **Adoption of 2-Layer Classifier and Category 6A Isolation** | To guarantee absolute visual integrity (zero pop-in in water, glass, or geometry) and framerate stability, Category 6B (`fxb0` symbols) remained disabled. Only 3D additive translucent particle passes (Category 6A) are eligible for async masking (Layer 1). Screen quads ($\le 6$ vertices) are rigidly blocked in Layer 2 to avoid black flashes in post-processing, and the Presentation Gate presents frames with benign drops immediately at 30/60 FPS without swapchain holds. |
 | **DEC-13** | 2026-11-12 | **EDS State Invalidation on Transfer Passes and Attachment Clamping** | External transfer/resolve pipelines lack EDS states, causing command buffer dynamic states to become undefined under the Vulkan Specification. Invalidation flags must be asserted upon every external pipeline binding, and EDS3 attachment counts must be dynamically clamped to the pipeline attachmentCount (`32 - lzcnt(rts_used)`) to eliminate Vulkan VUID violations on single-attachment passes. |
+| **DEC-14** | 2026-11-12 | **Vulkan Shader Precompilation Action in Launcher UI** | Leveraged the engine's native `--shader_prebuild_only=true` mechanism to expose on-demand precompilation directly from the launcher. Creates all 171 Vulkan pipelines and serializes the monolithic driver cache (`.vkpc`) prior to game launch, providing live progress telemetry (`X/171`) and eliminating first-boot shader compilation stutter. |

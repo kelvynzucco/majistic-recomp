@@ -11,145 +11,145 @@
 
 | Metric / Dimension | Current State | Notes |
 | :--- | :--- | :--- |
-| **Current Active Phase** | **Fase A (Preparação & Ganhos Rápidos)** | Pronto para iniciar Milestone M0. |
-| **Current Active Milestone** | **`M0: Telemetry Integrity & CI Gate`** | Telemetria no SDK + Script de automação CI. |
-| **Current Working Branch** | `main` | Próxima branch de trabalho: `feat/telemetry-and-gate` |
-| **Overall Execution Progress** | **7% Completed (1 / 15 Subtasks)** | `analyze-performance-csv.mjs` pronto e validado. |
-| **GPL Spike Gate Status (M2a)** | ⏳ **Pending Phase A completion** | Spike clean-room aguarda conclusão de M0 e M1. |
-| **Clean-Room Compliance** | 🟢 **100% Verified** | Zero assets/manifests distribuídos; harness externo mantido clean-room em `tools/`. |
+| **Current Active Phase** | **Phase A (Preparation & Quick Wins)** | Ready to start Milestone M0. |
+| **Current Active Milestone** | **`M0: Telemetry Integrity & CI Gate`** | Telemetry in SDK + CI automation script. |
+| **Current Working Branch** | `main` | Next working branch: `feat/telemetry-and-gate` |
+| **Overall Execution Progress** | **7% Completed (1 / 15 Subtasks)** | `analyze-performance-csv.mjs` ready and validated. |
+| **GPL Spike Gate Status (M2a)** | **Pending Phase A completion** | Clean-room spike awaits completion of M0 and M1. |
+| **Clean-Room Compliance** | **100% Verified** | Zero assets/manifests distributed; external harness kept clean-room in `tools/`. |
 
 ---
 
 ## 2. Milestone Execution Roadmap & Checklist
 
-### 🏁 Fase A: Telemetria & Ganhos Imediatos (Estimativa: 1–2 dias)
-- [ ] **M0: Telemetria & CI Gate (`feat/telemetry-and-gate`)**
-  - [ ] **M0.1**: Corrigir bug de atribuição em `fh1_frame_cost.h` (`MainCause` culpando o jogo em vez de `Fh1WaitForAhead`).
-  - [ ] **M0.1b**: Separar diagnósticos no CSV: `pipeline_compile_ms` (SASS síncrono) vs `pipeline_wait_ms` (bloqueio de thread em `Fh1WaitForAhead`).
-  - [ ] **M0.2**: Habilitar `REXGLUE_ENABLE_PERF_COUNTERS` na configuração Release-Diagnostic do CMake.
-  - [x] **M0.3a**: Entregar CLI autônomo `scripts/analyze-performance-csv.mjs` (suporte a slicing de gameplay e agregação multi-run).
-  - [ ] **M0.3b**: Entregar suite de automação `scripts/verify-shader-mitigation.ps1` com exit codes estritos de CI.
-  - [ ] **M0.4**: Recapturar baseline oficial sob ambiente controlado com contadores ativados (salvar JSON de referência).
+### Phase A: Telemetry & Immediate Gains (Estimate: 1–2 days)
+- [ ] **M0: Telemetry & CI Gate (`feat/telemetry-and-gate`)**
+  - [ ] **M0.1**: Fix attribution bug in `fh1_frame_cost.h` (`MainCause` blaming the game instead of `Fh1WaitForAhead`).
+  - [ ] **M0.1b**: Separate diagnostics in CSV: `pipeline_compile_ms` (synchronous SASS) vs `pipeline_wait_ms` (thread stall in `Fh1WaitForAhead`).
+  - [ ] **M0.2**: Enable `REXGLUE_ENABLE_PERF_COUNTERS` in Release-Diagnostic CMake configuration via `REXGLUE_FORCE_PERF_COUNTERS=ON`.
+  - [x] **M0.3a**: Deliver standalone CLI analyzer `scripts/analyze-performance-csv.mjs` (support for `ms` column, frame time fallback, shader telemetry extraction, and multi-run aggregation).
+  - [ ] **M0.3b**: Deliver automation harness `scripts/verify-shader-mitigation.ps1` with `-Cold`, `-Warm`, `-DurationSeconds`, and `-VerifyGate` modes.
+  - [ ] **M0.4**: Recapture official baseline under controlled environment with performance counters enabled (`reports/baseline-shader/baseline-vulkan-cold-m0.json`).
 - [ ] **M1: Monolithic Shared VkPipelineCache & D3D12 Multi-Thread (`feat/monolithic-vkpc-and-d3d12-parallel`)**
-  - [ ] **M1.1a (Diagnóstico)**: Validar baseline imediato com `--vulkan_store_pipeline_cache=false` (8.02 $\to$ 0.20 ms/PSO).
-  - [ ] **M1.1b (Persistência)**: Implementar `VkPipelineCache` monolítico compartilhado (carregado no boot, salvo em checkpoints periódicos e no `Shutdown()`).
-  - [ ] **M1.2**: Reaplicar patch de compilação paralela D3D12 (`d3d12-blocking-pso-precompile.patch`).
-  - [ ] **M1.3**: Executar verificação automatizada (`verify-shader-mitigation.ps1`) e registrar métricas.
+  - [ ] **M1.1a (Diagnostic)**: Validate immediate baseline with `--vulkan_store_pipeline_cache=false` (8.02 $\to$ 0.20 ms/PSO).
+  - [ ] **M1.1b (Persistence)**: Implement shared monolithic `VkPipelineCache` (loaded at boot with `pipelineCacheUUID` validation, saved in atomic checkpoints every 10s and at `Shutdown()`).
+  - [ ] **M1.2**: Reapply D3D12 parallel compilation patch (`d3d12-blocking-pso-precompile.patch`) fixing worker dispatch in `PipelineCache::InitializeShaderStorage()`.
+  - [ ] **M1.3**: Execute automated verification (`verify-shader-mitigation.ps1`) and record metrics (`reports/baseline-shader/m1-vulkan-cold.json` and `m1-vulkan-warm.json`).
 
 ---
 
-### 🏛️ Fase B: Prioridade Imediata — Extended Dynamic State (Estimativa: 2–3 dias)
+### Phase B: Immediate Priority — Extended Dynamic State (Estimate: 2–3 days)
 - [ ] **M2.1: Extended Dynamic State (EDS 1, 2, 3) (`feat/vulkan-eds-and-gpl`)**
-  - [ ] **M2.1a**: Implementar EDS 1 & 2 no `IssueDraw` (culling, depth test/write, stencil) $\to$ Colapso para 28 estados (-26.9% misses).
-  - [ ] **M2.1b**: Implementar EDS 3 via probing de feature flags específicas (`extendedDynamicState3ColorBlendEnable`, `ColorBlendEquation`, `ColorWriteMask`) $\to$ Colapso para 9 estados (-36.0% misses / -123 PSOs). Em drivers com suporte parcial, degradar graciosamente para 18 ou 28 estados.
-  - [ ] **M2.1c**: Incrementar versão do esquema de cache em `pipeline_cache.h` (`PipelineDescription::kVersion`) para invalidar caches `.xpso` legados pré-EDS com segurança.
-  - [ ] **M2.1d**: Validar em jogo que 123 PSOs são eliminados sem necessidade de GPL e sem risco ao tradutor SPIR-V.
-  - [ ] **M2.1e**: Reduzir o universo de PSOs de 342 para 219, preparando o cenário real pós-EDS para o spike M2a.
+  - [ ] **M2.1a**: Implement EDS 1 & 2 in `IssueDraw` (culling, depth test/write, stencil) $\to$ Collapse to 28 states (-26.9% misses).
+  - [ ] **M2.1b**: Implement EDS 3 via probing of specific feature flags (`extendedDynamicState3ColorBlendEnable`, `ColorBlendEquation`, `ColorWriteMask`) $\to$ Collapse to 9 states (-36.0% misses / -123 PSOs). On drivers with partial support, gracefully degrade to 18 or 28 states.
+  - [ ] **M2.1c**: Increment cache schema version in `pipeline_cache.h` (`PipelineDescription::kVersion`) to safely invalidate legacy pre-EDS `.xpso` caches (`0x20260301`).
+  - [ ] **M2.1d**: Validate in-game that 123 PSOs are eliminated without requiring GPL and without risk to the SPIR-V translator.
+  - [ ] **M2.1e**: Reduce the PSO universe from 342 down to 219/233, preparing the realistic post-EDS scenario for the M2a spike.
 
 ---
 
-### ⚡ Fase B+ (Opcional): Otimizações de CPU no CP (Estimativa: 0.5–1 dia)
-- [ ] **M1.5: Patches da CrownParkComputing (`feat/cp-cpu-optimizations`)**
-  - [ ] **M1.5a**: Cache MRU de 64 entradas em `GetCurrentStateDescription`.
-  - [ ] **M1.5b**: Fast path de 16 entradas em `UpdateBindings`.
-  - [ ] **M1.5c**: Cópia em bloco via `memcpy` para comandos PM4 sequenciais.
-  - [ ] **M1.5d**: Validar que não há regressão no baseline quente D8.
+### Phase B+ (Optional): CP CPU Optimizations (Estimate: 0.5–1 day)
+- [ ] **M1.5: CrownParkComputing Patches (`feat/cp-cpu-optimizations`)**
+  - [ ] **M1.5a**: 64-entry MRU cache in `GetCurrentStateDescription`.
+  - [ ] **M1.5b**: 16-entry fast path in `UpdateBindings`.
+  - [ ] **M1.5c**: Block copy via `memcpy` for sequential PM4 commands.
+  - [ ] **M1.5d**: Validate no regression against warm baseline D8.
 
 ---
 
-### 🔬 Fase C1: Spike de Validação Clean-Room Pós-EDS (Estimativa: 1–2 dias | Gate Bloqueante)
-- [ ] **M2a: Spike de Validação GPL Clean-Room (`spike/gpl-cleanroom-validation`)**
-  - [ ] **M2a.0**: Construir harness CLI headless clean-room em `tools/gpl-spike/` (sem código GPL-3 no SDK MIT).
-  - [ ] **M2a.1**: Alimentar as 219 tuplas reais pós-EDS da cache `4E4D0816.fbo.vk.xpso` para o harness.
-  - [ ] **M2a.2 (Gate Central - Custo Frio)**: Medir latência de compilação de biblioteca fria no driver NVIDIA com GLCache purgado.
-  - [ ] **M2a.3 (Regra Estrita de Gate & Break-Even)**: Reprovar se $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OU $P_{95}(\text{fast-link}) \ge 1.0\text{ ms}$ OU Overhead GPU $\ge 5.0\%$ (ponto de empate: 244 libs vs 219 PSOs $\approx 0.90\times$). Se reprovado $\to$ Abandonar GPL formalmente (Contingência R1) e avançar direto para M3 Async (economia de 3–5 dias).
-  - [ ] **M2a.4 (Layout de Locations)**: Avaliar viabilidade de `Location i = i` 1:1 vs pareamento fixo `(vsHash, vsMod)`.
-  - [ ] **M2a.5**: Medir latência de fast-link no driver RTX 3060 Ti (Threshold: $\ge 95\%$ em $< 1.0\text{ ms}$).
-  - [ ] **M2a.6**: Medir overhead de execução na GPU (Draw time de pipeline linkado vs monolítico $< 2\%$).
-  - [ ] **M2a.7**: Validar 0 erros/avisos nas camadas de validação Vulkan.
-  - [ ] **GATE DECISION**: Se aprovado $\to$ Avançar para Fase C2 (GPL). Se reprovado $\to$ Avançar direto para Fase D (M3 Async).
+### Phase C1: Post-EDS Clean-Room Validation Spike (Estimate: 1–2 days | Blocking Gate)
+- [ ] **M2a: Clean-Room GPL Validation Spike (`spike/gpl-cleanroom-validation`)**
+  - [ ] **M2a.0**: Build standalone clean-room CLI harness in `tools/gpl-spike/` (`gpl_spike.exe`) with zero GPL-3 code in SDK.
+  - [ ] **M2a.1**: Feed real post-EDS tuples from `4E4D0816.fbo.vk.xpso` to the harness.
+  - [ ] **M2a.2 (Core Gate - Cold Cost)**: Measure cold library compilation latency on NVIDIA driver with purged GLCache.
+  - [ ] **M2a.3 (Strict Gate Rule & Break-Even)**: Reject if $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OR $P_{95}(\text{fast-link}) \ge 1.0\text{ ms}$ OR GPU Overhead $\ge 5.0\%$ (break-even point: 244 libs vs 219 PSOs $\approx 0.90\times$). If rejected $\to$ Formally abandon GPL (Contingency R1) and advance directly to M3 Async (saving 3–5 days).
+  - [ ] **M2a.4 (Location Layout)**: Evaluate feasibility of `Location i = i` 1:1 mapping vs fixed `(vsHash, vsMod)` pairing.
+  - [ ] **M2a.5**: Measure fast-link latency on RTX 3060 Ti driver (Threshold: $\ge 95\%$ in $< 1.0\text{ ms}$).
+  - [ ] **M2a.6**: Measure GPU execution overhead (linked pipeline draw time vs monolithic $< 2\%$).
+  - [ ] **M2a.7**: Validate 0 errors/warnings on Vulkan validation layers.
+  - [ ] **GATE DECISION**: If approved $\to$ Advance to Phase C2 (GPL). If rejected $\to$ Advance directly to Phase D (M3 Async).
 
 ---
 
-### 🏛️ Fase C2: Núcleo Vulkan GPL & Fallback (Estimativa: 3–5 dias | Condicionado ao Gate M2a)
-- [ ] **M2.2/M2.3: Arquitetura de 4 Bibliotecas & Fallback (6 Entradas: 5 Tiers + T2b) (`feat/vulkan-eds-and-gpl`)**
-  - [ ] **M2.2**: Negociação de extensões no `vulkan_device.cpp` e implementação da Matriz de Fallback (5 Tiers + sub-tier T2b).
-  - [ ] **M2.3**: Implementação das 4 bibliotecas (`Vertex Input`, `Pre-Raster`, `Fragment Shader`, `Fragment Output`).
-  - [ ] **M2.4**: Verificação de fast-link instantâneo no draw-call para novas variações de estado de shaders já compilados.
+### Phase C2: Vulkan GPL Core & Fallback (Estimate: 3–5 days | Conditioned on M2a Gate)
+- [ ] **M2.2/M2.3: 4-Library Architecture & Fallback (6 Entries: 5 Tiers + T2b) (`feat/vulkan-eds-and-gpl`)**
+  - [ ] **M2.2**: Extension negotiation in `vulkan_device.cpp` and Fallback Matrix implementation (5 Tiers + sub-tier T2b).
+  - [ ] **M2.3**: Implementation of the 4 libraries (`Vertex Input`, `Pre-Raster`, `Fragment Shader`, `Fragment Output`).
+  - [ ] **M2.4**: Verification of instant fast-link at draw-call for new state variations of already compiled shaders.
 
 ---
 
-### 🛡️ Fase D: Async Restrito em 2 Camadas (Estimativa: 2–3 dias)
-- [ ] **M3: Mascaramento Seguro de Shaders Não Compilados (`feat/restricted-async`)**
-  - [ ] **M3.1**: Auditoria de símbolos `fxb0` da Categoria 6B (isolar água, neblina e vidro de partículas puras).
-  - [ ] **M3.2**: Implementação da Camada 1 (Allowlist positiva estrita por PSO: Categoria 6A).
-  - [ ] **M3.3**: Implementação da Camada 2 (Trava no `IssueDraw` para $\le 6$ vértices protegendo quads de tela).
-  - [ ] **M3.4**: Configuração do Presentation Gate (não travar swapchain aguardando efeitos cosméticos).
+### Phase D: Restricted Two-Layer Async (Estimate: 2–3 days)
+- [ ] **M3: Safe Masking of Uncompiled Shaders (`feat/restricted-async`)**
+  - [ ] **M3.1**: Audit of Category 6B `fxb0` symbols (isolate water, fog, and glass from pure additive particles).
+  - [ ] **M3.2**: Implementation of Layer 1 (strict positive allowlist per PSO: Category 6A).
+  - [ ] **M3.3**: Implementation of Layer 2 (guard in `IssueDraw` for $\le 6$ vertices protecting screen-aligned quads).
+  - [ ] **M3.4**: Presentation Gate configuration (do not hold swapchain waiting for cosmetic particle effects).
 
 ---
 
-### 📦 Fase E: Cache Local Offline & Polish (Backlog / Opcional)
-- [ ] **M4: Ferramentas Locais da Máquina do Jogador (`feat/local-session-cache`)**
-  - [ ] **M4.1**: Exportação/importação de manifest local de sessões anteriores (`.xpl` local do jogador).
-  - [ ] **M4.2**: Pré-tradução offline de shaders locais na instalação.
-  - [ ] **M4.3**: Barra de progresso informativa no launcher para hardware em Tier T5.
+### Phase E: Local Offline Cache & Polish (Backlog / Optional)
+- [ ] **M4: Player Machine Local Tooling (`feat/local-session-cache`)**
+  - [ ] **M4.1**: Export/import of local manifest from previous sessions (`.xpl` local to the player).
+  - [ ] **M4.2**: Offline pre-translation of local shaders upon setup.
+  - [ ] **M4.3**: Informative progress bar in launcher for hardware on Tier T5.
 
 ---
 
-## 3. Matriz Evolutiva de Métricas de Performance (v5)
+## 3. Performance Metrics Evolution Matrix (v5)
 
-| Métrica | Baseline Frio (D8) | Baseline Quente (D8 Ref) | Meta T1 (1º Boot Frio) | Meta T1 (Sessões Repetidas) | Pós-M0 | Pós-M1 | Pós-M2.1 (EDS) | Pós-M2a | Pós-M2 (GPL) | Pós-M3 (Final) |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Metric | Cold Baseline (D8) | Warm Baseline (D8 Ref) | Tier 1 Target (1st Cold Boot) | Tier 1 Target (Repeat Sessions) | Post-M0 | Post-M1 | Post-M2.1 (EDS) | Post-M2a | Post-M2 (GPL) | Post-M3 (Final) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **P99.9 (ms)** | `443.77` | `30.42` | **`< 50.0`** | **`< 33.33` (agg)** | - | - | - | - | - | - |
 | **Stalls > 100 ms** | `22.3` | `0.0` | **`<= 5`** | **`0.0`** | - | - | - | - | - | - |
-| **Stalls > 33.33 ms** | `34.7` | `7.0` | **`<= 12`** | **`<= 8` (sessão) / `<= 3` (gp)** | - | - | - | - | - | - |
-| **Tempo Perdido (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | - | - | - | - | - | - |
-| **Boot D3D12 (s)** | `~24.0` | `~3.5` | **`<= 3.5`** | **`<= 3.5`** | - | - | - | - | - | - |
-| **Visual Integrity** | 100% | 100% | **0 artefatos** | **0 artefatos** | - | - | - | - | - | - |
+| **Stalls > 33.33 ms** | `34.7` | `7.0` | **`<= 12`** | **`<= 8` (session) / `<= 3` (gp)** | - | - | - | - | - | - |
+| **Wasted Time (ms/1k)**| `1,477.8` | `14.9` | **`< 250.0`** | **`< 50.0`** | - | - | - | - | - | - |
+| **D3D12 Boot (s)** | `~24.0` | `~3.5` | **`<= 3.5`** | **`<= 3.5`** | - | - | - | - | - | - |
+| **Visual Integrity** | 100% | 100% | **0 artifacts** | **0 artifacts** | - | - | - | - | - | - |
 
-### 🎯 Metas Intermediárias & Critérios de Validação por Marco (Projeções de Gate)
-- **Pós-M0 (Telemetria & CI)**: Baseline controlado recapturado com `.vkpc=false` e `PERF_COUNTERS=ON`; thresholds oficiais calibrados no JSON de CI.
-- **Pós-M1 (Bypass & Cache Monolítico)**: Sobrecarga de CPU por PSO reduzida de $8.02\text{ ms} \to 0.20\text{ ms}$; boot D3D12 paralelo $\le 3.5\text{ s}$.
-- **Pós-M2.1 (EDS 1, 2, 3)**: Redução de **36.0% (123 misses)** nos PSOs; P99.9 projetado $\approx 90\text{ ms}$; stalls $> 100\text{ ms}$ projetados $\approx 14$; bump em `kVersion = 0x20260301`.
-- **Pós-M2a (Spike de Gate)**: Validação matemática empírica: $\Sigma T_{\text{cold\_libs}} < 0.50 \times \Sigma T_{\text{cold\_mono}}$, Fast-link $P_{95} < 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 erros.
-- **Pós-M3 (Final — Caminho com GPL Aprovado)**: P99.9 $< 50.0\text{ ms}$; stalls $> 100\text{ ms} \le 5$; tempo perdido $< 250\text{ ms}/1\text{k frames}$.
-- **Pós-M3 (Final — Fallback sem GPL se M2a Reprovar)**: P99.9 $< 60.0\text{ ms}$; stalls $> 100\text{ ms} \le 8$; tempo perdido $< 450\text{ ms}/1\text{k frames}$.
-- **Pós-M4.1 (Sessões Repetidas com Cache Local)**: P99.9 $< 33.33\text{ ms}$; **0 stalls $> 100\text{ ms}$**; tempo perdido $< 50\text{ ms}/1\text{k frames}$.
+### Intermediate Targets & Validation Criteria by Milestone (Gate Projections)
+- **Post-M0 (Telemetry & CI)**: Controlled baseline recaptured with `.vkpc=false` and `PERF_COUNTERS=ON`; official thresholds calibrated in CI JSON.
+- **Post-M1 (Bypass & Monolithic Cache)**: CPU overhead per PSO reduced from $8.02\text{ ms} \to 0.20\text{ ms}$; parallel D3D12 boot $\le 3.5\text{ s}$.
+- **Post-M2.1 (EDS 1, 2, 3)**: **36.0% (123 misses)** reduction in PSOs; projected P99.9 $\approx 90\text{ ms}$; projected stalls $> 100\text{ ms} \approx 14$; bump to `kVersion = 0x20260301`.
+- **Post-M2a (Gate Spike)**: Empirical mathematical validation: $\Sigma T_{\text{cold\_libs}} < 0.50 \times \Sigma T_{\text{cold\_mono}}$, Fast-link $P_{95} < 1.0\text{ ms}$, GPU overhead $< 2\%$, 0 errors.
+- **Post-M3 (Final — Approved GPL Path)**: P99.9 $< 50.0\text{ ms}$; stalls $> 100\text{ ms} \le 5$; wasted time $< 250\text{ ms}/1\text{k frames}$.
+- **Post-M3 (Final — Non-GPL Fallback if M2a Rejects)**: P99.9 $< 60.0\text{ ms}$; stalls $> 100\text{ ms} \le 8$; wasted time $< 450\text{ ms}/1\text{k frames}$.
+- **Post-M4.1 (Repeat Sessions with Local Cache)**: P99.9 $< 33.33\text{ ms}$; **0 stalls $> 100\text{ ms}$**; wasted time $< 50\text{ ms}/1\text{k frames}$.
 
 ---
 
-## 4. Diário de Execução Passo a Passo (Execution Journal)
+## 4. Step-by-Step Execution Journal
 
-### 📝 Entrada 001 — 2026-11-11: Recalibração Técnica (Revisão 5)
-- **Fase / Tarefa**: Recalibração de Arquitetura, Localização de `Fh1WaitForAhead`, Separação de DoD e Priorização do EDS.
+### Entry 001 — 2026-11-11: Technical Recalibration (Revision 5)
+- **Phase / Task**: Architecture Recalibration, `Fh1WaitForAhead` Pinpointing, DoD Separation, and EDS Prioritization.
 - **Branch**: `main`
-- **Ações Realizadas**:
-  - Inspecionado `tools/source/rexglue-sdk/src/graphics/pipeline/shader/spirv_translator.cpp:3040-3056`: comprovado que localizações de interpoladores são empacotadas sequencialmente (`++input_location`). Reaberto o risco de acoplamento VS/PS (DEC-04 atualizado).
-  - Localizado `Fh1WaitForAhead` em `tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:2010` (repositório git aninhado).
-  - Atualizado M1.1 para incluir a implementação de um `VkPipelineCache` monolítico compartilhado com checkpoints (`ContentCreateEx`, `flow_a`) e serialização no `Shutdown()` (DEC-05), corrigindo premissas sobre `pipelineCacheUUID` de drivers.
-  - Reestruturada a ordem de fases: priorizado **M2.1 Extended Dynamic State (EDS 1, 2, 3)** como Fase B (DEC-06), eliminando 36% dos PSOs (342 $\to$ 219) sem risco de compilador antes de executar o spike M2a, incluindo bump em `PipelineDescription::kVersion` para invalidar caches `.xpso` legados (DEC-09).
-  - Estabelecida a regra estrita de gate no spike M2a e calculado o ponto de empate frio (244 libs frias vs 219 PSOs pós-EDS $\approx 0.90\times$): se $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OU link $\ge 1.0\text{ ms}$ OU overhead $\ge 5\%$, GPL é abandonado formalmente em favor de EDS + Async (DEC-10).
-  - Recalibrada a Definição de Pronto (DoD) dividindo metas em **1ª Execução Fria** (condicionada à aprovação do GPL: $\ge 83\%$ redução, $\le 5$ stalls $> 100\text{ ms}$; ou fallback sem GPL: ~49% redução, $\le 8$ stalls $> 100\text{ ms}$) vs **Sessões Repetidas** (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$) (DEC-08).
-  - Estabelecida a diretriz clean-room estrita para o harness do M2a (DEC-07) em `tools/gpl-spike/`, mantendo a separação entre a licença GPL-3 do *Simpsons* e a licença MIT/BSD do SDK.
-  - Concluída a sanitização de 307 links absolutos no repositório.
-- **Status Atual**: Pronto para criar a branch `feat/telemetry-and-gate` e iniciar o **Milestone M0**.
-- **Próximo Passo Imediato**:
-  - Criar branch `feat/telemetry-and-gate`.
-  - Aplicar correções de telemetria em `tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h` (M0.1 e M0.1b).
+- **Actions Completed**:
+  - Inspected `tools/source/rexglue-sdk/src/graphics/pipeline/shader/spirv_translator.cpp:3040-3056`: confirmed interpolator locations are packed sequentially (`++input_location`). Reopened VS/PS coupling risk (DEC-04 updated).
+  - Located `Fh1WaitForAhead` in `tools/source/rexglue-sdk/src/graphics/vulkan/pipeline_cache.cpp:2010` (nested git repository).
+  - Updated M1.1 to implement shared monolithic `VkPipelineCache` with checkpoints (`ContentCreateEx`, `flow_a`) and shutdown serialization (DEC-05), correcting assumptions about driver `pipelineCacheUUID`.
+  - Restructured phase ordering: prioritized **M2.1 Extended Dynamic State (EDS 1, 2, 3)** as Phase B (DEC-06), eliminating 36% of PSOs (342 $\to$ 219) without compiler risk prior to running the M2a spike, including a bump in `PipelineDescription::kVersion` to invalidate legacy `.xpso` caches (DEC-09).
+  - Established strict gate rule for M2a spike and calculated cold break-even point (244 cold libs vs 219 post-EDS PSOs $\approx 0.90\times$): if $T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$ OR link $\ge 1.0\text{ ms}$ OR overhead $\ge 5\%$, GPL is formally abandoned in favor of EDS + Async (DEC-10).
+  - Recalibrated Definition of Done (DoD) dividing targets into **1st Cold Run** (conditioned on GPL approval: $\ge 83\%$ reduction, $\le 5$ stalls $> 100\text{ ms}$; or fallback without GPL: ~49% reduction, $\le 8$ stalls $> 100\text{ ms}$) vs **Repeat Sessions** (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$) (DEC-08).
+  - Established strict clean-room directive for M2a harness (DEC-07) in `tools/gpl-spike/`, preserving clear separation between *Simpsons* GPL-3 license and SDK MIT/BSD license.
+  - Completed sanitization of 307 absolute links across the repository.
+- **Current Status**: Ready to create branch `feat/telemetry-and-gate` and begin **Milestone M0**.
+- **Immediate Next Step**:
+  - Create branch `feat/telemetry-and-gate`.
+  - Apply telemetry attribution fixes in `tools/source/rexglue-sdk/src/graphics/fh1_frame_cost.h` (M0.1 and M0.1b).
 
 ---
 
-## 5. Log de Decisões Técnicas & Desvios
+## 5. Technical Decisions & Deviations Log
 
-| ID | Data | Contexto / Decisão | Justificativa Técnica |
+| ID | Date | Context / Decision | Technical Justification |
 | :---: | :---: | :--- | :--- |
-| **DEC-01** | 2026-11-11 | **Zero Distribuição de `.xpl` / Manifestos** | Preservar estrita segurança legal e clean-room; foco total na mitigação em runtime via EDS + GPL + Async. |
-| **DEC-02** | 2026-11-11 | **Spike M2a como Gate Bloqueante** | De-risking obrigatório avaliando custo frio de bibliotecas vs monolítico ($T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{monolithic}}$) antes de 3–5 dias de refatoração do engine. |
-| **DEC-03** | 2026-11-11 | **Padrão Arquitetural do Simpsons para M2a** | Redução de 40–50% do esforço de estruturação do spike usando fluxo headless de referência. |
-| **DEC-04** | 2026-11-11 | **Reabertura do Risco de Acoplamento VS/PS (Locations)** | `IndependentInterpolationDecoration` ignora apenas qualificadores, não o empacotamento sequencial de locations em `spirv_translator.cpp`. M2a deve avaliar a viabilidade de `Location i = i`. |
-| **DEC-05** | 2026-11-11 | **Adoção de VkPipelineCache Monolítico com Checkpoints no M1.1** | O bypass puro (`--vulkan_store_pipeline_cache=false`) serve como diagnóstico, mas um cache monolítico compartilhado com checkpoints (`ContentCreateEx`, `flow_a`) preserva persistência local contra limpezas de GLCache e evita perda de dados em crashes. Drivers invalidam UUID, mas a consistência local entre sessões é garantida. |
-| **DEC-06** | 2026-11-11 | **Priorização do EDS 1, 2, 3 (M2.1) Antes do Spike M2a** | Colapsa 94 estados fixos para 9 render passes (-36.0% / 123 PSOs) com esforço baixo e sem risco de interface VS/PS, permitindo ao spike M2a avaliar o universo real pós-EDS (219 PSOs). |
-| **DEC-07** | 2026-11-11 | **Separação Clean-Room da Licença do Harness** | *TheSimpsonsGameRecomp* é GPL-3.0 e `rexglue-sdk` é MIT/BSD; o harness M2a será implementado do zero em `tools/gpl-spike/` como ferramenta isolada. Discussões com a comunidade serão estritamente sobre design de alto nível. |
-| **DEC-08** | 2026-11-11 | **Divisão da Definição de Pronto (DoD) em Fria vs Repetida** | Shaders opacos inéditos causam compilação SASS fria inevitável no 1º boot. Metas separadas entre 1ª execução com GPL ($\ge 83\%$ redução, $\le 5$ stalls $> 100\text{ ms}$), fallback sem GPL (~49% redução, $\le 8$ stalls $> 100\text{ ms}$) e sessões repetidas (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$). |
-| **DEC-09** | 2026-11-11 | **Bump de Versão de Cache `.xpso` no EDS (M2.1)** | A transição para estados dinâmicos (blend, depth, cull) altera o layout e hashing de `PipelineDescription`. O incremento de `PipelineDescription::kVersion` força a rejeição/invalidação limpa de arquivos `.xpso` legados incompatíveis. |
-| **DEC-10** | 2026-11-11 | **Regra Estrita de Gate M2a e Ponto de Empate Frio** | No 1º boot pós-EDS, GPL compila 244 bibliotecas frias vs 219 PSOs monolíticos (+11.4%). O ponto de empate em tempo de compilação exige $T_{\text{cold\_lib}} \le 0.90 \times T_{\text{cold\_monolithic}}$. Reprovação estrita sem brechas se $T_{\text{lib}} \ge 0.5 \cdot T_{\text{mono}}$ OU link $\ge 1\text{ ms}$ OU overhead GPU $\ge 5\%$. |
+| **DEC-01** | 2026-11-11 | **Zero Distribution of `.xpl` / Manifests** | Preserve strict legal clean-room boundary; focus entirely on runtime mitigation via EDS + GPL + Async. |
+| **DEC-02** | 2026-11-11 | **M2a Spike as a Blocking Gate** | Mandatory de-risking evaluating cold library creation cost vs monolithic ($T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{monolithic}}$) before 3–5 days of engine refactoring. |
+| **DEC-03** | 2026-11-11 | **Simpsons Architectural Pattern for M2a** | 40–50% reduction in spike structuring effort by referencing headless test harness patterns. |
+| **DEC-04** | 2026-11-11 | **Reopening of VS/PS Coupling Risk (Locations)** | `IndependentInterpolationDecoration` only ignores qualifiers, not sequential location packing in `spirv_translator.cpp`. M2a must evaluate feasibility of `Location i = i`. |
+| **DEC-05** | 2026-11-11 | **Adoption of Monolithic VkPipelineCache with Checkpoints in M1.1** | Pure bypass (`--vulkan_store_pipeline_cache=false`) serves as a diagnostic, but a shared monolithic cache with checkpoints (`ContentCreateEx`, `flow_a`) preserves local persistence across Windows GLCache purges and prevents crash data loss. Drivers invalidate UUID, but local session consistency is guaranteed. |
+| **DEC-06** | 2026-11-11 | **Prioritization of EDS 1, 2, 3 (M2.1) Before M2a Spike** | Collapses 94 fixed states down to 9 render passes (-36.0% / 123 PSOs) with low effort and zero VS/PS interface risk, enabling the M2a spike to evaluate the realistic post-EDS universe (219 PSOs). |
+| **DEC-07** | 2026-11-11 | **Clean-Room License Separation for Harness** | *TheSimpsonsGameRecomp* is GPL-3.0 and `rexglue-sdk` is MIT/BSD; the M2a harness will be implemented from scratch in `tools/gpl-spike/` as an isolated tool. |
+| **DEC-08** | 2026-11-11 | **Separation of Definition of Done (DoD) into Cold vs Repeat** | Unseen opaque materials incur unavoidable cold SASS compilation on 1st boot. Separate targets between 1st run with GPL ($\ge 83\%$ reduction, $\le 5$ stalls $> 100\text{ ms}$), fallback without GPL (~49% reduction, $\le 8$ stalls $> 100\text{ ms}$), and repeat sessions (P99.9 $< 33.33\text{ ms}$, 0 stalls $> 100\text{ ms}$). |
+| **DEC-09** | 2026-11-11 | **Cache Version Bump for `.xpso` on EDS (M2.1)** | Dynamic state transitions (blend, depth, cull) change the layout and hashing of `PipelineDescription`. Incrementing `PipelineDescription::kVersion` forces clean invalidation of incompatible legacy `.xpso` files. |
+| **DEC-10** | 2026-11-11 | **Strict M2a Gate Rule & Cold Break-Even Point** | In post-EDS 1st boot, GPL compiles 244 cold libraries vs 219 monolithic PSOs (+11.4%). Compile time break-even point requires $T_{\text{cold\_lib}} \le 0.90 \times T_{\text{cold\_monolithic}}$. Strict failure rule with zero loopholes if $T_{\text{lib}} \ge 0.5 \cdot T_{\text{mono}}$ OR link $\ge 1\text{ ms}$ OR GPU overhead $\ge 5\%$. |

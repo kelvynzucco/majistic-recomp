@@ -821,19 +821,19 @@ This section documents the four external reference implementations identified du
 
 The recalibrated implementation plan provides an airtight, evidence-based engineering path:
 
-1. **Prioritizes Immediate High ROI (Fase B - EDS 1, 2, 3)**: Collapses 94 fixed states to 9 render passes, removing 36.0% (123 misses) of all PSOs immediately, with ZERO risk to the SPIR-V translator.
+1. **Prioritizes Immediate High ROI (Phase B - EDS 1, 2, 3)**: Collapses 94 fixed states to 9 render passes, removing 36.0% (123 misses) of all PSOs immediately, with ZERO risk to the SPIR-V translator.
 2. **Replaces Pure Bypass with Monolithic Disk Persistence (M1.1)**: Eliminates per-pipeline wrapper overhead (8.02 -> 0.20 ms) while ensuring cache persistence survives Windows GLCache purges and vendor resets, with periodic checkpoint serialization (`ContentCreateEx`, `flow_a`) to prevent crash data loss (acknowledging that driver updates invalidate `pipelineCacheUUID` by Vulkan spec).
 3. **De-risks M2 via Clean-Room Spike on Post-EDS Universe (M2a)**: Benchmarks the reduced 219-PSO universe, measures cold library creation costs, evaluates fixed 1:1 location mapping, and applies an explicit mathematical gate ($T_{\text{cold\_lib}} \ge 0.5 \times T_{\text{cold\_monolithic}}$) to de-risk GPL refactoring without introducing GPL licensing contamination into the SDK.
 4. **Maintains Honest First-Boot Objectives**: Acknowledges that unseen opaque materials incur cold SASS compilation (46–205 ms) on first sight; fast-link eliminates subsequent permutation stalls, async masks particles, and local session persistence (M4.1) ensures 100% stutter-free repeat runs.
 
 **Recommended execution order (revised v5)**:
 
-- **Fase A (1–2 days)**: M0 (Telemetry & Gate CI) + M1 (Monolithic VkPipelineCache & D3D12 Parallel) in parallel.
-- **Fase B (2–3 days)**: M2.1 Extended Dynamic State (EDS 1, 2, 3) — immediate 36% miss reduction with zero translator risk.
-- **Fase B+ (optional, parallel)**: M1.5 CPU optimization patches (0.5–1 day).
-- **Fase C1 (1–2 days, blocking gate)**: M2a Clean-Room Validation Spike in `tools/gpl-spike/` measuring post-EDS cold library costs.
-- **Fase C2 (3–5 days)**: M2.2/M2.3 4-part GPL Libraries & Fallback Matrix (conditioned on M2a gate approval).
-- **Fase D (2–3 days)**: M3 Restricted Async (Two-Layer Defense).
-- **Fase E (backlog)**: M4 Local Session Persistence & UI.
+- **Phase A (1–2 days)**: M0 (Telemetry & Gate CI) + M1 (Monolithic VkPipelineCache & D3D12 Parallel) in parallel.
+- **Phase B (2–3 days)**: M2.1 Extended Dynamic State (EDS 1, 2, 3) — immediate 36% miss reduction with zero translator risk.
+- **Phase B+ (optional, parallel)**: M1.5 CPU optimization patches (0.5–1 day).
+- **Phase C1 (1–2 days, blocking gate)**: M2a Clean-Room Validation Spike in `tools/gpl-spike/` measuring post-EDS cold library costs.
+- **Phase C2 (3–5 days)**: M2.2/M2.3 4-part GPL Libraries & Fallback Matrix (conditioned on M2a gate approval).
+- **Phase D (2–3 days)**: M3 Restricted Async (Two-Layer Defense).
+- **Phase E (backlog)**: M4 Local Session Persistence & UI.
 
 **Immediate next action**: Open branch `feat/telemetry-and-gate` for M0 + M1.

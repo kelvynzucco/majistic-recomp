@@ -158,7 +158,7 @@ $renderingPath = Add-Dropdown $grpPerf 120 57 354 @(
 
 $tooltip.SetToolTip($frameRate, 'Unlocks 60 FPS gameplay with normalized cutscene timers, or locks to original 30 FPS.')
 $tooltip.SetToolTip($sync, 'Enables vertical sync to prevent screen tearing.')
-$tooltip.SetToolTip($renderingPath, 'D3D12 e Vulkan FBO utilizam host render targets padrão acelerados por hardware.')
+$tooltip.SetToolTip($renderingPath, 'D3D12 and Vulkan FBO utilize standard hardware-accelerated host render targets.')
 
 # =========================================================================
 # Section 3: Startup & Cutscenes
@@ -351,7 +351,7 @@ $form.Controls.Add($cancel)
 $form.CancelButton = $cancel
 
 $play = New-Object System.Windows.Forms.Button
-$play.Text = '▶   LAUNCH GAME'
+$play.Text = 'LAUNCH GAME'
 $play.SetBounds(155, 608, 355, 46)
 $play.FlatStyle = 'Flat'
 $play.Font = New-Object System.Drawing.Font('Segoe UI', 11.0, [System.Drawing.FontStyle]::Bold)

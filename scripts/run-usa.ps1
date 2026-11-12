@@ -203,7 +203,7 @@ $quotedArgs = @($launchArgs | ForEach-Object {
     '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
 })
 
-Write-Output "Iniciando majin.exe ($WindowSize, Fullscreen=$isFullscreen, InputMode=$InputMode, FrameRate=$FrameRateMode)..."
+Write-Output "Starting majin.exe ($WindowSize, Fullscreen=$isFullscreen, InputMode=$InputMode, FrameRate=$FrameRateMode)..."
 $workingDir = if (Test-Path (Split-Path $exe -Parent)) {
     Split-Path $exe -Parent
 } elseif (Test-Path $build) {
@@ -213,4 +213,4 @@ $workingDir = if (Test-Path (Split-Path $exe -Parent)) {
 }
 $windowStyle = if ($ShaderPrebuildOnly) { 'Hidden' } else { 'Normal' }
 $process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle $windowStyle -PassThru -Wait
-Write-Output "majin.exe encerrado com ExitCode: $($process.ExitCode)"
+Write-Output "majin.exe exited with ExitCode: $($process.ExitCode)"

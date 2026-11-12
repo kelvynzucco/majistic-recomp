@@ -803,7 +803,7 @@ async function updateShaderCacheInfo() {
         if (info.pipeline_count === 0) {
           elements.devShaderPipelineCount.textContent = "0 PSOs";
         } else if (info.delta_pipelines > 0) {
-          elements.devShaderPipelineCount.innerHTML = `${info.pipeline_count} PSOs <span class="text-emerald-400 font-semibold text-[10px] ml-1">(+${info.delta_pipelines} novas)</span>`;
+          elements.devShaderPipelineCount.innerHTML = `${info.pipeline_count} PSOs <span class="text-emerald-400 font-semibold text-[10px] ml-1">(+${info.delta_pipelines} new)</span>`;
         } else if (info.delta_pipelines === 0) {
           elements.devShaderPipelineCount.innerHTML = `${info.pipeline_count} PSOs <span class="text-slate-400 font-normal text-[10px] ml-1">(base)</span>`;
         } else {

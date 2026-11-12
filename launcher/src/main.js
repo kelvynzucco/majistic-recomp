@@ -800,7 +800,15 @@ async function updateShaderCacheInfo() {
         elements.devShaderTotalSize.textContent = info.total_formatted || "--";
       }
       if (elements.devShaderPipelineCount) {
-        elements.devShaderPipelineCount.textContent = info.pipeline_count > 0 ? `${info.pipeline_count} PSOs` : "0";
+        if (info.pipeline_count === 0) {
+          elements.devShaderPipelineCount.textContent = "0 PSOs";
+        } else if (info.delta_pipelines > 0) {
+          elements.devShaderPipelineCount.innerHTML = `${info.pipeline_count} PSOs <span class="text-emerald-400 font-semibold text-[10px] ml-1">(+${info.delta_pipelines} novas)</span>`;
+        } else if (info.delta_pipelines === 0) {
+          elements.devShaderPipelineCount.innerHTML = `${info.pipeline_count} PSOs <span class="text-slate-400 font-normal text-[10px] ml-1">(base)</span>`;
+        } else {
+          elements.devShaderPipelineCount.textContent = `${info.pipeline_count} PSOs`;
+        }
       }
       if (elements.devShaderVkpcSize) {
         elements.devShaderVkpcSize.textContent = info.vkpc_formatted || "--";

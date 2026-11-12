@@ -721,6 +721,8 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
     Ok(())
 }
 
+pub const BASELINE_PIPELINE_COUNT: usize = 270;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderCacheInfo {
     pub exists: bool,
@@ -730,6 +732,8 @@ pub struct ShaderCacheInfo {
     pub xpso_bytes: u64,
     pub xpso_formatted: String,
     pub pipeline_count: usize,
+    pub baseline_pipeline_count: usize,
+    pub delta_pipelines: i64,
     pub vkpc_bytes: u64,
     pub vkpc_formatted: String,
     pub total_bytes: u64,
@@ -825,6 +829,12 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
         "No cache files found".to_string()
     };
 
+    let delta_pipelines = if pipeline_count > 0 {
+        pipeline_count as i64 - BASELINE_PIPELINE_COUNT as i64
+    } else {
+        0
+    };
+
     Ok(ShaderCacheInfo {
         exists,
         is_precompiled,
@@ -833,6 +843,8 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
         xpso_bytes,
         xpso_formatted: format_bytes(xpso_bytes),
         pipeline_count,
+        baseline_pipeline_count: BASELINE_PIPELINE_COUNT,
+        delta_pipelines,
         vkpc_bytes,
         vkpc_formatted: format_bytes(vkpc_bytes),
         total_bytes,

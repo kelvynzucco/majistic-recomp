@@ -24,7 +24,7 @@ Early Prototype (WIP) · Native C++23 · Direct3D 12 & Vulkan · 60 FPS Target �
 
 ---
 
-## ⚠️ Legal, Copyright & Fair Use Notice
+## Legal, Copyright & Fair Use Notice
 
 > [!IMPORTANT]
 > **STRICT ZERO-ASSET DISTRIBUTION POLICY:**

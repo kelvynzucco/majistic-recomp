@@ -65,6 +65,10 @@ fn default_fov_scale() -> f64 {
     1.0
 }
 
+fn default_dedither_strength() -> f64 {
+    0.85
+}
+
 fn deserialize_nullable_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -122,6 +126,8 @@ pub struct Settings {
     pub vsync: bool,
     #[serde(default = "default_post_effect")]
     pub post_effect: String,
+    #[serde(rename = "DeDitherStrength", default = "default_dedither_strength", deserialize_with = "deserialize_nullable_f64")]
+    pub dedither_strength: f64,
     #[serde(default = "default_upscaler")]
     pub upscaler: String,
     #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
@@ -170,6 +176,7 @@ impl Default for Settings {
             frame_rate_mode: "30".into(),
             vsync: false,
             post_effect: "none".into(),
+            dedither_strength: 0.85,
             upscaler: "bilinear".into(),
             skip_intro_logos: true,
             skip_cutscenes: true,
@@ -946,6 +953,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.render_scale.to_string(),
         "-PostEffect".to_string(),
         settings.post_effect,
+        "-DeDitherStrength".to_string(),
+        settings.dedither_strength.to_string(),
         "-Upscaler".to_string(),
         settings.upscaler,
         "-RenderingPath".to_string(),

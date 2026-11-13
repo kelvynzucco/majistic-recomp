@@ -80,6 +80,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
 
   // Read current live cvar states
   const std::string post_effect = rex::cvar::Query<std::string>("swap_post_effect");
+  const double dedither_strength = rex::cvar::Query<double>("swap_dedither_strength");
   const std::string upscaler = rex::cvar::Query<std::string>("present_effect");
   const double mouse_sens = rex::cvar::Query<double>("mnk_sensitivity");
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
@@ -97,8 +98,11 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(sens_buf, sizeof(sens_buf), "%.1f", mouse_sens);
   char fov_buf[32];
   snprintf(fov_buf, sizeof(fov_buf), "%.2f", fov_scale);
+  char strength_buf[32];
+  snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
 
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
+  ReplaceJsonField(json, "DeDitherStrength", strength_buf);
   ReplaceJsonField(json, "Upscaler", "\"" + upscaler + "\"");
   ReplaceJsonField(json, "MouseSensitivity", sens_buf);
   ReplaceJsonField(json, "FovScale", fov_buf);
@@ -300,6 +304,21 @@ void InGameMenuDialog::DrawVisualsTab() {
     rex::cvar::SetFlagByName("swap_post_effect", post_effect_values[post_idx]);
   }
   ImGui::TextDisabled("Removes checkerboard dither transparency and smooths geometric aliasing in real-time.");
+
+  const bool uses_dedither = (post_idx >= 3 && post_idx <= 6);
+  if (uses_dedither) {
+    ImGui::Spacing();
+    double current_strength = rex::cvar::Query<double>("swap_dedither_strength");
+    float slider_strength = static_cast<float>(current_strength);
+    ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "De-Dither Intensity / Strength (swap_dedither_strength):");
+    ImGui::SetNextItemWidth(400.0f);
+    if (ImGui::SliderFloat("##DeDitherStrength", &slider_strength, 0.0f, 1.0f, "%.2f")) {
+      char str_buf[32];
+      snprintf(str_buf, sizeof(str_buf), "%.2f", slider_strength);
+      rex::cvar::SetFlagByName("swap_dedither_strength", str_buf);
+    }
+    ImGui::TextDisabled("Controls cross-blend strength (0.00 = off, 1.00 = maximum foliage smoothing).");
+  }
 
   ImGui::Spacing();
   ImGui::Separator();

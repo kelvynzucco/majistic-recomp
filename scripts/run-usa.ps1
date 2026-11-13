@@ -5,6 +5,7 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
+    [ValidateRange(0.0, 1.0)][double]$DeDitherStrength = 0.85,
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
     [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
@@ -102,6 +103,7 @@ $launchArgs = @(
     "--vsync=$($isVSync.ToString().ToLowerInvariant())",
     "--resolution_scale=$RenderScale",
     "--swap_post_effect=$PostEffect",
+    "--swap_dedither_strength=$($DeDitherStrength.ToString([Globalization.CultureInfo]::InvariantCulture))",
     "--present_effect=$Upscaler",
     "--present_dither=$((ConvertTo-Bool $PresentDither).ToString().ToLowerInvariant())",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"

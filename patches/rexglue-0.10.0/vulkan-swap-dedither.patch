@@ -53,30 +53,47 @@ index b6726f9..a72b848 100644
 +
  }  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 2d04ff9..d1dcd9c 100644
+index 2d04ff9..efbd4ae 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -499,6 +499,9 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -499,6 +499,17 @@ class VulkanCommandProcessor : public CommandProcessor {
    struct SwapFxaaConstants {
      uint32_t size[2];
      float size_inv[2];
 +    uint32_t scale[2];
 +    uint32_t debug_mode;
-+    uint32_t padding;
++    uint32_t has_depth;
++  };
++
++  enum SwapDeditherDescriptorSet : uint32_t {
++    kSwapDeditherDescriptorSetSource,
++    kSwapDeditherDescriptorSetDestination,
++    kSwapDeditherDescriptorSetDepth,
++
++    kSwapDeditherDescriptorSetCount,
    };
  
    // Framebuffer for the current presenter's guest output image revision, and
-@@ -989,6 +992,9 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -989,12 +1000,18 @@ class VulkanCommandProcessor : public CommandProcessor {
    std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_destination_storage_;
    // Separate storage image descriptors for the FXAA compute destination.
    std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_fxaa_destination_storage_;
 +  // Descriptors for the de-dither compute pass.
 +  std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_dedither_source_;
 +  std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_dedither_destination_storage_;
++  std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_dedither_depth_;
  
    VkSampler swap_sampler_linear_clamp_ = VK_NULL_HANDLE;
++  VkSampler swap_sampler_nearest_clamp_ = VK_NULL_HANDLE;
  
-@@ -1015,6 +1021,8 @@ class VulkanCommandProcessor : public CommandProcessor {
+   VkPipelineLayout swap_apply_gamma_pipeline_layout_ = VK_NULL_HANDLE;
+   VkPipelineLayout swap_apply_gamma_compute_pipeline_layout_ = VK_NULL_HANDLE;
+   VkPipelineLayout swap_fxaa_pipeline_layout_ = VK_NULL_HANDLE;
++  VkPipelineLayout swap_dedither_pipeline_layout_ = VK_NULL_HANDLE;
+   // Has no dependencies on specific pipeline stages on both ends to simplify
+   // use in different scenarios with different pipelines - use explicit barriers
+   // for synchronization.
+@@ -1015,6 +1032,8 @@ class VulkanCommandProcessor : public CommandProcessor {
    VkPipeline swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_ = VK_NULL_HANDLE;
    VkPipeline swap_fxaa_pipeline_ = VK_NULL_HANDLE;
    VkPipeline swap_fxaa_extreme_pipeline_ = VK_NULL_HANDLE;
@@ -85,6 +102,43 @@ index 2d04ff9..d1dcd9c 100644
    VkPipelineLayout resolve_downscale_pipeline_layout_ = VK_NULL_HANDLE;
    VkPipeline resolve_downscale_pipeline_ = VK_NULL_HANDLE;
    VkBuffer resolve_downscale_buffer_ = VK_NULL_HANDLE;
+diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
+index 983e9c1..300187d 100644
+--- a/include/rex/graphics/vulkan/render_target_cache.h
++++ b/include/rex/graphics/vulkan/render_target_cache.h
+@@ -345,6 +345,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   uint64_t update_reuse_hits_ = 0;
+   uint64_t update_reuse_mismatches_ = 0;
+ 
++ public:
+   // For host render targets.
+ 
+   // Can only be destroyed when framebuffers referencing it are destroyed!
+@@ -455,6 +456,9 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+     uint32_t temporary_sort_index_ = 0;
+   };
+ 
++  VulkanRenderTarget* GetMainDepthRenderTarget(uint32_t width, uint32_t height) const;
++
++ private:
+   struct FramebufferKey {
+     RenderPassKey render_pass_key;
+ 
+@@ -942,6 +946,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   uint64_t direct_resolve_attempt_count_ = 0;
+   uint64_t direct_resolve_success_count_ = 0;
+   uint64_t direct_resolve_fallback_count_ = 0;
++  VulkanRenderTarget* last_scene_depth_render_target_ = nullptr;
+ 
+   // For pixel (fragment) shader interlock.
+ 
+@@ -953,4 +958,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   VkPipeline resolve_fsi_clear_64bpp_pipeline_ = VK_NULL_HANDLE;
+ };
+ 
++using VulkanRenderTarget = VulkanRenderTargetCache::VulkanRenderTarget;
++
+ }  // namespace rex::graphics::vulkan
 diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
 index b66b881..7106392 100644
 --- a/src/graphics/command_processor.cpp
@@ -186,10 +240,10 @@ index 1096089..dbd9b00 100644
      command_processor_->Shutdown();
      command_processor_.reset();
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index a20f191..e8e7ad9 100644
+index a20f191..5dd3cd0 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -383,6 +383,240 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
+@@ -383,6 +383,260 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
      },
  };
  
@@ -202,10 +256,12 @@ index a20f191..e8e7ad9 100644
 +  vec2 xe_dedither_size_inv;
 +  uvec2 xe_dedither_scale;
 +  uint xe_dedither_debug;
++  uint xe_dedither_has_depth;
 +};
 +
 +layout(set = 0, binding = 0) uniform sampler2D xe_dedither_source;
 +layout(set = 1, binding = 0, rgba16f) writeonly uniform image2D xe_dedither_dest;
++layout(set = 2, binding = 0) uniform sampler2D xe_dedither_depth;
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
 +
@@ -224,46 +280,54 @@ index a20f191..e8e7ad9 100644
 +  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
 +  outBoxAvg = 0.5 * (cardAvg + diagAvg);
 +
-+  float lumaC  = dot(c,  kLumaWeights);
-+  float lumaN  = dot(n,  kLumaWeights);
-+  float lumaS  = dot(s,  kLumaWeights);
-+  float lumaE  = dot(e,  kLumaWeights);
-+  float lumaW  = dot(w,  kLumaWeights);
-+  float lumaNW = dot(nw, kLumaWeights);
-+  float lumaNE = dot(ne, kLumaWeights);
-+  float lumaSW = dot(sw, kLumaWeights);
-+  float lumaSE = dot(se, kLumaWeights);
-+
-+  float oscH  = (lumaW - lumaC) * (lumaE - lumaC);
-+  float oscV  = (lumaN - lumaC) * (lumaS - lumaC);
-+  float oscD1 = (lumaNW - lumaC) * (lumaSE - lumaC);
-+  float oscD2 = (lumaNE - lumaC) * (lumaSW - lumaC);
-+
-+  float strH  = (oscH > 0.0)  ? min(abs(lumaW - lumaC), abs(lumaE - lumaC)) : 0.0;
-+  float strV  = (oscV > 0.0)  ? min(abs(lumaN - lumaC), abs(lumaS - lumaC)) : 0.0;
-+  float strD1 = (oscD1 > 0.0) ? min(abs(lumaNW - lumaC), abs(lumaSE - lumaC)) : 0.0;
-+  float strD2 = (oscD2 > 0.0) ? min(abs(lumaNE - lumaC), abs(lumaSW - lumaC)) : 0.0;
-+
-+  int oscCount = (strH > 0.008 ? 1 : 0) + (strV > 0.008 ? 1 : 0) +
-+                 (strD1 > 0.008 ? 1 : 0) + (strD2 > 0.008 ? 1 : 0);
-+
-+  if (oscCount >= 2) {
-+    float maxOsc = max(max(strH, strV), max(strD1, strD2));
-+    float sumOsc = (strH + strV + strD1 + strD2) / float(oscCount);
-+    float ditherMagnitude = max(maxOsc, sumOsc);
-+    const float kDitherThreshold = 0.012;
-+    if (ditherMagnitude > kDitherThreshold) {
-+      return clamp((ditherMagnitude - kDitherThreshold) / 0.10, 0.0, 1.0);
-+    }
++  if (xe_dedither_has_depth == 0u) {
++    return 0.0;
 +  }
 +
-+  float localMin = min(min(min(lumaN, lumaS), min(lumaE, lumaW)), min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
-+  float localMax = max(max(max(lumaN, lumaS), max(lumaE, lumaW)), max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
-+  float diffCard = abs(lumaC - dot(cardAvg, kLumaWeights));
-+  float diffDiag = abs(lumaC - dot(diagAvg, kLumaWeights));
-+  float minDiff = min(diffCard, diffDiag);
-+  if ((lumaC < localMin || lumaC > localMax) && minDiff > 0.015) {
-+    return clamp((minDiff - 0.015) / 0.12, 0.0, 1.0);
++  // Sample depth buffer at center and all 8 neighbors (cardinals and diagonals)
++  float zC  = textureLod(xe_dedither_depth, uv, 0.0).r;
++  float zN  = textureLod(xe_dedither_depth, uv + vec2( 0.0, -st.y), 0.0).r;
++  float zS  = textureLod(xe_dedither_depth, uv + vec2( 0.0,  st.y), 0.0).r;
++  float zE  = textureLod(xe_dedither_depth, uv + vec2( st.x,  0.0), 0.0).r;
++  float zW  = textureLod(xe_dedither_depth, uv + vec2(-st.x,  0.0), 0.0).r;
++  float zNW = textureLod(xe_dedither_depth, uv + vec2(-st.x, -st.y), 0.0).r;
++  float zNE = textureLod(xe_dedither_depth, uv + vec2( st.x, -st.y), 0.0).r;
++  float zSW = textureLod(xe_dedither_depth, uv + vec2(-st.x,  st.y), 0.0).r;
++  float zSE = textureLod(xe_dedither_depth, uv + vec2( st.x,  st.y), 0.0).r;
++
++  // 1. Alternating depth oscillation check:
++  // On smooth continuous geometry, the depth derivative is monotonic across opposite directions,
++  // making (zW - zC) * (zE - zC) <= 0.
++  // In dithered alpha / screen-door perforations, foreground pixels alternate with background pixels,
++  // creating sharp opposite-sign peaks/valleys where the product is positive.
++  float zOscH  = (zW - zC) * (zE - zC);
++  float zOscV  = (zN - zC) * (zS - zC);
++  float zOscD1 = (zNW - zC) * (zSE - zC);
++  float zOscD2 = (zNE - zC) * (zSW - zC);
++
++  float zStrH  = (zOscH > 0.0)  ? min(abs(zW - zC), abs(zE - zC)) : 0.0;
++  float zStrV  = (zOscV > 0.0)  ? min(abs(zN - zC), abs(zS - zC)) : 0.0;
++  float zStrD1 = (zOscD1 > 0.0) ? min(abs(zNW - zC), abs(zSE - zC)) : 0.0;
++  float zStrD2 = (zOscD2 > 0.0) ? min(abs(zNE - zC), abs(zSW - zC)) : 0.0;
++
++  float maxZStr = max(max(zStrH, zStrV), max(zStrD1, zStrD2));
++
++  // 2. Planar surface deviation check (Laplacian):
++  // Smooth 3D meshes (character, clothes, ground, rocks) have near-zero second derivative.
++  // Screen-door transparency introduces massive jumps relative to local planar fit.
++  float zCardAvg = 0.25 * (zN + zS + zE + zW);
++  float zDiagAvg = 0.25 * (zNW + zNE + zSW + zSE);
++  float zPlanarDev = abs(zC - zCardAvg);
++  float zDiagDev = abs(zC - zDiagAvg);
++  float maxZDev = max(zPlanarDev, zDiagDev);
++
++  const float kDepthThreshold = 0.0004;
++  if (maxZStr > kDepthThreshold && maxZDev > kDepthThreshold) {
++    float depthConf = clamp((maxZDev - kDepthThreshold) / 0.006, 0.0, 1.0);
++    float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
++    if (colorDiff > 0.005) {
++      return depthConf;
++    }
 +  }
 +
 +  return 0.0;
@@ -318,10 +382,12 @@ index a20f191..e8e7ad9 100644
 +  vec2 xe_dedither_size_inv;
 +  uvec2 xe_dedither_scale;
 +  uint xe_dedither_debug;
++  uint xe_dedither_has_depth;
 +};
 +
 +layout(set = 0, binding = 0) uniform sampler2D xe_dedither_source;
 +layout(set = 1, binding = 0, rgb10_a2) writeonly uniform image2D xe_dedither_dest;
++layout(set = 2, binding = 0) uniform sampler2D xe_dedither_depth;
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
 +
@@ -340,46 +406,54 @@ index a20f191..e8e7ad9 100644
 +  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
 +  outBoxAvg = 0.5 * (cardAvg + diagAvg);
 +
-+  float lumaC  = dot(c,  kLumaWeights);
-+  float lumaN  = dot(n,  kLumaWeights);
-+  float lumaS  = dot(s,  kLumaWeights);
-+  float lumaE  = dot(e,  kLumaWeights);
-+  float lumaW  = dot(w,  kLumaWeights);
-+  float lumaNW = dot(nw, kLumaWeights);
-+  float lumaNE = dot(ne, kLumaWeights);
-+  float lumaSW = dot(sw, kLumaWeights);
-+  float lumaSE = dot(se, kLumaWeights);
-+
-+  float oscH  = (lumaW - lumaC) * (lumaE - lumaC);
-+  float oscV  = (lumaN - lumaC) * (lumaS - lumaC);
-+  float oscD1 = (lumaNW - lumaC) * (lumaSE - lumaC);
-+  float oscD2 = (lumaNE - lumaC) * (lumaSW - lumaC);
-+
-+  float strH  = (oscH > 0.0)  ? min(abs(lumaW - lumaC), abs(lumaE - lumaC)) : 0.0;
-+  float strV  = (oscV > 0.0)  ? min(abs(lumaN - lumaC), abs(lumaS - lumaC)) : 0.0;
-+  float strD1 = (oscD1 > 0.0) ? min(abs(lumaNW - lumaC), abs(lumaSE - lumaC)) : 0.0;
-+  float strD2 = (oscD2 > 0.0) ? min(abs(lumaNE - lumaC), abs(lumaSW - lumaC)) : 0.0;
-+
-+  int oscCount = (strH > 0.008 ? 1 : 0) + (strV > 0.008 ? 1 : 0) +
-+                 (strD1 > 0.008 ? 1 : 0) + (strD2 > 0.008 ? 1 : 0);
-+
-+  if (oscCount >= 2) {
-+    float maxOsc = max(max(strH, strV), max(strD1, strD2));
-+    float sumOsc = (strH + strV + strD1 + strD2) / float(oscCount);
-+    float ditherMagnitude = max(maxOsc, sumOsc);
-+    const float kDitherThreshold = 0.012;
-+    if (ditherMagnitude > kDitherThreshold) {
-+      return clamp((ditherMagnitude - kDitherThreshold) / 0.10, 0.0, 1.0);
-+    }
++  if (xe_dedither_has_depth == 0u) {
++    return 0.0;
 +  }
 +
-+  float localMin = min(min(min(lumaN, lumaS), min(lumaE, lumaW)), min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
-+  float localMax = max(max(max(lumaN, lumaS), max(lumaE, lumaW)), max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
-+  float diffCard = abs(lumaC - dot(cardAvg, kLumaWeights));
-+  float diffDiag = abs(lumaC - dot(diagAvg, kLumaWeights));
-+  float minDiff = min(diffCard, diffDiag);
-+  if ((lumaC < localMin || lumaC > localMax) && minDiff > 0.015) {
-+    return clamp((minDiff - 0.015) / 0.12, 0.0, 1.0);
++  // Sample depth buffer at center and all 8 neighbors (cardinals and diagonals)
++  float zC  = textureLod(xe_dedither_depth, uv, 0.0).r;
++  float zN  = textureLod(xe_dedither_depth, uv + vec2( 0.0, -st.y), 0.0).r;
++  float zS  = textureLod(xe_dedither_depth, uv + vec2( 0.0,  st.y), 0.0).r;
++  float zE  = textureLod(xe_dedither_depth, uv + vec2( st.x,  0.0), 0.0).r;
++  float zW  = textureLod(xe_dedither_depth, uv + vec2(-st.x,  0.0), 0.0).r;
++  float zNW = textureLod(xe_dedither_depth, uv + vec2(-st.x, -st.y), 0.0).r;
++  float zNE = textureLod(xe_dedither_depth, uv + vec2( st.x, -st.y), 0.0).r;
++  float zSW = textureLod(xe_dedither_depth, uv + vec2(-st.x,  st.y), 0.0).r;
++  float zSE = textureLod(xe_dedither_depth, uv + vec2( st.x,  st.y), 0.0).r;
++
++  // 1. Alternating depth oscillation check:
++  // On smooth continuous geometry, the depth derivative is monotonic across opposite directions,
++  // making (zW - zC) * (zE - zC) <= 0.
++  // In dithered alpha / screen-door perforations, foreground pixels alternate with background pixels,
++  // creating sharp opposite-sign peaks/valleys where the product is positive.
++  float zOscH  = (zW - zC) * (zE - zC);
++  float zOscV  = (zN - zC) * (zS - zC);
++  float zOscD1 = (zNW - zC) * (zSE - zC);
++  float zOscD2 = (zNE - zC) * (zSW - zC);
++
++  float zStrH  = (zOscH > 0.0)  ? min(abs(zW - zC), abs(zE - zC)) : 0.0;
++  float zStrV  = (zOscV > 0.0)  ? min(abs(zN - zC), abs(zS - zC)) : 0.0;
++  float zStrD1 = (zOscD1 > 0.0) ? min(abs(zNW - zC), abs(zSE - zC)) : 0.0;
++  float zStrD2 = (zOscD2 > 0.0) ? min(abs(zNE - zC), abs(zSW - zC)) : 0.0;
++
++  float maxZStr = max(max(zStrH, zStrV), max(zStrD1, zStrD2));
++
++  // 2. Planar surface deviation check (Laplacian):
++  // Smooth 3D meshes (character, clothes, ground, rocks) have near-zero second derivative.
++  // Screen-door transparency introduces massive jumps relative to local planar fit.
++  float zCardAvg = 0.25 * (zN + zS + zE + zW);
++  float zDiagAvg = 0.25 * (zNW + zNE + zSW + zSE);
++  float zPlanarDev = abs(zC - zCardAvg);
++  float zDiagDev = abs(zC - zDiagAvg);
++  float maxZDev = max(zPlanarDev, zDiagDev);
++
++  const float kDepthThreshold = 0.0004;
++  if (maxZStr > kDepthThreshold && maxZDev > kDepthThreshold) {
++    float depthConf = clamp((maxZDev - kDepthThreshold) / 0.006, 0.0, 1.0);
++    float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
++    if (colorDiff > 0.005) {
++      return depthConf;
++    }
 +  }
 +
 +  return 0.0;
@@ -430,14 +504,14 @@ index a20f191..e8e7ad9 100644
  const char* GetSwapFxaaComputeSource(bool extreme_quality) {
    return extreme_quality ? R"(#version 450
  layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
-@@ -2164,15 +2398,15 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2164,15 +2418,15 @@ bool VulkanCommandProcessor::SetupContext() {
          swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
      swap_descriptor_pool_size_combined_image_sampler.type =
          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 -    swap_descriptor_pool_size_combined_image_sampler.descriptorCount = kMaxFramesInFlight;
 -    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight;
-+    swap_descriptor_pool_size_combined_image_sampler.descriptorCount = kMaxFramesInFlight * 2;
-+    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight * 2;
++    swap_descriptor_pool_size_combined_image_sampler.descriptorCount = kMaxFramesInFlight * 3;
++    swap_descriptor_pool_create_info.maxSets += kMaxFramesInFlight * 3;
    }
    {
      VkDescriptorPoolSize& swap_descriptor_pool_size_storage_image =
@@ -450,7 +524,7 @@ index a20f191..e8e7ad9 100644
    }
    // 256-entry table and PWL gamma ramps. If the gamma ramp buffer is
    // host-visible, for multiple frames.
-@@ -2243,6 +2477,26 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2243,6 +2497,34 @@ bool VulkanCommandProcessor::SetupContext() {
        return false;
      }
    }
@@ -461,6 +535,14 @@ index a20f191..e8e7ad9 100644
 +                                     &swap_descriptors_dedither_source_[i]) != VK_SUCCESS) {
 +      REXGPU_ERROR(
 +          "Failed to allocate the presentation de-dither source image descriptor sets");
++      return false;
++    }
++  }
++  for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
++    if (dfn.vkAllocateDescriptorSets(device, &swap_descriptor_set_allocate_info,
++                                     &swap_descriptors_dedither_depth_[i]) != VK_SUCCESS) {
++      REXGPU_ERROR(
++          "Failed to allocate the presentation de-dither depth image descriptor sets");
 +      return false;
 +    }
 +  }
@@ -477,7 +559,49 @@ index a20f191..e8e7ad9 100644
  
    // Gamma ramp descriptor sets.
    VkWriteDescriptorSet gamma_ramp_write_descriptor_set;
-@@ -2716,6 +2970,37 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2285,6 +2567,13 @@ bool VulkanCommandProcessor::SetupContext() {
+     REXGPU_ERROR("Failed to create the presentation FXAA sampler");
+     return false;
+   }
++  swap_sampler_create_info.magFilter = VK_FILTER_NEAREST;
++  swap_sampler_create_info.minFilter = VK_FILTER_NEAREST;
++  if (dfn.vkCreateSampler(device, &swap_sampler_create_info, nullptr,
++                          &swap_sampler_nearest_clamp_) != VK_SUCCESS) {
++    REXGPU_ERROR("Failed to create the presentation nearest clamp sampler");
++    return false;
++  }
+ 
+   // Gamma ramp application pipeline layout.
+   std::array<VkDescriptorSetLayout, kSwapApplyGammaDescriptorSetCount>
+@@ -2358,6 +2647,27 @@ bool VulkanCommandProcessor::SetupContext() {
+     return false;
+   }
+ 
++  // De-dither compute pipeline layout (source, destination, depth).
++  std::array<VkDescriptorSetLayout, kSwapDeditherDescriptorSetCount>
++      swap_dedither_descriptor_set_layouts{};
++  swap_dedither_descriptor_set_layouts[kSwapDeditherDescriptorSetSource] =
++      swap_descriptor_set_layout_combined_image_sampler_;
++  swap_dedither_descriptor_set_layouts[kSwapDeditherDescriptorSetDestination] =
++      swap_descriptor_set_layout_storage_image_;
++  swap_dedither_descriptor_set_layouts[kSwapDeditherDescriptorSetDepth] =
++      swap_descriptor_set_layout_combined_image_sampler_;
++  swap_apply_gamma_pipeline_layout_create_info.setLayoutCount =
++      uint32_t(swap_dedither_descriptor_set_layouts.size());
++  swap_apply_gamma_pipeline_layout_create_info.pSetLayouts =
++      swap_dedither_descriptor_set_layouts.data();
++  swap_apply_gamma_pipeline_layout_create_info.pushConstantRangeCount = 1;
++  swap_apply_gamma_pipeline_layout_create_info.pPushConstantRanges = &swap_fxaa_push_constant_range;
++  if (dfn.vkCreatePipelineLayout(device, &swap_apply_gamma_pipeline_layout_create_info, nullptr,
++                                 &swap_dedither_pipeline_layout_) != VK_SUCCESS) {
++    REXGPU_ERROR("Failed to create the de-dither compute pipeline layout");
++    return false;
++  }
++
+   // Gamma application render pass. Doesn't make assumptions about outer usage
+   // (explicit barriers must be used instead) for simplicity of use in different
+   // scenarios with different pipelines.
+@@ -2716,6 +3026,37 @@ bool VulkanCommandProcessor::SetupContext() {
      }
    }
  
@@ -490,7 +614,7 @@ index a20f191..e8e7ad9 100644
 +                swap_dedither_compile_error);
 +  } else {
 +    swap_dedither_pipeline_ = ui::vulkan::util::CreateComputePipeline(
-+        vulkan_device, swap_fxaa_pipeline_layout_, swap_dedither_spirv.data(),
++        vulkan_device, swap_dedither_pipeline_layout_, swap_dedither_spirv.data(),
 +        sizeof(uint32_t) * swap_dedither_spirv.size());
 +    if (swap_dedither_pipeline_ == VK_NULL_HANDLE) {
 +      REXGPU_WARN("Failed to create the de-dither compute pipeline");
@@ -505,7 +629,7 @@ index a20f191..e8e7ad9 100644
 +                swap_dedither_to_fxaa_compile_error);
 +  } else {
 +    swap_dedither_to_fxaa_pipeline_ = ui::vulkan::util::CreateComputePipeline(
-+        vulkan_device, swap_fxaa_pipeline_layout_, swap_dedither_to_fxaa_spirv.data(),
++        vulkan_device, swap_dedither_pipeline_layout_, swap_dedither_to_fxaa_spirv.data(),
 +        sizeof(uint32_t) * swap_dedither_to_fxaa_spirv.size());
 +    if (swap_dedither_to_fxaa_pipeline_ == VK_NULL_HANDLE) {
 +      REXGPU_WARN("Failed to create the de-dither-to-FXAA compute pipeline");
@@ -515,7 +639,7 @@ index a20f191..e8e7ad9 100644
    VkPipelineLayoutCreateInfo resolve_downscale_layout_create_info = {};
    resolve_downscale_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
    VkDescriptorSetLayout resolve_downscale_set_layout =
-@@ -3126,6 +3411,10 @@ void VulkanCommandProcessor::ShutdownContext() {
+@@ -3126,6 +3467,10 @@ void VulkanCommandProcessor::ShutdownContext() {
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                           swap_fxaa_extreme_pipeline_);
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_fxaa_pipeline_);
@@ -526,7 +650,23 @@ index a20f191..e8e7ad9 100644
    for (auto& scene : hdr_scenes_)
      DestroyHdrScene(scene);
    Fh1VrDestroy();
-@@ -5185,6 +5474,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -3168,12 +3513,15 @@ void VulkanCommandProcessor::ShutdownContext() {
+                                          swap_apply_gamma_256_entry_table_fxaa_luma_pipeline_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
+                                          swap_apply_gamma_render_pass_);
++  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
++                                         swap_dedither_pipeline_layout_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                          swap_fxaa_pipeline_layout_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                          swap_apply_gamma_compute_pipeline_layout_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                          swap_apply_gamma_pipeline_layout_);
++  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroySampler, device, swap_sampler_nearest_clamp_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroySampler, device, swap_sampler_linear_clamp_);
+ 
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
+@@ -5185,6 +5533,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
  
    SwapPostEffect swap_post_effect = GetActualSwapPostEffect();
  
@@ -552,7 +692,32 @@ index a20f191..e8e7ad9 100644
    // Obtain the actual swap source texture size (resolution-scaled if it's a
    // resolve destination, or not otherwise).
    uint32_t frontbuffer_width_scaled, frontbuffer_height_scaled;
-@@ -5358,8 +5667,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5283,10 +5650,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+           "cache is {}x{}",
+           texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
+     }
+-    static bool draw_scale_swap_sizes_logged = false;
+-    if (!draw_scale_swap_sizes_logged) {
+-      draw_scale_swap_sizes_logged = true;
+-      REXGPU_WARN(
++    static uint32_t last_logged_guest_width = 0, last_logged_guest_height = 0;
++    if (guest_output_width != last_logged_guest_width || guest_output_height != last_logged_guest_height) {
++      last_logged_guest_width = guest_output_width;
++      last_logged_guest_height = guest_output_height;
++      REXGPU_INFO(
+           "Vulkan draw-scale swap sizing: packet={}x{}, src_scaled={}x{}, "
+           "src_unscaled={}x{}, active={}x{}",
+           frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
+@@ -5294,7 +5662,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+           guest_output_width, guest_output_height);
+     }
+   }
+-  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled) {
++  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled && frame_current_ >= 4) {
+     static bool draw_scale_swap_unscaled_logged = false;
+     if (!draw_scale_swap_unscaled_logged) {
+       draw_scale_swap_unscaled_logged = true;
+@@ -5358,8 +5726,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
          const VkDevice device = vulkan_device->device();
  
          uint32_t swap_frame_index = uint32_t(frame_current_ % kMaxFramesInFlight);
@@ -563,7 +728,7 @@ index a20f191..e8e7ad9 100644
  
          // This is according to D3D::InitializePresentationParameters from a
          // game executable, which initializes the 256-entry table gamma ramp for
-@@ -5393,40 +5702,54 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5393,40 +5761,55 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                       ? swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_
                       : swap_apply_gamma_compute_256_entry_table_pipeline_;
          };
@@ -603,6 +768,7 @@ index a20f191..e8e7ad9 100644
 +            post_pipelines_ok = false;
 +          }
 +          if (use_dedither && (swap_dedither_pipeline_ == VK_NULL_HANDLE ||
++                               swap_dedither_pipeline_layout_ == VK_NULL_HANDLE ||
 +                               (use_fxaa && swap_dedither_to_fxaa_pipeline_ == VK_NULL_HANDLE))) {
 +            post_pipelines_ok = false;
 +          }
@@ -643,7 +809,7 @@ index a20f191..e8e7ad9 100644
            swap_apply_gamma_compute_pipeline =
                select_swap_apply_gamma_compute_pipeline(use_pwl_gamma_ramp, false);
          }
-@@ -5552,7 +5875,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5552,7 +5935,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                                       : 0,
                                   VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_GENERAL);
@@ -652,7 +818,7 @@ index a20f191..e8e7ad9 100644
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
                                     swap_fxaa_source_stage_mask_ ? swap_fxaa_source_stage_mask_
                                                                  : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-@@ -5562,7 +5885,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5562,7 +5945,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            }
            SubmitBarriers(true);
  
@@ -661,7 +827,7 @@ index a20f191..e8e7ad9 100644
              swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
              swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_WRITE_BIT;
              swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_GENERAL;
-@@ -5574,7 +5897,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5574,7 +5957,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            VkDescriptorImageInfo swap_descriptor_destination_storage_image_info;
            swap_descriptor_destination_storage_image_info.sampler = VK_NULL_HANDLE;
            swap_descriptor_destination_storage_image_info.imageView =
@@ -671,7 +837,7 @@ index a20f191..e8e7ad9 100644
            swap_descriptor_destination_storage_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
            VkWriteDescriptorSet swap_descriptor_destination_storage_write;
            swap_descriptor_destination_storage_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-@@ -5615,7 +5939,193 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5615,7 +5999,285 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            uint32_t group_count_y = (guest_output_height + 7) / 8;
            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
  
@@ -701,6 +867,29 @@ index a20f191..e8e7ad9 100644
 +                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
 +                                   swap_fxaa_source_access_mask_, VK_ACCESS_SHADER_WRITE_BIT,
 +                                   swap_fxaa_source_layout_, VK_IMAGE_LAYOUT_GENERAL);
++            VulkanRenderTarget* depth_rt =
++                render_target_cache_->GetMainDepthRenderTarget(guest_output_width, guest_output_height);
++            VkImageView depth_view = VK_NULL_HANDLE;
++            if (depth_rt && depth_rt->view_depth_color() != VK_NULL_HANDLE) {
++              depth_view = depth_rt->view_depth_color();
++              if (depth_rt->current_layout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ||
++                  (depth_rt->current_access_mask() &
++                   (VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT))) {
++                PushImageMemoryBarrier(
++                    depth_rt->image(),
++                    ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                 VK_IMAGE_ASPECT_STENCIL_BIT),
++                    depth_rt->current_stage_mask()
++                        ? depth_rt->current_stage_mask()
++                        : (VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
++                           VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT),
++                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, depth_rt->current_access_mask(),
++                    VK_ACCESS_SHADER_READ_BIT, depth_rt->current_layout(),
++                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
++                depth_rt->SetUsage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
++                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
++              }
++            }
 +            SubmitBarriers(true);
 +
 +            VkDescriptorSet swap_descriptor_dedither_source =
@@ -733,14 +922,37 @@ index a20f191..e8e7ad9 100644
 +            dedither_dest_write.pImageInfo = &dedither_dest_info;
 +            dfn.vkUpdateDescriptorSets(device, 1, &dedither_dest_write, 0, nullptr);
 +
-+            std::array<VkDescriptorSet, kSwapFxaaDescriptorSetCount> dedither_sets{};
-+            dedither_sets[kSwapFxaaDescriptorSetSource] = swap_descriptor_dedither_source;
-+            dedither_sets[kSwapFxaaDescriptorSetDestination] = swap_descriptor_dedither_dest;
++            VkDescriptorSet swap_descriptor_dedither_depth =
++                swap_descriptors_dedither_depth_[swap_frame_index];
++            VkDescriptorImageInfo dedither_depth_info;
++            dedither_depth_info.sampler = swap_sampler_nearest_clamp_;
++            dedither_depth_info.imageView =
++                depth_view != VK_NULL_HANDLE ? depth_view : swap_fxaa_source_image_view_;
++            dedither_depth_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++            VkWriteDescriptorSet dedither_depth_write;
++            dedither_depth_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
++            dedither_depth_write.pNext = nullptr;
++            dedither_depth_write.dstSet = swap_descriptor_dedither_depth;
++            dedither_depth_write.dstBinding = 0;
++            dedither_depth_write.dstArrayElement = 0;
++            dedither_depth_write.descriptorCount = 1;
++            dedither_depth_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
++            dedither_depth_write.pImageInfo = &dedither_depth_info;
++            dedither_depth_write.pBufferInfo = nullptr;
++            dedither_depth_write.pTexelBufferView = nullptr;
++            dfn.vkUpdateDescriptorSets(device, 1, &dedither_depth_write, 0, nullptr);
++
++            swap_post_constants.has_depth = (depth_view != VK_NULL_HANDLE) ? 1u : 0u;
++
++            std::array<VkDescriptorSet, kSwapDeditherDescriptorSetCount> dedither_sets{};
++            dedither_sets[kSwapDeditherDescriptorSetSource] = swap_descriptor_dedither_source;
++            dedither_sets[kSwapDeditherDescriptorSetDestination] = swap_descriptor_dedither_dest;
++            dedither_sets[kSwapDeditherDescriptorSetDepth] = swap_descriptor_dedither_depth;
 +            deferred_command_buffer_.CmdVkBindDescriptorSets(
-+                VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
++                VK_PIPELINE_BIND_POINT_COMPUTE, swap_dedither_pipeline_layout_, 0,
 +                uint32_t(dedither_sets.size()), dedither_sets.data(), 0, nullptr);
 +            deferred_command_buffer_.CmdVkPushConstants(
-+                swap_fxaa_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
++                swap_dedither_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
 +                sizeof(swap_post_constants), &swap_post_constants);
 +            BindExternalComputePipeline(swap_dedither_to_fxaa_pipeline_);
 +            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
@@ -815,6 +1027,29 @@ index a20f191..e8e7ad9 100644
 +                                   VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
 +                                   VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL,
 +                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
++            VulkanRenderTarget* depth_rt =
++                render_target_cache_->GetMainDepthRenderTarget(guest_output_width, guest_output_height);
++            VkImageView depth_view = VK_NULL_HANDLE;
++            if (depth_rt && depth_rt->view_depth_color() != VK_NULL_HANDLE) {
++              depth_view = depth_rt->view_depth_color();
++              if (depth_rt->current_layout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL ||
++                  (depth_rt->current_access_mask() &
++                   (VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT))) {
++                PushImageMemoryBarrier(
++                    depth_rt->image(),
++                    ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                 VK_IMAGE_ASPECT_STENCIL_BIT),
++                    depth_rt->current_stage_mask()
++                        ? depth_rt->current_stage_mask()
++                        : (VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
++                           VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT),
++                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, depth_rt->current_access_mask(),
++                    VK_ACCESS_SHADER_READ_BIT, depth_rt->current_layout(),
++                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
++                depth_rt->SetUsage(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
++                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
++              }
++            }
 +            SubmitBarriers(true);
 +            swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 +            swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_READ_BIT;
@@ -851,14 +1086,37 @@ index a20f191..e8e7ad9 100644
 +            dedither_dest_write.pImageInfo = &dedither_dest_info;
 +            dfn.vkUpdateDescriptorSets(device, 1, &dedither_dest_write, 0, nullptr);
 +
-+            std::array<VkDescriptorSet, kSwapFxaaDescriptorSetCount> dedither_sets{};
-+            dedither_sets[kSwapFxaaDescriptorSetSource] = swap_descriptor_dedither_source;
-+            dedither_sets[kSwapFxaaDescriptorSetDestination] = swap_descriptor_dedither_dest;
++            VkDescriptorSet swap_descriptor_dedither_depth =
++                swap_descriptors_dedither_depth_[swap_frame_index];
++            VkDescriptorImageInfo dedither_depth_info;
++            dedither_depth_info.sampler = swap_sampler_nearest_clamp_;
++            dedither_depth_info.imageView =
++                depth_view != VK_NULL_HANDLE ? depth_view : swap_fxaa_source_image_view_;
++            dedither_depth_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++            VkWriteDescriptorSet dedither_depth_write;
++            dedither_depth_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
++            dedither_depth_write.pNext = nullptr;
++            dedither_depth_write.dstSet = swap_descriptor_dedither_depth;
++            dedither_depth_write.dstBinding = 0;
++            dedither_depth_write.dstArrayElement = 0;
++            dedither_depth_write.descriptorCount = 1;
++            dedither_depth_write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
++            dedither_depth_write.pImageInfo = &dedither_depth_info;
++            dedither_depth_write.pBufferInfo = nullptr;
++            dedither_depth_write.pTexelBufferView = nullptr;
++            dfn.vkUpdateDescriptorSets(device, 1, &dedither_depth_write, 0, nullptr);
++
++            swap_post_constants.has_depth = (depth_view != VK_NULL_HANDLE) ? 1u : 0u;
++
++            std::array<VkDescriptorSet, kSwapDeditherDescriptorSetCount> dedither_sets{};
++            dedither_sets[kSwapDeditherDescriptorSetSource] = swap_descriptor_dedither_source;
++            dedither_sets[kSwapDeditherDescriptorSetDestination] = swap_descriptor_dedither_dest;
++            dedither_sets[kSwapDeditherDescriptorSetDepth] = swap_descriptor_dedither_depth;
 +            deferred_command_buffer_.CmdVkBindDescriptorSets(
-+                VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
++                VK_PIPELINE_BIND_POINT_COMPUTE, swap_dedither_pipeline_layout_, 0,
 +                uint32_t(dedither_sets.size()), dedither_sets.data(), 0, nullptr);
 +            deferred_command_buffer_.CmdVkPushConstants(
-+                swap_fxaa_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
++                swap_dedither_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
 +                sizeof(swap_post_constants), &swap_post_constants);
 +            BindExternalComputePipeline(swap_dedither_pipeline_);
 +            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
@@ -866,7 +1124,7 @@ index a20f191..e8e7ad9 100644
              // Make the FXAA source image readable and bind a separate
              // destination storage descriptor targeting the guest output image.
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
-@@ -5675,12 +6185,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5675,12 +6337,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                  VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
                  uint32_t(swap_fxaa_descriptor_sets.size()), swap_fxaa_descriptor_sets.data(), 0,
                  nullptr);
@@ -880,3 +1138,47 @@ index a20f191..e8e7ad9 100644
              BindExternalComputePipeline(swap_post_effect == SwapPostEffect::kFxaaExtreme
                                              ? swap_fxaa_extreme_pipeline_
                                              : swap_fxaa_pipeline_);
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index dc59e58..d49bb0c 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -1133,6 +1133,7 @@ void VulkanRenderTargetCache::ClearCache() {
+   render_passes_.clear();
+ 
+   // The accumulated bindings may point to render targets the common ClearCache deletes.
++  last_scene_depth_render_target_ = nullptr;
+   ResetAccumulatedRenderTargets();
+   RenderTargetCache::ClearCache();
+ }
+@@ -1148,6 +1149,7 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
+   }
+   framebuffers_.clear();
+   fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
++  last_scene_depth_render_target_ = nullptr;
+   ResetAccumulatedRenderTargets();
+   RenderTargetCache::ClearCache();
+ }
+@@ -1540,6 +1542,10 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+       if (depth_and_color_render_targets[0]) {
+         render_pass_key.depth_and_color_used |= 1 << 0;
+         render_pass_key.depth_format = depth_and_color_render_targets[0]->key().GetDepthFormat();
++        if (normalized_depth_control.z_enable || normalized_depth_control.z_write_enable) {
++          last_scene_depth_render_target_ =
++              static_cast<VulkanRenderTarget*>(depth_and_color_render_targets[0]);
++        }
+       }
+       if (depth_and_color_render_targets[1]) {
+         render_pass_key.depth_and_color_used |= 1 << 1;
+@@ -6525,4 +6531,12 @@ bool VulkanRenderTargetCache::CopyHdrScene(VkImage destination, uint32_t width,
+   return true;
+ }
+ 
++VulkanRenderTargetCache::VulkanRenderTarget*
++VulkanRenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t height) const {
++  if (GetPath() != Path::kHostRenderTargets) {
++    return nullptr;
++  }
++  return last_scene_depth_render_target_;
++}
++
+ }  // namespace rex::graphics::vulkan

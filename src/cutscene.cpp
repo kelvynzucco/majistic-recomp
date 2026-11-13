@@ -165,8 +165,10 @@ float UpdateCutsceneTurbo(uint8_t* base) {
     DemoProgress demo{};
     const bool demo_present = ReadDemoPlayer(base, kDemoNodeOffset, demo);
     if (demo_present) {
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
       REXLOG_INFO("[Majin Cutscene] button pressed during DEMO (frame {:.1f}/{:.1f}, step {:.2f}, {})",
                   demo.current, demo.end, demo.step, MAJIN_EDITION_NAME);
+#endif
     } else {
       REXLOG_DEBUG("[Majin Cutscene] button pressed, but no DEMO active ({})", MAJIN_EDITION_NAME);
     }
@@ -197,10 +199,14 @@ float UpdateCutsceneTurbo(uint8_t* base) {
   if (was_active != active) {
     rex::audio::SetPlaybackFrequencyRatio(active ? multiplier : 1.0f);
     if (active) {
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
       REXLOG_INFO("[Majin Cutscene] fast-forward x{} ({} frames left, {})",
                   static_cast<int>(multiplier), static_cast<int>(remaining), MAJIN_EDITION_NAME);
+#endif
     } else {
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
       REXLOG_INFO("[Majin Cutscene] fast-forward off ({})", MAJIN_EDITION_NAME);
+#endif
       // If turbo stopped while the button is still held (end margin reached or cutscene ended),
       // lock out turbo so it never affects gameplay even if held continuously.
       if (button_held) {

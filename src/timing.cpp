@@ -89,9 +89,11 @@ REX_EXTERN(MAJIN_FN_TITLE_LOGO) {
   const uint32_t s_before = object ? REX_LOAD_U32(object + 48) : 0;
   MAJIN_IMP_TITLE_LOGO(ctx, base);
   const uint32_t s_after = object ? REX_LOAD_U32(object + 48) : 0;
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
   if (s_before != s_after && REXCVAR_GET(majin_skip_intro_logos)) {
     REXLOG_INFO("[Majin SceneTitleLogo] state {} -> {}", s_before, s_after);
   }
+#endif
 }
 
 // Scaleform GFx Invoke (PAL: sub_823D4B80 / USA: sub_823D4B10)

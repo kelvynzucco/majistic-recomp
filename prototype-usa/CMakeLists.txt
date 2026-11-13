@@ -43,6 +43,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebI
     endif()
 endif()
 
+option(MAJIN_ENABLE_DIAGNOSTICS "Enable high-frequency diagnostic tracing hooks in core runtime" OFF)
+if(MAJIN_ENABLE_DIAGNOSTICS)
+    add_compile_definitions(MAJIN_ENABLE_DIAGNOSTICS=1)
+    message(STATUS "High-frequency diagnostic tracing ENABLED.")
+endif()
+
 add_compile_definitions(MAJIN_EDITION_USA=1)
 
 include(generated/rexglue.cmake)

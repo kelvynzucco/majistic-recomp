@@ -209,4 +209,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Dynamic State and Barrier Fixes patch application'
 }
 
-Write-Host "[1.1 - 1.13] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.14: Apply Non-volatile memory accessors template patch (Issue #17)
+$nonVolatilePatch = Join-Path $patchRoot 'codegen-nonvolatile-memory-accessors.patch'
+git -C $source apply --reverse --check $nonVolatilePatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $nonVolatilePatch
+    Check-Native 'Non-volatile memory accessors patch check'
+    git -C $source apply $nonVolatilePatch
+    Check-Native 'Non-volatile memory accessors patch application'
+}
+
+Write-Host "[1.1 - 1.14] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

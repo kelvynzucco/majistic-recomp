@@ -239,4 +239,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan draw-scale swap source and present gating patch application'
 }
 
-Write-Host "[1.1 - 1.16] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.17: Apply Vulkan de-dither edge-preserving filter post-processing patch
+$vulkanDeDitherPatch = Join-Path $patchRoot 'vulkan-swap-dedither.patch'
+git -C $source apply --reverse --check $vulkanDeDitherPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanDeDitherPatch
+    Check-Native 'Vulkan de-dither post-processing patch check'
+    git -C $source apply $vulkanDeDitherPatch
+    Check-Native 'Vulkan de-dither post-processing patch application'
+}
+
+Write-Host "[1.1 - 1.17] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

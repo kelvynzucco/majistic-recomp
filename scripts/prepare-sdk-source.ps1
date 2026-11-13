@@ -219,4 +219,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Non-volatile memory accessors patch application'
 }
 
-Write-Host "[1.1 - 1.14] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.15: Apply SharedMemory watch page bitmask spatial partitioning patch (Issue #22)
+$watchBitmaskPatch = Join-Path $patchRoot 'shared-memory-watch-page-bitmask.patch'
+git -C $source apply --reverse --check $watchBitmaskPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $watchBitmaskPatch
+    Check-Native 'SharedMemory watch page bitmask patch check'
+    git -C $source apply $watchBitmaskPatch
+    Check-Native 'SharedMemory watch page bitmask patch application'
+}
+
+Write-Host "[1.1 - 1.15] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

@@ -78,21 +78,23 @@ index bef8db8..5194072 100644
                                      : fxaa_pipeline_.Get());
              SubmitBarriers();
 diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
-index 1096089..f666992 100644
+index 1096089..af8e167 100644
 --- a/src/graphics/graphics_system.cpp
 +++ b/src/graphics/graphics_system.cpp
-@@ -40,8 +40,9 @@
+@@ -40,9 +40,10 @@
  #include <windows.h>
  #endif
  
 -REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU", "Swap post effect: none, fxaa, fxaa_extreme")
 -    .allowed({"none", "fxaa", "fxaa_extreme"})
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 +REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU",
 +                      "Swap post effect: none, fxaa, fxaa_extreme, dedither, dedither_fxaa, dedither_fxaa_extreme")
 +    .allowed({"none", "fxaa", "fxaa_extreme", "dedither", "dedither_fxaa", "dedither_fxaa_extreme"})
-     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
  REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
+                     "Store shaders persistently and load them when loading games to avoid "
 @@ -63,6 +64,16 @@ rex::graphics::CommandProcessor::SwapPostEffect ParseSwapPostEffect(
    if (lowered == "fxaa_extreme" || lowered == "extreme") {
      return rex::graphics::CommandProcessor::SwapPostEffect::kFxaaExtreme;
@@ -110,6 +112,28 @@ index 1096089..f666992 100644
    return rex::graphics::CommandProcessor::SwapPostEffect::kNone;
  }
  }  // namespace
+@@ -145,6 +156,13 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+     return X_STATUS_UNSUCCESSFUL;
+   }
+   command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(REXCVAR_GET(swap_post_effect)));
++  rex::cvar::RegisterChangeCallback(
++      "swap_post_effect", [this](std::string_view, std::string_view new_value) {
++        if (command_processor_) {
++          command_processor_->SetDesiredSwapPostEffect(
++              ParseSwapPostEffect(std::string(new_value)));
++        }
++      });
+ 
+   // Register GPU MMIO handlers
+   // GPU registers are at 0x7FC80000-0x7FCFFFFF
+@@ -233,6 +251,7 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+ }
+ 
+ void GraphicsSystem::Shutdown() {
++  rex::cvar::UnregisterChangeCallbacks("swap_post_effect");
+   if (command_processor_) {
+     command_processor_->Shutdown();
+     command_processor_.reset();
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
 index a20f191..ce717fa 100644
 --- a/src/graphics/vulkan/command_processor.cpp

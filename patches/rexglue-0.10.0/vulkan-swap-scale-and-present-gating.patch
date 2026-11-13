@@ -41,10 +41,64 @@ index a20f191..4d1786e 100644
      if (!draw_scale_swap_unscaled_logged) {
        draw_scale_swap_unscaled_logged = true;
 diff --git a/src/ui/presenter.cpp b/src/ui/presenter.cpp
-index c022d65..49740dc 100644
+index c022d65..8250242 100644
 --- a/src/ui/presenter.cpp
 +++ b/src/ui/presenter.cpp
-@@ -1163,7 +1163,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+@@ -55,7 +55,7 @@ REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
+                       "Guest output effect: bilinear, cas (sharpen, up to 2x), fsr (FSR 1 "
+                       "upscaling and sharpening)")
+     .allowed({"bilinear", "cas", "fsr"})
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ #endif
+ 
+ REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+@@ -63,7 +63,7 @@ REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+                       "UI/Presenter", "Additional CAS sharpness in [0, 1]")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax)
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ REXCVAR_DEFINE_INT32(present_fsr_max_upsampling_passes,
+                      rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax,
+@@ -76,7 +76,7 @@ REXCVAR_DEFINE_DOUBLE(present_fsr_sharpness_reduction,
+                       "UI/Presenter", "FSR RCAS sharpness reduction in stops")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax)
+-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ REXCVAR_DEFINE_STRING(
+     present_fsr_quality_mode, "auto", "UI/Presenter",
+@@ -351,6 +351,11 @@ void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsib
+ }
+ 
+ Presenter::~Presenter() {
++  rex::cvar::UnregisterChangeCallbacks("present_effect");
++  rex::cvar::UnregisterChangeCallbacks("present_dither");
++  rex::cvar::UnregisterChangeCallbacks("present_cas_additional_sharpness");
++  rex::cvar::UnregisterChangeCallbacks("present_fsr_sharpness_reduction");
++
+   // No intrusive lifetime management must be performed from UI drawers - defer
+   // it if needed.
+   assert_false(is_executing_ui_drawers_);
+@@ -893,6 +898,14 @@ bool Presenter::InitializeCommonSurfaceIndependent() {
+     guest_output_paint_config_ = BuildGuestOutputPaintConfigFromCVar();
+   }
+ 
++  auto update_config_callback = [this](std::string_view, std::string_view) {
++    SetGuestOutputPaintConfigFromUIThread(BuildGuestOutputPaintConfigFromCVar());
++  };
++  rex::cvar::RegisterChangeCallback("present_effect", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_dither", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_cas_additional_sharpness", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_fsr_sharpness_reduction", update_config_callback);
++
+   // Initialize UI frame rate limiting.
+ #if REX_PLATFORM_WIN32
+   dxgi_ui_tick_thread_ = std::thread(&Presenter::DXGIUITickThread, this);
+@@ -1163,7 +1176,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
      bool temporal_quality_mode_forced =
          is_temporal_effect &&
          config.GetFsrQualityMode() != GuestOutputPaintConfig::FsrQualityMode::kAuto;
@@ -56,7 +110,7 @@ index c022d65..49740dc 100644
          ((ffx_last_size.first < output_width_clamped ||
            ffx_last_size.second < output_height_clamped) ||
           temporal_quality_mode_forced)) {
-@@ -1230,7 +1233,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+@@ -1230,7 +1246,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
        assert_true(flow.effect_count < flow.effects.size());
        flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
        flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrRcas;
@@ -65,7 +119,7 @@ index c022d65..49740dc 100644
        // AMD FidelityFX Contrast Adaptive Sharpening - sharpen or downsample, or
        // upsample up to 2x2 if CAS is specified to be used for upscaling too.
        // Using the unclamped output size as CAS may be the last pass - if a
-@@ -1276,6 +1279,41 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+@@ -1276,6 +1292,41 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
  
    assert_not_zero(flow.effect_count);
  

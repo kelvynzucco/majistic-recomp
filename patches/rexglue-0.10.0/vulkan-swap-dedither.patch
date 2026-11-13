@@ -103,7 +103,7 @@ index 2d04ff9..efbd4ae 100644
    VkPipeline resolve_downscale_pipeline_ = VK_NULL_HANDLE;
    VkBuffer resolve_downscale_buffer_ = VK_NULL_HANDLE;
 diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
-index 983e9c1..300187d 100644
+index 983e9c1..8100c5c 100644
 --- a/include/rex/graphics/vulkan/render_target_cache.h
 +++ b/include/rex/graphics/vulkan/render_target_cache.h
 @@ -345,6 +345,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
@@ -124,15 +124,16 @@ index 983e9c1..300187d 100644
    struct FramebufferKey {
      RenderPassKey render_pass_key;
  
-@@ -942,6 +946,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -942,6 +946,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    uint64_t direct_resolve_attempt_count_ = 0;
    uint64_t direct_resolve_success_count_ = 0;
    uint64_t direct_resolve_fallback_count_ = 0;
 +  VulkanRenderTarget* last_scene_depth_render_target_ = nullptr;
++  VulkanRenderTarget* main_scene_depth_render_target_ = nullptr;
  
    // For pixel (fragment) shader interlock.
  
-@@ -953,4 +958,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -953,4 +959,6 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    VkPipeline resolve_fsi_clear_64bpp_pipeline_ = VK_NULL_HANDLE;
  };
  
@@ -240,10 +241,10 @@ index 1096089..dbd9b00 100644
      command_processor_->Shutdown();
      command_processor_.reset();
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index a20f191..5dd3cd0 100644
+index a20f191..2a8bf4d 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -383,6 +383,260 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
+@@ -383,6 +383,336 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
      },
  };
  
@@ -265,7 +266,15 @@ index a20f191..5dd3cd0 100644
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
 +
-+float DetectDitherAtStep(vec2 uv, vec2 st, out vec3 outBoxAvg) {
++ivec2 ClampCoord(ivec2 p) {
++  return clamp(p, ivec2(0), ivec2(xe_dedither_size) - ivec2(1));
++}
++
++float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
++  vec2 texel = xe_dedither_size_inv;
++  vec2 uv = (vec2(p) + vec2(0.5)) * texel;
++  vec2 st = float(stepVal) * texel;
++
 +  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
 +  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
 +  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
@@ -284,53 +293,70 @@ index a20f191..5dd3cd0 100644
 +    return 0.0;
 +  }
 +
-+  // Sample depth buffer at center and all 8 neighbors (cardinals and diagonals)
-+  float zC  = textureLod(xe_dedither_depth, uv, 0.0).r;
-+  float zN  = textureLod(xe_dedither_depth, uv + vec2( 0.0, -st.y), 0.0).r;
-+  float zS  = textureLod(xe_dedither_depth, uv + vec2( 0.0,  st.y), 0.0).r;
-+  float zE  = textureLod(xe_dedither_depth, uv + vec2( st.x,  0.0), 0.0).r;
-+  float zW  = textureLod(xe_dedither_depth, uv + vec2(-st.x,  0.0), 0.0).r;
-+  float zNW = textureLod(xe_dedither_depth, uv + vec2(-st.x, -st.y), 0.0).r;
-+  float zNE = textureLod(xe_dedither_depth, uv + vec2( st.x, -st.y), 0.0).r;
-+  float zSW = textureLod(xe_dedither_depth, uv + vec2(-st.x,  st.y), 0.0).r;
-+  float zSE = textureLod(xe_dedither_depth, uv + vec2( st.x,  st.y), 0.0).r;
++  // Sample depth buffer at center and 8 neighbors using texelFetch with integer coordinates
++  // to perfectly match screen texels regardless of EDRAM render target allocation height padding.
++  float zC  = texelFetch(xe_dedither_depth, p, 0).r;
++  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal)), 0).r;
++  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal)), 0).r;
++  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0)), 0).r;
++  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0)), 0).r;
++  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal)), 0).r;
++  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal)), 0).r;
++  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal)), 0).r;
++  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal)), 0).r;
 +
-+  // 1. Alternating depth oscillation check:
-+  // On smooth continuous geometry, the depth derivative is monotonic across opposite directions,
-+  // making (zW - zC) * (zE - zC) <= 0.
-+  // In dithered alpha / screen-door perforations, foreground pixels alternate with background pixels,
-+  // creating sharp opposite-sign peaks/valleys where the product is positive.
-+  float zOscH  = (zW - zC) * (zE - zC);
-+  float zOscV  = (zN - zC) * (zS - zC);
-+  float zOscD1 = (zNW - zC) * (zSE - zC);
-+  float zOscD2 = (zNE - zC) * (zSW - zC);
++  float dW = zW - zC;
++  float dE = zE - zC;
++  float dN = zN - zC;
++  float dS = zS - zC;
++  float dNW = zNW - zC;
++  float dSE = zSE - zC;
++  float dNE = zNE - zC;
++  float dSW = zSW - zC;
 +
-+  float zStrH  = (zOscH > 0.0)  ? min(abs(zW - zC), abs(zE - zC)) : 0.0;
-+  float zStrV  = (zOscV > 0.0)  ? min(abs(zN - zC), abs(zS - zC)) : 0.0;
-+  float zStrD1 = (zOscD1 > 0.0) ? min(abs(zNW - zC), abs(zSE - zC)) : 0.0;
-+  float zStrD2 = (zOscD2 > 0.0) ? min(abs(zNE - zC), abs(zSW - zC)) : 0.0;
++  // 1. Boolean sign test for alternating oscillation (symmetric peak/valley):
++  // Magnitude measured linearly with min(|dz1|, |dz2|) to avoid quadratic scale distortion.
++  bool oscH  = (dW * dE > 0.0);
++  bool oscV  = (dN * dS > 0.0);
++  bool oscD1 = (dNW * dSE > 0.0);
++  bool oscD2 = (dNE * dSW > 0.0);
 +
-+  float maxZStr = max(max(zStrH, zStrV), max(zStrD1, zStrD2));
++  float strH  = oscH  ? min(abs(dW),  abs(dE))  : 0.0;
++  float strV  = oscV  ? min(abs(dN),  abs(dS))  : 0.0;
++  float strD1 = oscD1 ? min(abs(dNW), abs(dSE)) : 0.0;
++  float strD2 = oscD2 ? min(abs(dNE), abs(dSW)) : 0.0;
++  float maxOscStr = max(max(strH, strV), max(strD1, strD2));
 +
-+  // 2. Planar surface deviation check (Laplacian):
-+  // Smooth 3D meshes (character, clothes, ground, rocks) have near-zero second derivative.
-+  // Screen-door transparency introduces massive jumps relative to local planar fit.
-+  float zCardAvg = 0.25 * (zN + zS + zE + zW);
-+  float zDiagAvg = 0.25 * (zNW + zNE + zSW + zSE);
-+  float zPlanarDev = abs(zC - zCardAvg);
-+  float zDiagDev = abs(zC - zDiagAvg);
-+  float maxZDev = max(zPlanarDev, zDiagDev);
++  // 2. Local 1D Laplacian / Planar surface deviation:
++  // Smooth 3D geometry (character clothes, rocks, ground) is planar (d1 + d2 == 0).
++  // Alpha dither perforations / Bayer patterns introduce sharp discontinuous deviation.
++  float lapH  = abs(dW + dE);
++  float lapV  = abs(dN + dS);
++  float lapD1 = abs(dNW + dSE);
++  float lapD2 = abs(dNE + dSW);
++  float maxLap = max(max(lapH, lapV), max(lapD1, lapD2));
 +
-+  const float kDepthThreshold = 0.0004;
-+  if (maxZStr > kDepthThreshold && maxZDev > kDepthThreshold) {
-+    float depthConf = clamp((maxZDev - kDepthThreshold) / 0.006, 0.0, 1.0);
-+    float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
-+    if (colorDiff > 0.005) {
-+      return depthConf;
-+    }
++  float maxDelta = max(max(abs(dW), abs(dE)), max(abs(dN), abs(dS)));
++  maxDelta = max(maxDelta, max(max(abs(dNW), abs(dNE)), max(abs(dSW), abs(dSE))));
++
++  // 3. Adaptive depth scale (normalizes hyperbolic/Reverse-Z curvature for distant trees):
++  float depthScale = max(min(zC, 1.0 - zC), 0.0005);
++  float relOsc   = maxOscStr / depthScale;
++  float relLap   = maxLap / depthScale;
++  float relDelta = maxDelta / depthScale;
++
++  // 4. Color contrast test:
++  float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
++
++  bool isDitherDepth = (relOsc > 0.012) || (relLap > 0.025 && relDelta > 0.02);
++  if (!isDitherDepth || colorDiff < 0.004) {
++    return 0.0;
 +  }
 +
-+  return 0.0;
++  float depthMetric = max(relOsc, relLap * 0.6);
++  float depthConf = clamp((depthMetric - 0.01) / 0.04, 0.0, 1.0);
++  float colorConf = clamp((colorDiff - 0.004) / 0.025, 0.0, 1.0);
++  return depthConf * colorConf;
 +}
 +
 +void main() {
@@ -339,22 +365,22 @@ index a20f191..5dd3cd0 100644
 +    return;
 +  }
 +
++  ivec2 p = ivec2(pixel);
 +  vec2 texel = xe_dedither_size_inv;
 +  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
 +  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
 +
-+  float scaleVal = float(max(xe_dedither_scale.x, 1u));
-+  vec2 stepScale = texel * scaleVal;
++  int scaleVal = int(max(xe_dedither_scale.x, 1u));
 +
 +  vec3 boxAvgScale;
-+  float confScale = DetectDitherAtStep(uv, stepScale, boxAvgScale);
++  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
 +
 +  float confidence = confScale;
 +  vec3 bestBoxAvg = boxAvgScale;
 +
-+  if (scaleVal > 1.5) {
++  if (scaleVal > 1) {
 +    vec3 boxAvgNative;
-+    float confNative = DetectDitherAtStep(uv, texel, boxAvgNative);
++    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
 +    if (confNative > confidence) {
 +      confidence = confNative;
 +      bestBoxAvg = boxAvgNative;
@@ -363,8 +389,21 @@ index a20f191..5dd3cd0 100644
 +
 +  vec3 result = c;
 +  if (xe_dedither_debug != 0u) {
-+    if (confidence > 0.02) {
-+      result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++    if (pixel.x < 360u && pixel.y < 202u) {
++      if (pixel.x == 0u || pixel.x == 359u || pixel.y == 0u || pixel.y == 201u) {
++        result = vec3(1.0, 1.0, 0.0);
++      } else if (xe_dedither_has_depth == 0u) {
++        result = vec3(1.0, 0.0, 0.0);
++      } else {
++        ivec2 fullCoord = ivec2((vec2(pixel) / vec2(360.0, 202.0)) * vec2(xe_dedither_size));
++        float pipZ = texelFetch(xe_dedither_depth, fullCoord, 0).r;
++        float visZ = pow(clamp(pipZ, 0.0, 1.0), 0.35);
++        result = vec3(visZ);
++      }
++    } else {
++      if (confidence > 0.01) {
++        result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++      }
 +    }
 +  } else {
 +    result = mix(c, bestBoxAvg, 0.75 * confidence);
@@ -391,7 +430,15 @@ index a20f191..5dd3cd0 100644
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
 +
-+float DetectDitherAtStep(vec2 uv, vec2 st, out vec3 outBoxAvg) {
++ivec2 ClampCoord(ivec2 p) {
++  return clamp(p, ivec2(0), ivec2(xe_dedither_size) - ivec2(1));
++}
++
++float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
++  vec2 texel = xe_dedither_size_inv;
++  vec2 uv = (vec2(p) + vec2(0.5)) * texel;
++  vec2 st = float(stepVal) * texel;
++
 +  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
 +  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
 +  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
@@ -410,53 +457,70 @@ index a20f191..5dd3cd0 100644
 +    return 0.0;
 +  }
 +
-+  // Sample depth buffer at center and all 8 neighbors (cardinals and diagonals)
-+  float zC  = textureLod(xe_dedither_depth, uv, 0.0).r;
-+  float zN  = textureLod(xe_dedither_depth, uv + vec2( 0.0, -st.y), 0.0).r;
-+  float zS  = textureLod(xe_dedither_depth, uv + vec2( 0.0,  st.y), 0.0).r;
-+  float zE  = textureLod(xe_dedither_depth, uv + vec2( st.x,  0.0), 0.0).r;
-+  float zW  = textureLod(xe_dedither_depth, uv + vec2(-st.x,  0.0), 0.0).r;
-+  float zNW = textureLod(xe_dedither_depth, uv + vec2(-st.x, -st.y), 0.0).r;
-+  float zNE = textureLod(xe_dedither_depth, uv + vec2( st.x, -st.y), 0.0).r;
-+  float zSW = textureLod(xe_dedither_depth, uv + vec2(-st.x,  st.y), 0.0).r;
-+  float zSE = textureLod(xe_dedither_depth, uv + vec2( st.x,  st.y), 0.0).r;
++  // Sample depth buffer at center and 8 neighbors using texelFetch with integer coordinates
++  // to perfectly match screen texels regardless of EDRAM render target allocation height padding.
++  float zC  = texelFetch(xe_dedither_depth, p, 0).r;
++  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal)), 0).r;
++  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal)), 0).r;
++  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0)), 0).r;
++  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0)), 0).r;
++  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal)), 0).r;
++  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal)), 0).r;
++  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal)), 0).r;
++  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal)), 0).r;
 +
-+  // 1. Alternating depth oscillation check:
-+  // On smooth continuous geometry, the depth derivative is monotonic across opposite directions,
-+  // making (zW - zC) * (zE - zC) <= 0.
-+  // In dithered alpha / screen-door perforations, foreground pixels alternate with background pixels,
-+  // creating sharp opposite-sign peaks/valleys where the product is positive.
-+  float zOscH  = (zW - zC) * (zE - zC);
-+  float zOscV  = (zN - zC) * (zS - zC);
-+  float zOscD1 = (zNW - zC) * (zSE - zC);
-+  float zOscD2 = (zNE - zC) * (zSW - zC);
++  float dW = zW - zC;
++  float dE = zE - zC;
++  float dN = zN - zC;
++  float dS = zS - zC;
++  float dNW = zNW - zC;
++  float dSE = zSE - zC;
++  float dNE = zNE - zC;
++  float dSW = zSW - zC;
 +
-+  float zStrH  = (zOscH > 0.0)  ? min(abs(zW - zC), abs(zE - zC)) : 0.0;
-+  float zStrV  = (zOscV > 0.0)  ? min(abs(zN - zC), abs(zS - zC)) : 0.0;
-+  float zStrD1 = (zOscD1 > 0.0) ? min(abs(zNW - zC), abs(zSE - zC)) : 0.0;
-+  float zStrD2 = (zOscD2 > 0.0) ? min(abs(zNE - zC), abs(zSW - zC)) : 0.0;
++  // 1. Boolean sign test for alternating oscillation (symmetric peak/valley):
++  // Magnitude measured linearly with min(|dz1|, |dz2|) to avoid quadratic scale distortion.
++  bool oscH  = (dW * dE > 0.0);
++  bool oscV  = (dN * dS > 0.0);
++  bool oscD1 = (dNW * dSE > 0.0);
++  bool oscD2 = (dNE * dSW > 0.0);
 +
-+  float maxZStr = max(max(zStrH, zStrV), max(zStrD1, zStrD2));
++  float strH  = oscH  ? min(abs(dW),  abs(dE))  : 0.0;
++  float strV  = oscV  ? min(abs(dN),  abs(dS))  : 0.0;
++  float strD1 = oscD1 ? min(abs(dNW), abs(dSE)) : 0.0;
++  float strD2 = oscD2 ? min(abs(dNE), abs(dSW)) : 0.0;
++  float maxOscStr = max(max(strH, strV), max(strD1, strD2));
 +
-+  // 2. Planar surface deviation check (Laplacian):
-+  // Smooth 3D meshes (character, clothes, ground, rocks) have near-zero second derivative.
-+  // Screen-door transparency introduces massive jumps relative to local planar fit.
-+  float zCardAvg = 0.25 * (zN + zS + zE + zW);
-+  float zDiagAvg = 0.25 * (zNW + zNE + zSW + zSE);
-+  float zPlanarDev = abs(zC - zCardAvg);
-+  float zDiagDev = abs(zC - zDiagAvg);
-+  float maxZDev = max(zPlanarDev, zDiagDev);
++  // 2. Local 1D Laplacian / Planar surface deviation:
++  // Smooth 3D geometry (character clothes, rocks, ground) is planar (d1 + d2 == 0).
++  // Alpha dither perforations / Bayer patterns introduce sharp discontinuous deviation.
++  float lapH  = abs(dW + dE);
++  float lapV  = abs(dN + dS);
++  float lapD1 = abs(dNW + dSE);
++  float lapD2 = abs(dNE + dSW);
++  float maxLap = max(max(lapH, lapV), max(lapD1, lapD2));
 +
-+  const float kDepthThreshold = 0.0004;
-+  if (maxZStr > kDepthThreshold && maxZDev > kDepthThreshold) {
-+    float depthConf = clamp((maxZDev - kDepthThreshold) / 0.006, 0.0, 1.0);
-+    float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
-+    if (colorDiff > 0.005) {
-+      return depthConf;
-+    }
++  float maxDelta = max(max(abs(dW), abs(dE)), max(abs(dN), abs(dS)));
++  maxDelta = max(maxDelta, max(max(abs(dNW), abs(dNE)), max(abs(dSW), abs(dSE))));
++
++  // 3. Adaptive depth scale (normalizes hyperbolic/Reverse-Z curvature for distant trees):
++  float depthScale = max(min(zC, 1.0 - zC), 0.0005);
++  float relOsc   = maxOscStr / depthScale;
++  float relLap   = maxLap / depthScale;
++  float relDelta = maxDelta / depthScale;
++
++  // 4. Color contrast test:
++  float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
++
++  bool isDitherDepth = (relOsc > 0.012) || (relLap > 0.025 && relDelta > 0.02);
++  if (!isDitherDepth || colorDiff < 0.004) {
++    return 0.0;
 +  }
 +
-+  return 0.0;
++  float depthMetric = max(relOsc, relLap * 0.6);
++  float depthConf = clamp((depthMetric - 0.01) / 0.04, 0.0, 1.0);
++  float colorConf = clamp((colorDiff - 0.004) / 0.025, 0.0, 1.0);
++  return depthConf * colorConf;
 +}
 +
 +void main() {
@@ -465,22 +529,22 @@ index a20f191..5dd3cd0 100644
 +    return;
 +  }
 +
++  ivec2 p = ivec2(pixel);
 +  vec2 texel = xe_dedither_size_inv;
 +  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
 +  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
 +
-+  float scaleVal = float(max(xe_dedither_scale.x, 1u));
-+  vec2 stepScale = texel * scaleVal;
++  int scaleVal = int(max(xe_dedither_scale.x, 1u));
 +
 +  vec3 boxAvgScale;
-+  float confScale = DetectDitherAtStep(uv, stepScale, boxAvgScale);
++  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
 +
 +  float confidence = confScale;
 +  vec3 bestBoxAvg = boxAvgScale;
 +
-+  if (scaleVal > 1.5) {
++  if (scaleVal > 1) {
 +    vec3 boxAvgNative;
-+    float confNative = DetectDitherAtStep(uv, texel, boxAvgNative);
++    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
 +    if (confNative > confidence) {
 +      confidence = confNative;
 +      bestBoxAvg = boxAvgNative;
@@ -489,8 +553,21 @@ index a20f191..5dd3cd0 100644
 +
 +  vec3 result = c;
 +  if (xe_dedither_debug != 0u) {
-+    if (confidence > 0.02) {
-+      result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++    if (pixel.x < 360u && pixel.y < 202u) {
++      if (pixel.x == 0u || pixel.x == 359u || pixel.y == 0u || pixel.y == 201u) {
++        result = vec3(1.0, 1.0, 0.0);
++      } else if (xe_dedither_has_depth == 0u) {
++        result = vec3(1.0, 0.0, 0.0);
++      } else {
++        ivec2 fullCoord = ivec2((vec2(pixel) / vec2(360.0, 202.0)) * vec2(xe_dedither_size));
++        float pipZ = texelFetch(xe_dedither_depth, fullCoord, 0).r;
++        float visZ = pow(clamp(pipZ, 0.0, 1.0), 0.35);
++        result = vec3(visZ);
++      }
++    } else {
++      if (confidence > 0.01) {
++        result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++      }
 +    }
 +  } else {
 +    result = mix(c, bestBoxAvg, 0.75 * confidence);
@@ -504,7 +581,7 @@ index a20f191..5dd3cd0 100644
  const char* GetSwapFxaaComputeSource(bool extreme_quality) {
    return extreme_quality ? R"(#version 450
  layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
-@@ -2164,15 +2418,15 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2164,15 +2494,15 @@ bool VulkanCommandProcessor::SetupContext() {
          swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
      swap_descriptor_pool_size_combined_image_sampler.type =
          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -524,7 +601,7 @@ index a20f191..5dd3cd0 100644
    }
    // 256-entry table and PWL gamma ramps. If the gamma ramp buffer is
    // host-visible, for multiple frames.
-@@ -2243,6 +2497,34 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2243,6 +2573,34 @@ bool VulkanCommandProcessor::SetupContext() {
        return false;
      }
    }
@@ -559,7 +636,7 @@ index a20f191..5dd3cd0 100644
  
    // Gamma ramp descriptor sets.
    VkWriteDescriptorSet gamma_ramp_write_descriptor_set;
-@@ -2285,6 +2567,13 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2285,6 +2643,13 @@ bool VulkanCommandProcessor::SetupContext() {
      REXGPU_ERROR("Failed to create the presentation FXAA sampler");
      return false;
    }
@@ -573,7 +650,7 @@ index a20f191..5dd3cd0 100644
  
    // Gamma ramp application pipeline layout.
    std::array<VkDescriptorSetLayout, kSwapApplyGammaDescriptorSetCount>
-@@ -2358,6 +2647,27 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2358,6 +2723,27 @@ bool VulkanCommandProcessor::SetupContext() {
      return false;
    }
  
@@ -601,7 +678,7 @@ index a20f191..5dd3cd0 100644
    // Gamma application render pass. Doesn't make assumptions about outer usage
    // (explicit barriers must be used instead) for simplicity of use in different
    // scenarios with different pipelines.
-@@ -2716,6 +3026,37 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2716,6 +3102,37 @@ bool VulkanCommandProcessor::SetupContext() {
      }
    }
  
@@ -639,7 +716,7 @@ index a20f191..5dd3cd0 100644
    VkPipelineLayoutCreateInfo resolve_downscale_layout_create_info = {};
    resolve_downscale_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
    VkDescriptorSetLayout resolve_downscale_set_layout =
-@@ -3126,6 +3467,10 @@ void VulkanCommandProcessor::ShutdownContext() {
+@@ -3126,6 +3543,10 @@ void VulkanCommandProcessor::ShutdownContext() {
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                           swap_fxaa_extreme_pipeline_);
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_fxaa_pipeline_);
@@ -650,7 +727,7 @@ index a20f191..5dd3cd0 100644
    for (auto& scene : hdr_scenes_)
      DestroyHdrScene(scene);
    Fh1VrDestroy();
-@@ -3168,12 +3513,15 @@ void VulkanCommandProcessor::ShutdownContext() {
+@@ -3168,12 +3589,15 @@ void VulkanCommandProcessor::ShutdownContext() {
                                           swap_apply_gamma_256_entry_table_fxaa_luma_pipeline_);
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyRenderPass, device,
                                           swap_apply_gamma_render_pass_);
@@ -666,7 +743,7 @@ index a20f191..5dd3cd0 100644
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroySampler, device, swap_sampler_linear_clamp_);
  
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyDescriptorPool, device,
-@@ -5185,6 +5533,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5185,6 +5609,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
  
    SwapPostEffect swap_post_effect = GetActualSwapPostEffect();
  
@@ -692,7 +769,7 @@ index a20f191..5dd3cd0 100644
    // Obtain the actual swap source texture size (resolution-scaled if it's a
    // resolve destination, or not otherwise).
    uint32_t frontbuffer_width_scaled, frontbuffer_height_scaled;
-@@ -5283,10 +5650,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5283,10 +5726,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            "cache is {}x{}",
            texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
      }
@@ -708,7 +785,7 @@ index a20f191..5dd3cd0 100644
            "Vulkan draw-scale swap sizing: packet={}x{}, src_scaled={}x{}, "
            "src_unscaled={}x{}, active={}x{}",
            frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
-@@ -5294,7 +5662,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5294,7 +5738,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            guest_output_width, guest_output_height);
      }
    }
@@ -717,7 +794,7 @@ index a20f191..5dd3cd0 100644
      static bool draw_scale_swap_unscaled_logged = false;
      if (!draw_scale_swap_unscaled_logged) {
        draw_scale_swap_unscaled_logged = true;
-@@ -5358,8 +5726,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5358,8 +5802,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
          const VkDevice device = vulkan_device->device();
  
          uint32_t swap_frame_index = uint32_t(frame_current_ % kMaxFramesInFlight);
@@ -728,7 +805,7 @@ index a20f191..5dd3cd0 100644
  
          // This is according to D3D::InitializePresentationParameters from a
          // game executable, which initializes the 256-entry table gamma ramp for
-@@ -5393,40 +5761,55 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5393,40 +5837,55 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                       ? swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_
                       : swap_apply_gamma_compute_256_entry_table_pipeline_;
          };
@@ -809,7 +886,7 @@ index a20f191..5dd3cd0 100644
            swap_apply_gamma_compute_pipeline =
                select_swap_apply_gamma_compute_pipeline(use_pwl_gamma_ramp, false);
          }
-@@ -5552,7 +5935,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5552,7 +6011,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                                       : 0,
                                   VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_GENERAL);
@@ -818,7 +895,7 @@ index a20f191..5dd3cd0 100644
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
                                     swap_fxaa_source_stage_mask_ ? swap_fxaa_source_stage_mask_
                                                                  : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-@@ -5562,7 +5945,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5562,7 +6021,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            }
            SubmitBarriers(true);
  
@@ -827,7 +904,7 @@ index a20f191..5dd3cd0 100644
              swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
              swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_WRITE_BIT;
              swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_GENERAL;
-@@ -5574,7 +5957,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5574,7 +6033,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            VkDescriptorImageInfo swap_descriptor_destination_storage_image_info;
            swap_descriptor_destination_storage_image_info.sampler = VK_NULL_HANDLE;
            swap_descriptor_destination_storage_image_info.imageView =
@@ -837,7 +914,7 @@ index a20f191..5dd3cd0 100644
            swap_descriptor_destination_storage_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
            VkWriteDescriptorSet swap_descriptor_destination_storage_write;
            swap_descriptor_destination_storage_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-@@ -5615,7 +5999,285 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5615,7 +6075,315 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            uint32_t group_count_y = (guest_output_height + 7) / 8;
            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
  
@@ -869,6 +946,21 @@ index a20f191..5dd3cd0 100644
 +                                   swap_fxaa_source_layout_, VK_IMAGE_LAYOUT_GENERAL);
 +            VulkanRenderTarget* depth_rt =
 +                render_target_cache_->GetMainDepthRenderTarget(guest_output_width, guest_output_height);
++            static VulkanRenderTarget* s_last_logged_depth_rt_fxaa =
++                reinterpret_cast<VulkanRenderTarget*>(static_cast<uintptr_t>(1));
++            if (depth_rt != s_last_logged_depth_rt_fxaa) {
++              s_last_logged_depth_rt_fxaa = depth_rt;
++              if (depth_rt) {
++                REXGPU_INFO(
++                    "De-Dither Depth RT bound (FXAA path): {}x{} (format={}, base_tiles={}, image={:p}, view={:p})",
++                    depth_rt->key().GetWidth(), depth_rt->key().GetPitchTiles(),
++                    depth_rt->key().GetFormatName(), depth_rt->key().base_tiles,
++                    static_cast<void*>(depth_rt->image()),
++                    static_cast<void*>(depth_rt->view_depth_color()));
++              } else {
++                REXGPU_INFO("De-Dither Depth RT is NULL (FXAA path)");
++              }
++            }
 +            VkImageView depth_view = VK_NULL_HANDLE;
 +            if (depth_rt && depth_rt->view_depth_color() != VK_NULL_HANDLE) {
 +              depth_view = depth_rt->view_depth_color();
@@ -1029,6 +1121,21 @@ index a20f191..5dd3cd0 100644
 +                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 +            VulkanRenderTarget* depth_rt =
 +                render_target_cache_->GetMainDepthRenderTarget(guest_output_width, guest_output_height);
++            static VulkanRenderTarget* s_last_logged_depth_rt_standalone =
++                reinterpret_cast<VulkanRenderTarget*>(static_cast<uintptr_t>(1));
++            if (depth_rt != s_last_logged_depth_rt_standalone) {
++              s_last_logged_depth_rt_standalone = depth_rt;
++              if (depth_rt) {
++                REXGPU_INFO(
++                    "De-Dither Depth RT bound (standalone path): {}x{} (format={}, base_tiles={}, image={:p}, view={:p})",
++                    depth_rt->key().GetWidth(), depth_rt->key().GetPitchTiles(),
++                    depth_rt->key().GetFormatName(), depth_rt->key().base_tiles,
++                    static_cast<void*>(depth_rt->image()),
++                    static_cast<void*>(depth_rt->view_depth_color()));
++              } else {
++                REXGPU_INFO("De-Dither Depth RT is NULL (standalone path)");
++              }
++            }
 +            VkImageView depth_view = VK_NULL_HANDLE;
 +            if (depth_rt && depth_rt->view_depth_color() != VK_NULL_HANDLE) {
 +              depth_view = depth_rt->view_depth_color();
@@ -1124,7 +1231,7 @@ index a20f191..5dd3cd0 100644
              // Make the FXAA source image readable and bind a separate
              // destination storage descriptor targeting the guest output image.
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
-@@ -5675,12 +6337,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5675,12 +6443,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                  VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
                  uint32_t(swap_fxaa_descriptor_sets.size()), swap_fxaa_descriptor_sets.data(), 0,
                  nullptr);
@@ -1139,37 +1246,60 @@ index a20f191..5dd3cd0 100644
                                              ? swap_fxaa_extreme_pipeline_
                                              : swap_fxaa_pipeline_);
 diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
-index dc59e58..d49bb0c 100644
+index dc59e58..cb77c2b 100644
 --- a/src/graphics/vulkan/render_target_cache.cpp
 +++ b/src/graphics/vulkan/render_target_cache.cpp
-@@ -1133,6 +1133,7 @@ void VulkanRenderTargetCache::ClearCache() {
+@@ -1133,6 +1133,8 @@ void VulkanRenderTargetCache::ClearCache() {
    render_passes_.clear();
  
    // The accumulated bindings may point to render targets the common ClearCache deletes.
 +  last_scene_depth_render_target_ = nullptr;
++  main_scene_depth_render_target_ = nullptr;
    ResetAccumulatedRenderTargets();
    RenderTargetCache::ClearCache();
  }
-@@ -1148,6 +1149,7 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
+@@ -1148,6 +1150,8 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
    }
    framebuffers_.clear();
    fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
 +  last_scene_depth_render_target_ = nullptr;
++  main_scene_depth_render_target_ = nullptr;
    ResetAccumulatedRenderTargets();
    RenderTargetCache::ClearCache();
  }
-@@ -1540,6 +1542,10 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+@@ -1462,6 +1466,16 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
+                inputs == update_reuse_inputs_ && AccumulatedRenderTargetsInDrawUsage();
+   if (reuse) {
+     ++update_reuse_hits_;
++    if (normalized_depth_control.z_enable || normalized_depth_control.z_write_enable) {
++      RenderTarget* const* rts = last_update_accumulated_render_targets();
++      if (rts && rts[0]) {
++        auto* vulkan_depth_rt = static_cast<VulkanRenderTarget*>(rts[0]);
++        last_scene_depth_render_target_ = vulkan_depth_rt;
++        if (vulkan_depth_rt->key().GetWidth() >= 1280) {
++          main_scene_depth_render_target_ = vulkan_depth_rt;
++        }
++      }
++    }
+     if (!REXCVAR_GET(vulkan_render_target_update_reuse_verify)) {
+       ClearLastUpdateTransfers();
+       return true;
+@@ -1540,6 +1554,14 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
        if (depth_and_color_render_targets[0]) {
          render_pass_key.depth_and_color_used |= 1 << 0;
          render_pass_key.depth_format = depth_and_color_render_targets[0]->key().GetDepthFormat();
 +        if (normalized_depth_control.z_enable || normalized_depth_control.z_write_enable) {
-+          last_scene_depth_render_target_ =
++          auto* vulkan_depth_rt =
 +              static_cast<VulkanRenderTarget*>(depth_and_color_render_targets[0]);
++          last_scene_depth_render_target_ = vulkan_depth_rt;
++          if (vulkan_depth_rt->key().GetWidth() >= 1280) {
++            main_scene_depth_render_target_ = vulkan_depth_rt;
++          }
 +        }
        }
        if (depth_and_color_render_targets[1]) {
          render_pass_key.depth_and_color_used |= 1 << 1;
-@@ -6525,4 +6531,12 @@ bool VulkanRenderTargetCache::CopyHdrScene(VkImage destination, uint32_t width,
+@@ -6525,4 +6547,15 @@ bool VulkanRenderTargetCache::CopyHdrScene(VkImage destination, uint32_t width,
    return true;
  }
  
@@ -1177,6 +1307,9 @@ index dc59e58..d49bb0c 100644
 +VulkanRenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t height) const {
 +  if (GetPath() != Path::kHostRenderTargets) {
 +    return nullptr;
++  }
++  if (main_scene_depth_render_target_ != nullptr) {
++    return main_scene_depth_render_target_;
 +  }
 +  return last_scene_depth_render_target_;
 +}

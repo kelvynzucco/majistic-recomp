@@ -274,6 +274,7 @@ void InGameMenuDialog::DrawVisualsTab() {
       "De-Dither (Edge-Preserving Cross Filter)",
       "De-Dither + FXAA Fast (Recommended)",
       "De-Dither + FXAA High",
+      "De-Dither Debug Heatmap (Magenta = Dither Detected)",
   };
   const char* post_effect_values[] = {
       "none",
@@ -282,6 +283,7 @@ void InGameMenuDialog::DrawVisualsTab() {
       "dedither",
       "dedither_fxaa",
       "dedither_fxaa_extreme",
+      "dedither_debug",
   };
 
   int post_idx = 0;

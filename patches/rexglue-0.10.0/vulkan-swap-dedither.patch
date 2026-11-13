@@ -1,25 +1,47 @@
 diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
-index b6726f9..cf93b00 100644
+index b6726f9..a72b848 100644
 --- a/include/rex/graphics/command_processor.h
 +++ b/include/rex/graphics/command_processor.h
-@@ -81,6 +81,9 @@ class CommandProcessor {
+@@ -81,6 +81,10 @@ class CommandProcessor {
      kNone,
      kFxaa,
      kFxaaExtreme,
 +    kDeDither,
 +    kDeDitherFxaa,
 +    kDeDitherFxaaExtreme,
++    kDeDitherDebug,
    };
  
    CommandProcessor(GraphicsSystem* graphics_system, system::KernelState* kernel_state);
-@@ -350,4 +353,17 @@ class CommandProcessor {
+@@ -254,7 +258,9 @@ class CommandProcessor {
+ 
+   // "Actual" is for the command processor thread, to be read by the
+   // implementations.
+-  SwapPostEffect GetActualSwapPostEffect() const { return swap_post_effect_actual_; }
++  SwapPostEffect GetActualSwapPostEffect() const {
++    return swap_post_effect_actual_.load(std::memory_order_relaxed);
++  }
+ 
+   // Shared readback resolve mode with backend legacy-flag alias support.
+   ReadbackResolveMode GetReadbackResolveMode(bool legacy_readback_resolve_enabled) const;
+@@ -330,7 +336,7 @@ class CommandProcessor {
+   // By default (such as for tools), post-processing is disabled.
+   // "Desired" is for the external thread managing the post-processing effect.
+   SwapPostEffect swap_post_effect_desired_ = SwapPostEffect::kNone;
+-  SwapPostEffect swap_post_effect_actual_ = SwapPostEffect::kNone;
++  std::atomic<SwapPostEffect> swap_post_effect_actual_{SwapPostEffect::kNone};
+ 
+   // Set by backend command processors to their legacy memexport readback cvar
+   // name (for explicit-override compatibility).
+@@ -350,4 +356,18 @@ class CommandProcessor {
    uint32_t gamma_ramp_rw_component_ = 0;
  };
  
 +inline bool SwapPostEffectUsesDeDither(CommandProcessor::SwapPostEffect effect) {
 +  return effect == CommandProcessor::SwapPostEffect::kDeDither ||
 +         effect == CommandProcessor::SwapPostEffect::kDeDitherFxaa ||
-+         effect == CommandProcessor::SwapPostEffect::kDeDitherFxaaExtreme;
++         effect == CommandProcessor::SwapPostEffect::kDeDitherFxaaExtreme ||
++         effect == CommandProcessor::SwapPostEffect::kDeDitherDebug;
 +}
 +
 +inline bool SwapPostEffectUsesFxaa(CommandProcessor::SwapPostEffect effect) {
@@ -31,10 +53,20 @@ index b6726f9..cf93b00 100644
 +
  }  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 2d04ff9..8f4cf5c 100644
+index 2d04ff9..d1dcd9c 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -989,6 +989,9 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -499,6 +499,9 @@ class VulkanCommandProcessor : public CommandProcessor {
+   struct SwapFxaaConstants {
+     uint32_t size[2];
+     float size_inv[2];
++    uint32_t scale[2];
++    uint32_t debug_mode;
++    uint32_t padding;
+   };
+ 
+   // Framebuffer for the current presenter's guest output image revision, and
+@@ -989,6 +992,9 @@ class VulkanCommandProcessor : public CommandProcessor {
    std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_destination_storage_;
    // Separate storage image descriptors for the FXAA compute destination.
    std::array<VkDescriptorSet, kMaxFramesInFlight> swap_descriptors_fxaa_destination_storage_;
@@ -44,7 +76,7 @@ index 2d04ff9..8f4cf5c 100644
  
    VkSampler swap_sampler_linear_clamp_ = VK_NULL_HANDLE;
  
-@@ -1015,6 +1018,8 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -1015,6 +1021,8 @@ class VulkanCommandProcessor : public CommandProcessor {
    VkPipeline swap_apply_gamma_compute_pwl_fxaa_luma_rb_swap_pipeline_ = VK_NULL_HANDLE;
    VkPipeline swap_fxaa_pipeline_ = VK_NULL_HANDLE;
    VkPipeline swap_fxaa_extreme_pipeline_ = VK_NULL_HANDLE;
@@ -53,6 +85,22 @@ index 2d04ff9..8f4cf5c 100644
    VkPipelineLayout resolve_downscale_pipeline_layout_ = VK_NULL_HANDLE;
    VkPipeline resolve_downscale_pipeline_ = VK_NULL_HANDLE;
    VkBuffer resolve_downscale_buffer_ = VK_NULL_HANDLE;
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index b66b881..7106392 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -287,7 +287,10 @@ void CommandProcessor::SetDesiredSwapPostEffect(SwapPostEffect swap_post_effect)
+     return;
+   }
+   swap_post_effect_desired_ = swap_post_effect;
+-  CallInThread([this, swap_post_effect]() { swap_post_effect_actual_ = swap_post_effect; });
++  swap_post_effect_actual_.store(swap_post_effect, std::memory_order_relaxed);
++  CallInThread([this, swap_post_effect]() {
++    swap_post_effect_actual_.store(swap_post_effect, std::memory_order_relaxed);
++  });
+ }
+ 
+ void CommandProcessor::WorkerThreadMain() {
 diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
 index bef8db8..5194072 100644
 --- a/src/graphics/d3d12/command_processor.cpp
@@ -78,7 +126,7 @@ index bef8db8..5194072 100644
                                      : fxaa_pipeline_.Get());
              SubmitBarriers();
 diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
-index 1096089..af8e167 100644
+index 1096089..dbd9b00 100644
 --- a/src/graphics/graphics_system.cpp
 +++ b/src/graphics/graphics_system.cpp
 @@ -40,9 +40,10 @@
@@ -89,13 +137,13 @@ index 1096089..af8e167 100644
 -    .allowed({"none", "fxaa", "fxaa_extreme"})
 -    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 +REXCVAR_DEFINE_STRING(swap_post_effect, "none", "GPU",
-+                      "Swap post effect: none, fxaa, fxaa_extreme, dedither, dedither_fxaa, dedither_fxaa_extreme")
-+    .allowed({"none", "fxaa", "fxaa_extreme", "dedither", "dedither_fxaa", "dedither_fxaa_extreme"})
++                      "Swap post effect: none, fxaa, fxaa_extreme, dedither, dedither_fxaa, dedither_fxaa_extreme, dedither_debug")
++    .allowed({"none", "fxaa", "fxaa_extreme", "dedither", "dedither_fxaa", "dedither_fxaa_extreme", "dedither_debug"})
 +    .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
  REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
                      "Store shaders persistently and load them when loading games to avoid "
-@@ -63,6 +64,16 @@ rex::graphics::CommandProcessor::SwapPostEffect ParseSwapPostEffect(
+@@ -63,6 +64,19 @@ rex::graphics::CommandProcessor::SwapPostEffect ParseSwapPostEffect(
    if (lowered == "fxaa_extreme" || lowered == "extreme") {
      return rex::graphics::CommandProcessor::SwapPostEffect::kFxaaExtreme;
    }
@@ -109,10 +157,13 @@ index 1096089..af8e167 100644
 +      lowered == "dedither_extreme") {
 +    return rex::graphics::CommandProcessor::SwapPostEffect::kDeDitherFxaaExtreme;
 +  }
++  if (lowered == "dedither_debug" || lowered == "debug_dedither") {
++    return rex::graphics::CommandProcessor::SwapPostEffect::kDeDitherDebug;
++  }
    return rex::graphics::CommandProcessor::SwapPostEffect::kNone;
  }
  }  // namespace
-@@ -145,6 +156,13 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+@@ -145,6 +159,13 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
      return X_STATUS_UNSUCCESSFUL;
    }
    command_processor_->SetDesiredSwapPostEffect(ParseSwapPostEffect(REXCVAR_GET(swap_post_effect)));
@@ -126,7 +177,7 @@ index 1096089..af8e167 100644
  
    // Register GPU MMIO handlers
    // GPU registers are at 0x7FC80000-0x7FCFFFFF
-@@ -233,6 +251,7 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+@@ -233,6 +254,7 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
  }
  
  void GraphicsSystem::Shutdown() {
@@ -135,10 +186,10 @@ index 1096089..af8e167 100644
      command_processor_->Shutdown();
      command_processor_.reset();
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index a20f191..ce717fa 100644
+index a20f191..e8e7ad9 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -383,6 +383,148 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
+@@ -383,6 +383,240 @@ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
      },
  };
  
@@ -149,32 +200,29 @@ index a20f191..ce717fa 100644
 +layout(push_constant) uniform XeSwapPostConstants {
 +  uvec2 xe_dedither_size;
 +  vec2 xe_dedither_size_inv;
++  uvec2 xe_dedither_scale;
++  uint xe_dedither_debug;
 +};
 +
 +layout(set = 0, binding = 0) uniform sampler2D xe_dedither_source;
 +layout(set = 1, binding = 0, rgba16f) writeonly uniform image2D xe_dedither_dest;
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
-+const float kDitherThreshold = 0.02;
 +
-+void main() {
-+  uvec2 pixel = gl_GlobalInvocationID.xy;
-+  if (any(greaterThanEqual(pixel, xe_dedither_size))) {
-+    return;
-+  }
-+
-+  vec2 texel = xe_dedither_size_inv;
-+  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
-+
++float DetectDitherAtStep(vec2 uv, vec2 st, out vec3 outBoxAvg) {
 +  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
-+  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -texel.y), 0.0).rgb;
-+  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  texel.y), 0.0).rgb;
-+  vec3 e  = textureLod(xe_dedither_source, uv + vec2( texel.x,  0.0), 0.0).rgb;
-+  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-texel.x,  0.0), 0.0).rgb;
-+  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-texel.x, -texel.y), 0.0).rgb;
-+  vec3 ne = textureLod(xe_dedither_source, uv + vec2( texel.x, -texel.y), 0.0).rgb;
-+  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-texel.x,  texel.y), 0.0).rgb;
-+  vec3 se = textureLod(xe_dedither_source, uv + vec2( texel.x,  texel.y), 0.0).rgb;
++  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
++  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
++  vec3 e  = textureLod(xe_dedither_source, uv + vec2( st.x,  0.0), 0.0).rgb;
++  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-st.x,  0.0), 0.0).rgb;
++  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-st.x, -st.y), 0.0).rgb;
++  vec3 ne = textureLod(xe_dedither_source, uv + vec2( st.x, -st.y), 0.0).rgb;
++  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-st.x,  st.y), 0.0).rgb;
++  vec3 se = textureLod(xe_dedither_source, uv + vec2( st.x,  st.y), 0.0).rgb;
++
++  vec3 cardAvg = 0.25 * (n + s + e + w);
++  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
++  outBoxAvg = 0.5 * (cardAvg + diagAvg);
 +
 +  float lumaC  = dot(c,  kLumaWeights);
 +  float lumaN  = dot(n,  kLumaWeights);
@@ -186,29 +234,78 @@ index a20f191..ce717fa 100644
 +  float lumaSW = dot(sw, kLumaWeights);
 +  float lumaSE = dot(se, kLumaWeights);
 +
-+  vec3 cardAvg = 0.25 * (n + s + e + w);
-+  float lumaCardAvg = 0.25 * (lumaN + lumaS + lumaE + lumaW);
++  float oscH  = (lumaW - lumaC) * (lumaE - lumaC);
++  float oscV  = (lumaN - lumaC) * (lumaS - lumaC);
++  float oscD1 = (lumaNW - lumaC) * (lumaSE - lumaC);
++  float oscD2 = (lumaNE - lumaC) * (lumaSW - lumaC);
 +
-+  float diffCenterCardLuma = abs(lumaC - lumaCardAvg);
-+  vec3 diffCenterCardRgb = abs(c - cardAvg);
-+  float diffCenterCard = max(diffCenterCardLuma, max(diffCenterCardRgb.r, max(diffCenterCardRgb.g, diffCenterCardRgb.b)));
++  float strH  = (oscH > 0.0)  ? min(abs(lumaW - lumaC), abs(lumaE - lumaC)) : 0.0;
++  float strV  = (oscV > 0.0)  ? min(abs(lumaN - lumaC), abs(lumaS - lumaC)) : 0.0;
++  float strD1 = (oscD1 > 0.0) ? min(abs(lumaNW - lumaC), abs(lumaSE - lumaC)) : 0.0;
++  float strD2 = (oscD2 > 0.0) ? min(abs(lumaNE - lumaC), abs(lumaSW - lumaC)) : 0.0;
 +
-+  float diagDiff = 0.25 * (abs(lumaC - lumaNW) + abs(lumaC - lumaNE) +
-+                           abs(lumaC - lumaSW) + abs(lumaC - lumaSE));
++  int oscCount = (strH > 0.008 ? 1 : 0) + (strV > 0.008 ? 1 : 0) +
++                 (strD1 > 0.008 ? 1 : 0) + (strD2 > 0.008 ? 1 : 0);
 +
-+  float cardMin = min(min(lumaN, lumaS), min(lumaE, lumaW));
-+  float cardMax = max(max(lumaN, lumaS), max(lumaE, lumaW));
-+  float cardSpread = cardMax - cardMin;
-+
-+  float penalty = diagDiff + 0.5 * cardSpread;
-+  float signal = diffCenterCard - penalty;
-+
-+  float confidence = 0.0;
-+  if (signal > kDitherThreshold) {
-+    confidence = clamp((signal - kDitherThreshold) / max(diffCenterCard - kDitherThreshold, 1e-4), 0.0, 1.0);
++  if (oscCount >= 2) {
++    float maxOsc = max(max(strH, strV), max(strD1, strD2));
++    float sumOsc = (strH + strV + strD1 + strD2) / float(oscCount);
++    float ditherMagnitude = max(maxOsc, sumOsc);
++    const float kDitherThreshold = 0.012;
++    if (ditherMagnitude > kDitherThreshold) {
++      return clamp((ditherMagnitude - kDitherThreshold) / 0.10, 0.0, 1.0);
++    }
 +  }
 +
-+  vec3 result = mix(c, cardAvg, 0.5 * confidence);
++  float localMin = min(min(min(lumaN, lumaS), min(lumaE, lumaW)), min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
++  float localMax = max(max(max(lumaN, lumaS), max(lumaE, lumaW)), max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
++  float diffCard = abs(lumaC - dot(cardAvg, kLumaWeights));
++  float diffDiag = abs(lumaC - dot(diagAvg, kLumaWeights));
++  float minDiff = min(diffCard, diffDiag);
++  if ((lumaC < localMin || lumaC > localMax) && minDiff > 0.015) {
++    return clamp((minDiff - 0.015) / 0.12, 0.0, 1.0);
++  }
++
++  return 0.0;
++}
++
++void main() {
++  uvec2 pixel = gl_GlobalInvocationID.xy;
++  if (any(greaterThanEqual(pixel, xe_dedither_size))) {
++    return;
++  }
++
++  vec2 texel = xe_dedither_size_inv;
++  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
++  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
++
++  float scaleVal = float(max(xe_dedither_scale.x, 1u));
++  vec2 stepScale = texel * scaleVal;
++
++  vec3 boxAvgScale;
++  float confScale = DetectDitherAtStep(uv, stepScale, boxAvgScale);
++
++  float confidence = confScale;
++  vec3 bestBoxAvg = boxAvgScale;
++
++  if (scaleVal > 1.5) {
++    vec3 boxAvgNative;
++    float confNative = DetectDitherAtStep(uv, texel, boxAvgNative);
++    if (confNative > confidence) {
++      confidence = confNative;
++      bestBoxAvg = boxAvgNative;
++    }
++  }
++
++  vec3 result = c;
++  if (xe_dedither_debug != 0u) {
++    if (confidence > 0.02) {
++      result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++    }
++  } else {
++    result = mix(c, bestBoxAvg, 0.75 * confidence);
++  }
++
 +  float outLuma = dot(result, kLumaWeights);
 +  imageStore(xe_dedither_dest, ivec2(pixel), vec4(result, outLuma));
 +}
@@ -219,32 +316,29 @@ index a20f191..ce717fa 100644
 +layout(push_constant) uniform XeSwapPostConstants {
 +  uvec2 xe_dedither_size;
 +  vec2 xe_dedither_size_inv;
++  uvec2 xe_dedither_scale;
++  uint xe_dedither_debug;
 +};
 +
 +layout(set = 0, binding = 0) uniform sampler2D xe_dedither_source;
 +layout(set = 1, binding = 0, rgb10_a2) writeonly uniform image2D xe_dedither_dest;
 +
 +const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
-+const float kDitherThreshold = 0.02;
 +
-+void main() {
-+  uvec2 pixel = gl_GlobalInvocationID.xy;
-+  if (any(greaterThanEqual(pixel, xe_dedither_size))) {
-+    return;
-+  }
-+
-+  vec2 texel = xe_dedither_size_inv;
-+  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
-+
++float DetectDitherAtStep(vec2 uv, vec2 st, out vec3 outBoxAvg) {
 +  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
-+  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -texel.y), 0.0).rgb;
-+  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  texel.y), 0.0).rgb;
-+  vec3 e  = textureLod(xe_dedither_source, uv + vec2( texel.x,  0.0), 0.0).rgb;
-+  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-texel.x,  0.0), 0.0).rgb;
-+  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-texel.x, -texel.y), 0.0).rgb;
-+  vec3 ne = textureLod(xe_dedither_source, uv + vec2( texel.x, -texel.y), 0.0).rgb;
-+  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-texel.x,  texel.y), 0.0).rgb;
-+  vec3 se = textureLod(xe_dedither_source, uv + vec2( texel.x,  texel.y), 0.0).rgb;
++  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
++  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
++  vec3 e  = textureLod(xe_dedither_source, uv + vec2( st.x,  0.0), 0.0).rgb;
++  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-st.x,  0.0), 0.0).rgb;
++  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-st.x, -st.y), 0.0).rgb;
++  vec3 ne = textureLod(xe_dedither_source, uv + vec2( st.x, -st.y), 0.0).rgb;
++  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-st.x,  st.y), 0.0).rgb;
++  vec3 se = textureLod(xe_dedither_source, uv + vec2( st.x,  st.y), 0.0).rgb;
++
++  vec3 cardAvg = 0.25 * (n + s + e + w);
++  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
++  outBoxAvg = 0.5 * (cardAvg + diagAvg);
 +
 +  float lumaC  = dot(c,  kLumaWeights);
 +  float lumaN  = dot(n,  kLumaWeights);
@@ -256,29 +350,78 @@ index a20f191..ce717fa 100644
 +  float lumaSW = dot(sw, kLumaWeights);
 +  float lumaSE = dot(se, kLumaWeights);
 +
-+  vec3 cardAvg = 0.25 * (n + s + e + w);
-+  float lumaCardAvg = 0.25 * (lumaN + lumaS + lumaE + lumaW);
++  float oscH  = (lumaW - lumaC) * (lumaE - lumaC);
++  float oscV  = (lumaN - lumaC) * (lumaS - lumaC);
++  float oscD1 = (lumaNW - lumaC) * (lumaSE - lumaC);
++  float oscD2 = (lumaNE - lumaC) * (lumaSW - lumaC);
 +
-+  float diffCenterCardLuma = abs(lumaC - lumaCardAvg);
-+  vec3 diffCenterCardRgb = abs(c - cardAvg);
-+  float diffCenterCard = max(diffCenterCardLuma, max(diffCenterCardRgb.r, max(diffCenterCardRgb.g, diffCenterCardRgb.b)));
++  float strH  = (oscH > 0.0)  ? min(abs(lumaW - lumaC), abs(lumaE - lumaC)) : 0.0;
++  float strV  = (oscV > 0.0)  ? min(abs(lumaN - lumaC), abs(lumaS - lumaC)) : 0.0;
++  float strD1 = (oscD1 > 0.0) ? min(abs(lumaNW - lumaC), abs(lumaSE - lumaC)) : 0.0;
++  float strD2 = (oscD2 > 0.0) ? min(abs(lumaNE - lumaC), abs(lumaSW - lumaC)) : 0.0;
 +
-+  float diagDiff = 0.25 * (abs(lumaC - lumaNW) + abs(lumaC - lumaNE) +
-+                           abs(lumaC - lumaSW) + abs(lumaC - lumaSE));
++  int oscCount = (strH > 0.008 ? 1 : 0) + (strV > 0.008 ? 1 : 0) +
++                 (strD1 > 0.008 ? 1 : 0) + (strD2 > 0.008 ? 1 : 0);
 +
-+  float cardMin = min(min(lumaN, lumaS), min(lumaE, lumaW));
-+  float cardMax = max(max(lumaN, lumaS), max(lumaE, lumaW));
-+  float cardSpread = cardMax - cardMin;
-+
-+  float penalty = diagDiff + 0.5 * cardSpread;
-+  float signal = diffCenterCard - penalty;
-+
-+  float confidence = 0.0;
-+  if (signal > kDitherThreshold) {
-+    confidence = clamp((signal - kDitherThreshold) / max(diffCenterCard - kDitherThreshold, 1e-4), 0.0, 1.0);
++  if (oscCount >= 2) {
++    float maxOsc = max(max(strH, strV), max(strD1, strD2));
++    float sumOsc = (strH + strV + strD1 + strD2) / float(oscCount);
++    float ditherMagnitude = max(maxOsc, sumOsc);
++    const float kDitherThreshold = 0.012;
++    if (ditherMagnitude > kDitherThreshold) {
++      return clamp((ditherMagnitude - kDitherThreshold) / 0.10, 0.0, 1.0);
++    }
 +  }
 +
-+  vec3 result = mix(c, cardAvg, 0.5 * confidence);
++  float localMin = min(min(min(lumaN, lumaS), min(lumaE, lumaW)), min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
++  float localMax = max(max(max(lumaN, lumaS), max(lumaE, lumaW)), max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
++  float diffCard = abs(lumaC - dot(cardAvg, kLumaWeights));
++  float diffDiag = abs(lumaC - dot(diagAvg, kLumaWeights));
++  float minDiff = min(diffCard, diffDiag);
++  if ((lumaC < localMin || lumaC > localMax) && minDiff > 0.015) {
++    return clamp((minDiff - 0.015) / 0.12, 0.0, 1.0);
++  }
++
++  return 0.0;
++}
++
++void main() {
++  uvec2 pixel = gl_GlobalInvocationID.xy;
++  if (any(greaterThanEqual(pixel, xe_dedither_size))) {
++    return;
++  }
++
++  vec2 texel = xe_dedither_size_inv;
++  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
++  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
++
++  float scaleVal = float(max(xe_dedither_scale.x, 1u));
++  vec2 stepScale = texel * scaleVal;
++
++  vec3 boxAvgScale;
++  float confScale = DetectDitherAtStep(uv, stepScale, boxAvgScale);
++
++  float confidence = confScale;
++  vec3 bestBoxAvg = boxAvgScale;
++
++  if (scaleVal > 1.5) {
++    vec3 boxAvgNative;
++    float confNative = DetectDitherAtStep(uv, texel, boxAvgNative);
++    if (confNative > confidence) {
++      confidence = confNative;
++      bestBoxAvg = boxAvgNative;
++    }
++  }
++
++  vec3 result = c;
++  if (xe_dedither_debug != 0u) {
++    if (confidence > 0.02) {
++      result = mix(c, vec3(1.0, 0.08, 0.85), clamp(confidence * 1.5, 0.0, 1.0));
++    }
++  } else {
++    result = mix(c, bestBoxAvg, 0.75 * confidence);
++  }
++
 +  imageStore(xe_dedither_dest, ivec2(pixel), vec4(result, 1.0));
 +}
 +)";
@@ -287,7 +430,7 @@ index a20f191..ce717fa 100644
  const char* GetSwapFxaaComputeSource(bool extreme_quality) {
    return extreme_quality ? R"(#version 450
  layout(local_size_x = 16, local_size_y = 8, local_size_z = 1) in;
-@@ -2164,15 +2306,15 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2164,15 +2398,15 @@ bool VulkanCommandProcessor::SetupContext() {
          swap_descriptor_pool_sizes[swap_descriptor_pool_create_info.poolSizeCount++];
      swap_descriptor_pool_size_combined_image_sampler.type =
          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -307,7 +450,7 @@ index a20f191..ce717fa 100644
    }
    // 256-entry table and PWL gamma ramps. If the gamma ramp buffer is
    // host-visible, for multiple frames.
-@@ -2243,6 +2385,26 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2243,6 +2477,26 @@ bool VulkanCommandProcessor::SetupContext() {
        return false;
      }
    }
@@ -334,7 +477,7 @@ index a20f191..ce717fa 100644
  
    // Gamma ramp descriptor sets.
    VkWriteDescriptorSet gamma_ramp_write_descriptor_set;
-@@ -2716,6 +2878,37 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2716,6 +2970,37 @@ bool VulkanCommandProcessor::SetupContext() {
      }
    }
  
@@ -372,7 +515,7 @@ index a20f191..ce717fa 100644
    VkPipelineLayoutCreateInfo resolve_downscale_layout_create_info = {};
    resolve_downscale_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
    VkDescriptorSetLayout resolve_downscale_set_layout =
-@@ -3126,6 +3319,10 @@ void VulkanCommandProcessor::ShutdownContext() {
+@@ -3126,6 +3411,10 @@ void VulkanCommandProcessor::ShutdownContext() {
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
                                           swap_fxaa_extreme_pipeline_);
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, swap_fxaa_pipeline_);
@@ -383,32 +526,33 @@ index a20f191..ce717fa 100644
    for (auto& scene : hdr_scenes_)
      DestroyHdrScene(scene);
    Fh1VrDestroy();
-@@ -5283,10 +5480,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
-           "cache is {}x{}",
-           texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
-     }
--    static bool draw_scale_swap_sizes_logged = false;
--    if (!draw_scale_swap_sizes_logged) {
--      draw_scale_swap_sizes_logged = true;
--      REXGPU_WARN(
-+    static uint32_t last_logged_guest_width = 0, last_logged_guest_height = 0;
-+    if (guest_output_width != last_logged_guest_width || guest_output_height != last_logged_guest_height) {
-+      last_logged_guest_width = guest_output_width;
-+      last_logged_guest_height = guest_output_height;
-+      REXGPU_INFO(
-           "Vulkan draw-scale swap sizing: packet={}x{}, src_scaled={}x{}, "
-           "src_unscaled={}x{}, active={}x{}",
-           frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
-@@ -5294,7 +5492,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
-           guest_output_width, guest_output_height);
-     }
-   }
--  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled) {
-+  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled && frame_current_ >= 4) {
-     static bool draw_scale_swap_unscaled_logged = false;
-     if (!draw_scale_swap_unscaled_logged) {
-       draw_scale_swap_unscaled_logged = true;
-@@ -5358,8 +5556,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5185,6 +5474,25 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+ 
+   SwapPostEffect swap_post_effect = GetActualSwapPostEffect();
+ 
++  static SwapPostEffect s_last_active_post_effect = SwapPostEffect::kNone;
++  if (swap_post_effect != s_last_active_post_effect) {
++    const char* effect_name = "none";
++    switch (swap_post_effect) {
++      case SwapPostEffect::kFxaa: effect_name = "fxaa"; break;
++      case SwapPostEffect::kFxaaExtreme: effect_name = "fxaa_extreme"; break;
++      case SwapPostEffect::kDeDither: effect_name = "dedither"; break;
++      case SwapPostEffect::kDeDitherFxaa: effect_name = "dedither_fxaa"; break;
++      case SwapPostEffect::kDeDitherFxaaExtreme: effect_name = "dedither_fxaa_extreme"; break;
++      case SwapPostEffect::kDeDitherDebug: effect_name = "dedither_debug (heatmap)"; break;
++      default: effect_name = "none"; break;
++    }
++    REXGPU_INFO("Vulkan IssueSwap: active post effect changed to {} (frame {}, scale {}x{})",
++                effect_name, frame_current_,
++                texture_cache_->draw_resolution_scale_x(),
++                texture_cache_->draw_resolution_scale_y());
++    s_last_active_post_effect = swap_post_effect;
++  }
++
+   // Obtain the actual swap source texture size (resolution-scaled if it's a
+   // resolve destination, or not otherwise).
+   uint32_t frontbuffer_width_scaled, frontbuffer_height_scaled;
+@@ -5358,8 +5667,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
          const VkDevice device = vulkan_device->device();
  
          uint32_t swap_frame_index = uint32_t(frame_current_ % kMaxFramesInFlight);
@@ -419,7 +563,7 @@ index a20f191..ce717fa 100644
  
          // This is according to D3D::InitializePresentationParameters from a
          // game executable, which initializes the 256-entry table gamma ramp for
-@@ -5393,40 +5591,54 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5393,40 +5702,54 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                       ? swap_apply_gamma_compute_256_entry_table_rb_swap_pipeline_
                       : swap_apply_gamma_compute_256_entry_table_pipeline_;
          };
@@ -499,7 +643,7 @@ index a20f191..ce717fa 100644
            swap_apply_gamma_compute_pipeline =
                select_swap_apply_gamma_compute_pipeline(use_pwl_gamma_ramp, false);
          }
-@@ -5552,7 +5764,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5552,7 +5875,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                                       : 0,
                                   VK_ACCESS_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
                                   VK_IMAGE_LAYOUT_GENERAL);
@@ -508,7 +652,7 @@ index a20f191..ce717fa 100644
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
                                     swap_fxaa_source_stage_mask_ ? swap_fxaa_source_stage_mask_
                                                                  : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-@@ -5562,7 +5774,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5562,7 +5885,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            }
            SubmitBarriers(true);
  
@@ -517,7 +661,7 @@ index a20f191..ce717fa 100644
              swap_fxaa_source_stage_mask_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
              swap_fxaa_source_access_mask_ = VK_ACCESS_SHADER_WRITE_BIT;
              swap_fxaa_source_layout_ = VK_IMAGE_LAYOUT_GENERAL;
-@@ -5574,7 +5786,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5574,7 +5897,8 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            VkDescriptorImageInfo swap_descriptor_destination_storage_image_info;
            swap_descriptor_destination_storage_image_info.sampler = VK_NULL_HANDLE;
            swap_descriptor_destination_storage_image_info.imageView =
@@ -527,14 +671,20 @@ index a20f191..ce717fa 100644
            swap_descriptor_destination_storage_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
            VkWriteDescriptorSet swap_descriptor_destination_storage_write;
            swap_descriptor_destination_storage_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-@@ -5615,7 +5828,187 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5615,7 +5939,193 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
            uint32_t group_count_y = (guest_output_height + 7) / 8;
            deferred_command_buffer_.CmdVkDispatch(group_count_x, group_count_y, 1);
  
 -          if (use_fxaa) {
++          uint32_t scale_x = std::max(1u, texture_cache_->draw_resolution_scale_x());
++          uint32_t scale_y = std::max(1u, texture_cache_->draw_resolution_scale_y());
++          uint32_t debug_mode = (swap_post_effect == SwapPostEffect::kDeDitherDebug) ? 1u : 0u;
 +          SwapFxaaConstants swap_post_constants = {
 +              {guest_output_width, guest_output_height},
-+              {1.0f / float(guest_output_width), 1.0f / float(guest_output_height)}};
++              {1.0f / float(guest_output_width), 1.0f / float(guest_output_height)},
++              {scale_x, scale_y},
++              debug_mode,
++              0u};
 +
 +          if (use_dedither && use_fxaa) {
 +            // --- 3-PASS PIPELINE: Gamma -> De-Dither -> FXAA ---
@@ -716,7 +866,7 @@ index a20f191..ce717fa 100644
              // Make the FXAA source image readable and bind a separate
              // destination storage descriptor targeting the guest output image.
              PushImageMemoryBarrier(swap_fxaa_source_image_, guest_output_subresource_range,
-@@ -5675,12 +6068,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -5675,12 +6185,9 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
                  VK_PIPELINE_BIND_POINT_COMPUTE, swap_fxaa_pipeline_layout_, 0,
                  uint32_t(swap_fxaa_descriptor_sets.size()), swap_fxaa_descriptor_sets.data(), 0,
                  nullptr);

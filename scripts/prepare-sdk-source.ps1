@@ -159,4 +159,94 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan command processor patch application'
 }
 
-Write-Host "[1.1 - 1.8] ReXGlue SDK v0.10.1 source checked out, 14 submodules initialized, and all patches applied successfully!"
+# 1.9: Apply telemetry attribution fix and compile/wait metrics
+$telemetryPatch = Join-Path $patchRoot 'telemetry-cost-attribution.patch'
+git -C $source apply --reverse --check $telemetryPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $telemetryPatch
+    Check-Native 'Telemetry cost attribution patch check'
+    git -C $source apply $telemetryPatch
+    Check-Native 'Telemetry cost attribution patch application'
+}
+
+# 1.10: Apply monolithic shared VkPipelineCache patch
+$monolithicPatch = Join-Path $patchRoot 'vulkan-monolithic-pipeline-cache.patch'
+git -C $source apply --reverse --check $monolithicPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $monolithicPatch
+    Check-Native 'Monolithic pipeline cache patch check'
+    git -C $source apply $monolithicPatch
+    Check-Native 'Monolithic pipeline cache patch application'
+}
+
+# 1.11: Apply Extended Dynamic State (EDS 1, 2, 3) patch
+$edsPatch = Join-Path $patchRoot 'vulkan-extended-dynamic-state.patch'
+git -C $source apply --reverse --check $edsPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $edsPatch
+    Check-Native 'Extended Dynamic State patch check'
+    git -C $source apply $edsPatch
+    Check-Native 'Extended Dynamic State patch application'
+}
+
+# 1.12: Apply Restricted 2-Layer Async Pipeline (M3) patch
+$asyncPatch = Join-Path $patchRoot 'vulkan-restricted-async.patch'
+git -C $source apply --reverse --check $asyncPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $asyncPatch
+    Check-Native 'Restricted Async Pipeline patch check'
+    git -C $source apply $asyncPatch
+    Check-Native 'Restricted Async Pipeline patch application'
+}
+
+# 1.13: Apply Extended Dynamic State Invalidation and Barrier Fixes patch
+$fixesPatch = Join-Path $patchRoot 'vulkan-dynamic-state-and-barrier-fixes.patch'
+git -C $source apply --reverse --check $fixesPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $fixesPatch
+    Check-Native 'Dynamic State and Barrier Fixes patch check'
+    git -C $source apply $fixesPatch
+    Check-Native 'Dynamic State and Barrier Fixes patch application'
+}
+
+# 1.14: Apply Non-volatile memory accessors template patch (Issue #17)
+$nonVolatilePatch = Join-Path $patchRoot 'codegen-nonvolatile-memory-accessors.patch'
+git -C $source apply --reverse --check $nonVolatilePatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $nonVolatilePatch
+    Check-Native 'Non-volatile memory accessors patch check'
+    git -C $source apply $nonVolatilePatch
+    Check-Native 'Non-volatile memory accessors patch application'
+}
+
+# 1.15: Apply SharedMemory watch page bitmask spatial partitioning patch (Issue #22)
+$watchBitmaskPatch = Join-Path $patchRoot 'shared-memory-watch-page-bitmask.patch'
+git -C $source apply --reverse --check $watchBitmaskPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $watchBitmaskPatch
+    Check-Native 'SharedMemory watch page bitmask patch check'
+    git -C $source apply $watchBitmaskPatch
+    Check-Native 'SharedMemory watch page bitmask patch application'
+}
+
+# 1.16: Apply Vulkan draw-scale swap source and present gating patch (Issue #21)
+$vulkanSwapPatch = Join-Path $patchRoot 'vulkan-swap-scale-and-present-gating.patch'
+git -C $source apply --reverse --check $vulkanSwapPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanSwapPatch
+    Check-Native 'Vulkan draw-scale swap source and present gating patch check'
+    git -C $source apply $vulkanSwapPatch
+    Check-Native 'Vulkan draw-scale swap source and present gating patch application'
+}
+
+# 1.17: Apply Vulkan de-dither edge-preserving filter post-processing patch
+$vulkanDeDitherPatch = Join-Path $patchRoot 'vulkan-swap-dedither.patch'
+git -C $source apply --reverse --check $vulkanDeDitherPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanDeDitherPatch
+    Check-Native 'Vulkan de-dither post-processing patch check'
+    git -C $source apply $vulkanDeDitherPatch
+    Check-Native 'Vulkan de-dither post-processing patch application'
+}
+
+Write-Host "[1.1 - 1.17] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

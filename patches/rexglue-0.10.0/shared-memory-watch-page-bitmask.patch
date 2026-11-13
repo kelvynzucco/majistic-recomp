@@ -1,0 +1,192 @@
+diff --git a/include/rex/graphics/shared_memory.h b/include/rex/graphics/shared_memory.h
+index e3b6e77..af9ad16 100644
+--- a/include/rex/graphics/shared_memory.h
++++ b/include/rex/graphics/shared_memory.h
+@@ -241,6 +241,11 @@ class SharedMemory {
+   std::vector<uint64_t> system_page_flags_valid_and_gpu_written_;
+   uint32_t num_system_page_flags_ = 0;
+ 
++  // Bitmask indicating pages with active watches (1 bit per page, 16 KB for 512 MB).
++  std::vector<uint64_t> watch_page_mask_;
++  // Reference count of active watches per page (512 KB for 131,072 pages).
++  std::vector<uint32_t> watch_page_refcounts_;
++
+   static std::pair<uint32_t, uint32_t> MemoryInvalidationCallbackThunk(
+       void* context_ptr, uint32_t physical_address_start, uint32_t length, bool exact_range);
+ 
+@@ -290,7 +295,7 @@ class SharedMemory {
+   static constexpr uint32_t kWatchBucketSizeLog2Min = 18;
+   static constexpr uint32_t kWatchBucketSizeLog2Max = 22;
+   static constexpr uint32_t kWatchBucketCount = 1 << (kBufferSizeLog2 - kWatchBucketSizeLog2Min);
+-  uint32_t watch_bucket_size_log2_ = kWatchBucketSizeLog2Max;
++  uint32_t watch_bucket_size_log2_ = kWatchBucketSizeLog2Min;
+   WatchNode* watch_buckets_[kWatchBucketCount] = {};
+   // Allocation from pools - taking new WatchRanges and WatchNodes from the free
+   // list, and if there are none, creating a pool if the current one is fully
+diff --git a/src/graphics/shared_memory.cpp b/src/graphics/shared_memory.cpp
+index 9ec7aa2..39e51c7 100644
+--- a/src/graphics/shared_memory.cpp
++++ b/src/graphics/shared_memory.cpp
+@@ -23,10 +23,10 @@
+ 
+ #include "fh1_frame_cost.h"
+ 
+-REXCVAR_DEFINE_INT32(gpu_memory_watch_bucket_log2, 22, "GPU",
++REXCVAR_DEFINE_INT32(gpu_memory_watch_bucket_log2, 18, "GPU",
+                      "Size of the buckets of guest memory watches (textures and other GPU copies "
+                      "of guest memory), log2 of bytes: a write to guest memory tests every watch "
+-                     "of its buckets. 22 (4 MB) was the fixed size; smaller buckets test fewer "
++                     "of its buckets. 18 (256 KB) matches 64-page words; smaller buckets test fewer "
+                      "watches per write and link a few more nodes per watch")
+     .range(18, 22)
+     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+@@ -49,6 +49,8 @@ void SharedMemory::InitializeCommon() {
+   num_system_page_flags_ = ((kBufferSize >> page_size_log2_) + 63) / 64;
+   system_page_flags_valid_.assign(num_system_page_flags_, 0);
+   system_page_flags_valid_and_gpu_written_.assign(num_system_page_flags_, 0);
++  watch_page_mask_.assign(num_system_page_flags_, 0);
++  watch_page_refcounts_.assign(kBufferSize >> page_size_log2_, 0);
+ 
+   memory_invalidation_callback_handle_ =
+       memory_.RegisterPhysicalMemoryInvalidationCallback(MemoryInvalidationCallbackThunk, this);
+@@ -101,6 +103,10 @@ void SharedMemory::ShutdownCommon() {
+   system_page_flags_valid_.shrink_to_fit();
+   system_page_flags_valid_and_gpu_written_.clear();
+   system_page_flags_valid_and_gpu_written_.shrink_to_fit();
++  watch_page_mask_.clear();
++  watch_page_mask_.shrink_to_fit();
++  watch_page_refcounts_.clear();
++  watch_page_refcounts_.shrink_to_fit();
+   num_system_page_flags_ = 0;
+ }
+ 
+@@ -137,6 +143,13 @@ void SharedMemory::ClearCache() {
+     delete[] pool;
+   }
+   watch_range_pools_.clear();
++  if (!watch_page_mask_.empty()) {
++    std::fill(watch_page_mask_.begin(), watch_page_mask_.end(), uint64_t(0));
++  }
++  if (!watch_page_refcounts_.empty()) {
++    std::fill(watch_page_refcounts_.begin(), watch_page_refcounts_.end(), uint32_t(0));
++  }
++  std::fill(std::begin(watch_buckets_), std::end(watch_buckets_), nullptr);
+   SetSystemPageBlocksValidWithGpuDataWritten();
+ }
+ 
+@@ -236,6 +249,14 @@ SharedMemory::WatchHandle SharedMemory::WatchMemoryRange(uint32_t start, uint32_
+   fh1_frame_cost::Sizes& sizes = fh1_frame_cost::GetSizes();
+   fh1_frame_cost::Count(sizes.watch_ranges, 1);
+   fh1_frame_cost::Count(sizes.watch_nodes, int64_t(bucket_last - bucket_first + 1));
++
++  // Update page watch refcounts and bitmask.
++  for (uint32_t p = watch_page_first; p <= watch_page_last; ++p) {
++    if (watch_page_refcounts_[p]++ == 0) {
++      watch_page_mask_[p >> 6] |= (uint64_t(1) << (p & 63));
++    }
++  }
++
+   return reinterpret_cast<WatchHandle>(range);
+ }
+ 
+@@ -245,6 +266,15 @@ void SharedMemory::UnwatchMemoryRange(WatchHandle handle) {
+ }
+ 
+ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool invalidated_by_gpu) {
++  if (watch_page_mask_.empty()) {
++    return;
++  }
++  uint32_t max_page = (kBufferSize >> page_size_log2_) - 1;
++  if (page_first > max_page) {
++    return;
++  }
++  page_last = std::min(page_last, max_page);
++
+   uint32_t address_first = page_first << page_size_log2_;
+   uint32_t address_last = (page_last << page_size_log2_) + ((1 << page_size_log2_) - 1);
+   uint32_t bucket_first = address_first >> watch_bucket_size_log2_;
+@@ -258,10 +288,69 @@ void SharedMemory::FireWatches(uint32_t page_first, uint32_t page_last, bool inv
+                            invalidated_by_gpu);
+   }
+ 
++  // Fast bitwise test: check if any page in [page_first, page_last] has active watches.
++  uint32_t block_first = page_first >> 6;
++  uint32_t block_last = page_last >> 6;
++  bool has_range_watches = false;
++  for (uint32_t b = block_first; b <= block_last; ++b) {
++    uint64_t mask = watch_page_mask_[b];
++    if (mask == 0) {
++      continue;
++    }
++    if (b == block_first) {
++      mask &= ~((uint64_t(1) << (page_first & 63)) - 1);
++    }
++    if (b == block_last && (page_last & 63) != 63) {
++      mask &= (uint64_t(1) << ((page_last & 63) + 1)) - 1;
++    }
++    if (mask != 0) {
++      has_range_watches = true;
++      break;
++    }
++  }
++
++  if (!has_range_watches) {
++    fh1_frame_cost::Sizes& sizes = fh1_frame_cost::GetSizes();
++    sizes.watch_fires.fetch_add(1, std::memory_order_relaxed);
++    return;
++  }
++
+   // Fire per-range watches.
+   uint64_t nodes_visited = 0;
+   for (uint32_t i = bucket_first; i <= bucket_last; ++i) {
+     WatchNode* node = watch_buckets_[i];
++    if (node == nullptr) {
++      continue;
++    }
++
++    // Check if this specific bucket has any active watches within [page_first, page_last].
++    uint32_t b_page_first = i << (watch_bucket_size_log2_ - page_size_log2_);
++    uint32_t b_page_last = b_page_first + (1 << (watch_bucket_size_log2_ - page_size_log2_)) - 1;
++    uint32_t check_first = std::max(page_first, b_page_first);
++    uint32_t check_last = std::min(page_last, b_page_last);
++    uint32_t b_blk_first = check_first >> 6;
++    uint32_t b_blk_last = check_last >> 6;
++    bool b_has_watches = false;
++    for (uint32_t b = b_blk_first; b <= b_blk_last; ++b) {
++      uint64_t mask = watch_page_mask_[b];
++      if (mask == 0) {
++        continue;
++      }
++      if (b == b_blk_first) {
++        mask &= ~((uint64_t(1) << (check_first & 63)) - 1);
++      }
++      if (b == b_blk_last && (check_last & 63) != 63) {
++        mask &= (uint64_t(1) << ((check_last & 63) + 1)) - 1;
++      }
++      if (mask != 0) {
++        b_has_watches = true;
++        break;
++      }
++    }
++    if (!b_has_watches) {
++      continue;
++    }
++
+     while (node != nullptr) {
+       ++nodes_visited;
+       // The node's copy of the range's pages first: most nodes are of other ranges.
+@@ -346,6 +435,14 @@ void SharedMemory::MakeRangeValid(uint32_t start, uint32_t length, bool written_
+ }
+ 
+ void SharedMemory::UnlinkWatchRange(WatchRange* range) {
++  // Decrement page watch refcounts and update bitmask.
++  for (uint32_t p = range->page_first; p <= range->page_last; ++p) {
++    assert_true(watch_page_refcounts_[p] > 0);
++    if (--watch_page_refcounts_[p] == 0) {
++      watch_page_mask_[p >> 6] &= ~(uint64_t(1) << (p & 63));
++    }
++  }
++
+   uint32_t bucket = range->page_first << page_size_log2_ >> watch_bucket_size_log2_;
+   WatchNode* node = range->node_first;
+   int64_t nodes = 0;

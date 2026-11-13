@@ -101,6 +101,13 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **Frame-Time Smoothing (`frame_timer`):** Evens out frame time steps to keep game delta-time in lockstep with real time, avoiding collision jitter.
 - **Camera FOV & Post-Processing Controls:** Configurable field-of-view multiplier (`--majin_fov_scale`) and switches for pause blur (`--majin_pause_blur`), depth of field (`--majin_dof`), and glare/bloom (`--majin_bloom`). The underlying graphics routines, post-processing pipeline (`SysKemumaki`), and camera projection matrices were analyzed and mapped with the assistance of [REA](https://github.com/morluto/rea).
 
+### 7. CPU Codegen & Compiler Optimizations (Issues #17 & #19)
+- **Non-Volatile Guest Memory Accessors:** Modified the ReXGlue codegen template (`resources/templates/codegen/pch_h.inja` via `patches/rexglue-0.10.0/codegen-nonvolatile-memory-accessors.patch`) to remove restrictive `volatile` qualifiers from standard guest memory macros (`REX_LOAD_*` and `REX_STORE_*`). This enables Clang/LLVM to perform register promotion, SSA value caching, Common Subexpression Elimination (CSE), and Dead Store Elimination (DSE) without constant redundant roundtrips to host RAM/cache. Multi-thread memory ordering remains strictly protected via `std::atomic_thread_fence` and `std::atomic` compare-exchange operations.
+- **`x86-64-v3` Target Architecture (AVX2/FMA/BMI2):** Translation units compile with modern ISA extensions (`-march=x86-64-v3 -mavx2 -mfma -mbmi -mbmi2 -ffp-contract=fast`), enabling hardware `movbe` (big-endian moves folded directly into load/store instructions), single-cycle fused multiply-add for transform matrices, and native 256-bit SIMDe AltiVec (VMX128) skeletal animation lowering.
+- **Link-Time Optimization (ThinLTO):** Release builds enable ThinLTO (`CMAKE_INTERPROCEDURAL_OPTIMIZATION` / `-flto=thin`), allowing aggressive function inlining and constant folding across all 180+ recompiled translation units without prohibitive link times.
+- > [!IMPORTANT]
+  > **CPU Hardware Requirement:** Building and running Majistic Recomp now requires a modern 64-bit x86 processor with **AVX2 support** (`x86-64-v3` microarchitecture baseline: Intel Haswell 4th Gen / AMD Excavator/Zen or newer). Older CPUs lacking AVX2, FMA, or BMI2 instructions are unsupported and will crash with an illegal instruction exception (`SIGILL`).
+
 ---
 
 ## Directory Architecture: Self-Contained `game-data/`
@@ -155,7 +162,7 @@ Majin Recomp/
 ## Building from Source
 
 ### Prerequisites
-1. **Windows 10 or 11 (x64)**
+1. **Windows 10 or 11 (x64)** on a CPU supporting **AVX2 / `x86-64-v3`** (Intel Haswell 2013+ / AMD Zen 2017+ or newer). Pre-AVX2 CPUs are not supported.
 2. **Visual Studio 2022** (Community, Professional, or Build Tools) with:
    - **Desktop Development with C++** (`MSVC v143 x64`, `Windows 10/11 SDK`)
    - **Clang:** Visual Studio component *C++ Clang Compiler for Windows*, or standalone LLVM 20.1.8+

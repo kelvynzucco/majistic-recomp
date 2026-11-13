@@ -79,6 +79,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   std::string json = buffer.str();
 
   // Read current live cvar states
+  const std::string post_effect = rex::cvar::Query<std::string>("swap_post_effect");
+  const std::string upscaler = rex::cvar::Query<std::string>("present_effect");
   const double mouse_sens = rex::cvar::Query<double>("mnk_sensitivity");
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
   const bool dof = rex::cvar::Query<bool>("majin_dof");
@@ -96,6 +98,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   char fov_buf[32];
   snprintf(fov_buf, sizeof(fov_buf), "%.2f", fov_scale);
 
+  ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
+  ReplaceJsonField(json, "Upscaler", "\"" + upscaler + "\"");
   ReplaceJsonField(json, "MouseSensitivity", sens_buf);
   ReplaceJsonField(json, "FovScale", fov_buf);
   ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
@@ -125,7 +129,7 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
     }
   }
 
-  ImGui::SetNextWindowSize(ImVec2(640, 520), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(660, 580), ImGuiCond_FirstUseEver);
   const ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
   ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
@@ -261,6 +265,101 @@ void InGameMenuDialog::DrawGameplayTab() {
 void InGameMenuDialog::DrawVisualsTab() {
   ImGui::Spacing();
 
+  // Anti-Aliasing & De-Dither (swap_post_effect)
+  const std::string current_post = rex::cvar::GetFlagByName("swap_post_effect");
+  const char* post_effect_labels[] = {
+      "Off (Native Raw)",
+      "FXAA Fast (FXAA 3.11 Default)",
+      "FXAA High (FXAA 3.11 Quality)",
+      "De-Dither (Edge-Preserving Cross Filter)",
+      "De-Dither + FXAA Fast (Recommended)",
+      "De-Dither + FXAA High",
+      "De-Dither Debug Heatmap (Magenta = Dither Detected)",
+  };
+  const char* post_effect_values[] = {
+      "none",
+      "fxaa",
+      "fxaa_extreme",
+      "dedither",
+      "dedither_fxaa",
+      "dedither_fxaa_extreme",
+      "dedither_debug",
+  };
+
+  int post_idx = 0;
+  for (int i = 0; i < IM_ARRAYSIZE(post_effect_values); ++i) {
+    if (current_post == post_effect_values[i]) {
+      post_idx = i;
+      break;
+    }
+  }
+
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Anti-Aliasing & De-Dither Pass (swap_post_effect):");
+  ImGui::SetNextItemWidth(400.0f);
+  if (ImGui::Combo("##SwapPostEffect", &post_idx, post_effect_labels, IM_ARRAYSIZE(post_effect_labels))) {
+    rex::cvar::SetFlagByName("swap_post_effect", post_effect_values[post_idx]);
+  }
+  ImGui::TextDisabled("Removes checkerboard dither transparency and smooths geometric aliasing in real-time.");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  // Presenter Upscaler (present_effect)
+  const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
+  const char* upscaler_labels[] = {
+      "Bilinear (Direct Blit / Smooth Downsample)",
+      "AMD FidelityFX Super Resolution 1.0 (FSR)",
+      "Contrast Adaptive Sharpening (CAS)",
+  };
+  const char* upscaler_values[] = {
+      "bilinear",
+      "fsr",
+      "cas",
+  };
+
+  int upscaler_idx = 0;
+  for (int i = 0; i < IM_ARRAYSIZE(upscaler_values); ++i) {
+    if (current_upscaler == upscaler_values[i]) {
+      upscaler_idx = i;
+      break;
+    }
+  }
+
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Presenter Upscaler & Scaling Filter (present_effect):");
+  ImGui::SetNextItemWidth(400.0f);
+  if (ImGui::Combo("##PresentEffect", &upscaler_idx, upscaler_labels, IM_ARRAYSIZE(upscaler_labels))) {
+    rex::cvar::SetFlagByName("present_effect", upscaler_values[upscaler_idx]);
+  }
+  ImGui::TextDisabled("Bilinear blit is automatically enforced when downsampling to avoid sharpening dither patterns.");
+
+  // Sharpening controls based on active upscaler
+  if (current_upscaler == "cas") {
+    float cas_sharp = static_cast<float>(rex::cvar::Query<double>("present_cas_additional_sharpness"));
+    ImGui::Text("CAS Additional Sharpness:");
+    ImGui::SetNextItemWidth(320.0f);
+    if (ImGui::SliderFloat("##CasSharpness", &cas_sharp, 0.0f, 1.0f, "%.2f")) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f", cas_sharp);
+      rex::cvar::SetFlagByName("present_cas_additional_sharpness", buf);
+    }
+    ImGui::TextDisabled("Adjusts Contrast Adaptive Sharpening intensity (0.00 = default, 1.00 = max).");
+  } else if (current_upscaler == "fsr") {
+    float fsr_reduction = static_cast<float>(rex::cvar::Query<double>("present_fsr_sharpness_reduction"));
+    ImGui::Text("FSR RCAS Sharpness Reduction:");
+    ImGui::SetNextItemWidth(320.0f);
+    if (ImGui::SliderFloat("##FsrSharpnessReduction", &fsr_reduction, 0.0f, 2.0f, "%.2f stops")) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f", fsr_reduction);
+      rex::cvar::SetFlagByName("present_fsr_sharpness_reduction", buf);
+    }
+    ImGui::TextDisabled("0.00 = Maximum sharpness; higher values reduce RCAS sharpening strength.");
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
   // Field of View
   float fov_scale = static_cast<float>(rex::cvar::Query<double>("majin_fov_scale"));
   ImGui::Text("Camera Field of View (FOV Multiplier):");
@@ -276,7 +375,7 @@ void InGameMenuDialog::DrawVisualsTab() {
   ImGui::Separator();
   ImGui::Spacing();
 
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Post-Processing Effects:");
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "In-Engine Shaders & Effects:");
 
   // Depth of field
   bool dof = rex::cvar::Query<bool>("majin_dof");

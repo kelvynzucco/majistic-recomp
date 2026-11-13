@@ -7,6 +7,7 @@
 #define MAJIN_CONCAT_IMPL(a, b) a##b
 #define MAJIN_CONCAT(a, b) MAJIN_CONCAT_IMPL(a, b)
 
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
 #define MAJIN_TRACE_SAVE(address, operation) \
     REX_EXTERN(MAJIN_CONCAT(__imp__sub_, address)); \
     REX_EXTERN(MAJIN_CONCAT(sub_, address)) { \
@@ -24,6 +25,7 @@ MAJIN_TRACE_SAVE(MAJIN_ADDR_CONTENT_CLOSE, "ContentClose")
 MAJIN_TRACE_SAVE(MAJIN_ADDR_CONTENT_SET_THUMBNAIL, "ContentSetThumbnail")
 MAJIN_TRACE_SAVE(MAJIN_ADDR_GET_OVERLAPPED_RESULT, "GetOverlappedResult")
 #undef MAJIN_TRACE_SAVE
+#endif
 
 // WriteFile & GetLastError
 REX_EXTERN(MAJIN_IMP_WRITE_FILE);
@@ -42,8 +44,10 @@ REX_EXTERN(MAJIN_FN_WRITE_FILE) {
         const uint32_t status = REX_LOAD_U32(overlapped);
         const uint32_t written = REX_LOAD_U32(overlapped + 4);
         const bool completed = probe.r3.u32 == 997 && status == 0 && written == requested;
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
         REXLOG_INFO("[Majin save " MAJIN_EDITION_NAME "] write completion lastError={} status={:08X} bytes={}/{} immediate={}",
                     probe.r3.u32, status, written, requested, completed);
+#endif
         if (completed) {
             if (bytesOut) REX_STORE_U32(bytesOut, written);
             ctx.r3.u64 = 1;
@@ -51,6 +55,7 @@ REX_EXTERN(MAJIN_FN_WRITE_FILE) {
     }
 }
 
+#if defined(MAJIN_ENABLE_DIAGNOSTICS)
 REX_EXTERN(MAJIN_FN_GET_LAST_ERROR) {
     const uint32_t caller = uint32_t(ctx.lr);
     MAJIN_IMP_GET_LAST_ERROR(ctx, base);
@@ -99,3 +104,4 @@ REX_EXTERN(MAJIN_FN_SAVE_FLOW_C) {
         REXLOG_INFO("[Majin trace " MAJIN_EDITION_NAME "] flow_c result: r3={:08X}", ctx.r3.u32);
     }
 }
+#endif

@@ -1,4 +1,5 @@
-tools/
+tools/sdk/
+tools/source/
 generated/
 build/
 out/
@@ -24,7 +25,9 @@ prototype/generated/*
 prototype-usa/generated/*
 !prototype-usa/generated/rexglue.cmake
 
-reports/
+reports/*
+!reports/gpl-spike/
+!reports/gpl-spike/*
 *.iso
 *.bin
 *.dat

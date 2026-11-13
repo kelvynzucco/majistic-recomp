@@ -338,6 +338,15 @@
                   <option value="ROV">D3D12 (ROV Interlock)</option>
                   <option value="RTV">D3D12 (RTV Direct)</option>
                 </select>
+                <button
+                  id="btnPrecompileInline"
+                  type="button"
+                  class="text-[11px] text-accent hover:underline flex items-center gap-1.5 mt-1 font-semibold cursor-pointer"
+                  title="Precompile all Vulkan pipeline shaders"
+                >
+                  <span id="precompileInlineStatusIcon" class="flex items-center justify-center"></span>
+                  <span>Precompile Shaders</span>
+                </button>
               </div>
 
               <div>
@@ -363,6 +372,9 @@
                   <option value="none" selected>Off</option>
                   <option value="fxaa">FXAA Fast</option>
                   <option value="fxaa_extreme">FXAA High</option>
+                  <option value="dedither">De-Dither (Edge-Preserving)</option>
+                  <option value="dedither_fxaa">De-Dither + FXAA Fast</option>
+                  <option value="dedither_fxaa_extreme">De-Dither + FXAA High</option>
                 </select>
               </div>
             </div>
@@ -942,6 +954,80 @@
               </svg>
               <span>EXTRACT &amp; BUILD GAME FROM .ISO</span>
             </button>
+
+            <!-- Step 3: Vulkan Shader Precompilation -->
+            <div class="pt-1 space-y-2">
+              <div class="flex items-center gap-2">
+                <button
+                  id="btnPrecompile"
+                  type="button"
+                  title="Precompile all Vulkan pipeline shaders to eliminate in-game stuttering"
+                  class="flex-1 py-2.5 px-3 rounded-lg bg-darkControl hover:bg-slate-700 text-slate-100 border border-darkBorder hover:border-slate-500 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                >
+                  <span id="precompileStatusIcon" class="flex items-center justify-center"></span>
+                  <span id="btnPrecompileText">PRECOMPILE SHADERS</span>
+                </button>
+
+                <button
+                  id="btnCleanShaders"
+                  type="button"
+                  title="Purge compiled Vulkan driver cache (.vkpc) to allow a clean re-compilation"
+                  class="py-2.5 px-3.5 rounded-lg bg-darkControl hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-darkBorder hover:border-rose-700/60 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                >
+                  <svg class="w-3.5 h-3.5 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+                    <path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/>
+                  </svg>
+                  <span>CLEAN</span>
+                </button>
+              </div>
+
+              <!-- Dev Only: Shader Cache Monitor Card -->
+              <div
+                data-dev-only
+                id="devShaderCacheCard"
+                class="p-2.5 rounded-lg border border-amber-800/50 bg-amber-950/20 text-xs space-y-2"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span class="font-bold text-amber-200 text-[11px] uppercase tracking-wider">Shader Cache Monitor</span>
+                    <span class="text-[9px] px-1 py-0.2 rounded bg-amber-900/60 text-amber-300 font-mono">Dev Only</span>
+                  </div>
+                  <button
+                    id="btnRefreshShaderCache"
+                    type="button"
+                    title="Refresh shader cache sizes"
+                    class="text-[10px] text-amber-400 hover:text-amber-200 underline cursor-pointer"
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                    <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Total Cache Size</span>
+                    <span id="devShaderTotalSize" class="font-bold text-amber-300 text-xs">--</span>
+                  </div>
+                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                    <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Target Pipelines</span>
+                    <span id="devShaderPipelineCount" class="font-bold text-slate-200 text-xs flex items-baseline flex-wrap gap-1">--</span>
+                  </div>
+                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                    <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Driver Cache (.vkpc)</span>
+                    <span id="devShaderVkpcSize" class="text-slate-300">--</span>
+                  </div>
+                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                    <span class="text-slate-400 block text-[9px] uppercase tracking-wider">Shaders Store (.xsh)</span>
+                    <span id="devShaderXshSize" class="text-slate-300">--</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                  <span>Last cache sync:</span>
+                  <span id="devShaderLastUpdated" class="font-mono text-slate-300">--</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Right Column: Real-Time Build Output & Console Terminal -->
@@ -1043,7 +1129,7 @@
       </div>
     </main>
 
-    <!-- Footer Controls (Centered Launch Button, No Exit Button) -->
+    <!-- Footer Controls (Centered Launch Button) -->
     <footer
       class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0"
     >
@@ -1065,6 +1151,80 @@
         <span id="btnLaunchText">LAUNCH GAME</span>
       </button>
     </footer>
+
+    <!-- Shader Precompilation Modal -->
+    <div
+      id="precompileModal"
+      class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+    >
+      <div class="bg-darkCard border border-darkBorder rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl animate-fade-in">
+        <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-accent shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+              <path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/>
+            </svg>
+            <div>
+              <h3 class="text-sm font-bold text-white">Vulkan Shader Precompilation</h3>
+              <p class="text-[11px] text-slate-400">Compiling graphics pipeline caches to eliminate runtime stutter</p>
+            </div>
+          </div>
+          <button id="btnClosePrecompileModal" type="button" class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+              <path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Status & Progress -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2">
+              <svg
+                id="precompileSpinner"
+                class="animate-spin text-accent w-3.5 h-3.5 shrink-0"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z"
+                />
+              </svg>
+              <span id="precompileStatusText" class="font-semibold text-slate-200">Initializing shader precompiler...</span>
+            </div>
+            <span id="precompilePercentText" class="font-mono text-accent font-semibold">0%</span>
+          </div>
+          <div class="w-full bg-darkControl h-2.5 rounded-full overflow-hidden border border-darkBorder">
+            <div id="precompileProgressBar" class="h-full bg-gradient-to-r from-sky-500 to-[#6da712] transition-all duration-200" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Terminal log -->
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <span class="font-mono font-semibold">PRECOMPILER LOG</span>
+            <button id="btnClearPrecompileLog" type="button" class="hover:text-slate-200 text-[10px] transition-colors">Clear</button>
+          </div>
+          <div
+            id="precompileConsole"
+            class="bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded border border-darkBorder/80 h-36 overflow-y-auto space-y-0.5 leading-relaxed select-text cursor-text"
+          >
+            <div class="text-slate-500">[Precompiler Ready] Initializing Vulkan pipelines...</div>
+          </div>
+        </div>
+
+        <!-- Modal Action -->
+        <div class="flex justify-end gap-2 pt-1 border-t border-darkBorder">
+          <button
+            id="btnPrecompileDone"
+            type="button"
+            class="px-5 py-1.5 rounded text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Software Update Modal -->
     <div

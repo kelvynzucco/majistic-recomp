@@ -1,0 +1,163 @@
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+index 831c452..6d39bcf 100644
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -967,7 +967,7 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
+ 
+ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+   // Check if the texture is a scaled resolve texture.
+-  if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
++  if (IsDrawResolutionScaled() && IsScaledResolveSupportedForFormat(key)) {
+     texture_util::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
+     if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
+          IsRangeScaledResolved(key.base_page << 12,
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index a20f191..4d1786e 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -5283,10 +5283,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+           "cache is {}x{}",
+           texture_scale_x, texture_scale_y, rt_scale_x, rt_scale_y);
+     }
+-    static bool draw_scale_swap_sizes_logged = false;
+-    if (!draw_scale_swap_sizes_logged) {
+-      draw_scale_swap_sizes_logged = true;
+-      REXGPU_WARN(
++    static uint32_t last_logged_guest_width = 0, last_logged_guest_height = 0;
++    if (guest_output_width != last_logged_guest_width || guest_output_height != last_logged_guest_height) {
++      last_logged_guest_width = guest_output_width;
++      last_logged_guest_height = guest_output_height;
++      REXGPU_INFO(
+           "Vulkan draw-scale swap sizing: packet={}x{}, src_scaled={}x{}, "
+           "src_unscaled={}x{}, active={}x{}",
+           frontbuffer_width, frontbuffer_height, frontbuffer_width_scaled,
+@@ -5294,7 +5295,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+           guest_output_width, guest_output_height);
+     }
+   }
+-  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled) {
++  if (texture_cache_->IsDrawResolutionScaled() && !swap_source_scaled && frame_current_ >= 4) {
+     static bool draw_scale_swap_unscaled_logged = false;
+     if (!draw_scale_swap_unscaled_logged) {
+       draw_scale_swap_unscaled_logged = true;
+diff --git a/src/ui/presenter.cpp b/src/ui/presenter.cpp
+index c022d65..8250242 100644
+--- a/src/ui/presenter.cpp
++++ b/src/ui/presenter.cpp
+@@ -55,7 +55,7 @@ REXCVAR_DEFINE_STRING(present_effect, "bilinear", "UI/Presenter",
+                       "Guest output effect: bilinear, cas (sharpen, up to 2x), fsr (FSR 1 "
+                       "upscaling and sharpening)")
+     .allowed({"bilinear", "cas", "fsr"})
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ #endif
+ 
+ REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+@@ -63,7 +63,7 @@ REXCVAR_DEFINE_DOUBLE(present_cas_additional_sharpness,
+                       "UI/Presenter", "Additional CAS sharpness in [0, 1]")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kCasAdditionalSharpnessMax)
+-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ REXCVAR_DEFINE_INT32(present_fsr_max_upsampling_passes,
+                      rex::ui::Presenter::GuestOutputPaintConfig::kFsrMaxUpscalingPassesMax,
+@@ -76,7 +76,7 @@ REXCVAR_DEFINE_DOUBLE(present_fsr_sharpness_reduction,
+                       "UI/Presenter", "FSR RCAS sharpness reduction in stops")
+     .range(rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMin,
+            rex::ui::Presenter::GuestOutputPaintConfig::kFsrSharpnessReductionMax)
+-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ REXCVAR_DEFINE_STRING(
+     present_fsr_quality_mode, "auto", "UI/Presenter",
+@@ -351,6 +351,11 @@ void Presenter::FatalErrorHostGpuLossCallback([[maybe_unused]] bool is_responsib
+ }
+ 
+ Presenter::~Presenter() {
++  rex::cvar::UnregisterChangeCallbacks("present_effect");
++  rex::cvar::UnregisterChangeCallbacks("present_dither");
++  rex::cvar::UnregisterChangeCallbacks("present_cas_additional_sharpness");
++  rex::cvar::UnregisterChangeCallbacks("present_fsr_sharpness_reduction");
++
+   // No intrusive lifetime management must be performed from UI drawers - defer
+   // it if needed.
+   assert_false(is_executing_ui_drawers_);
+@@ -893,6 +898,14 @@ bool Presenter::InitializeCommonSurfaceIndependent() {
+     guest_output_paint_config_ = BuildGuestOutputPaintConfigFromCVar();
+   }
+ 
++  auto update_config_callback = [this](std::string_view, std::string_view) {
++    SetGuestOutputPaintConfigFromUIThread(BuildGuestOutputPaintConfigFromCVar());
++  };
++  rex::cvar::RegisterChangeCallback("present_effect", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_dither", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_cas_additional_sharpness", update_config_callback);
++  rex::cvar::RegisterChangeCallback("present_fsr_sharpness_reduction", update_config_callback);
++
+   // Initialize UI frame rate limiting.
+ #if REX_PLATFORM_WIN32
+   dxgi_ui_tick_thread_ = std::thread(&Presenter::DXGIUITickThread, this);
+@@ -1163,7 +1176,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+     bool temporal_quality_mode_forced =
+         is_temporal_effect &&
+         config.GetFsrQualityMode() != GuestOutputPaintConfig::FsrQualityMode::kAuto;
+-    if ((config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr || is_temporal_effect) &&
++    bool is_downsampling =
++        ffx_last_size.first > output_width || ffx_last_size.second > output_height;
++    if (!is_downsampling &&
++        (config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr || is_temporal_effect) &&
+         ((ffx_last_size.first < output_width_clamped ||
+           ffx_last_size.second < output_height_clamped) ||
+          temporal_quality_mode_forced)) {
+@@ -1230,7 +1246,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+       assert_true(flow.effect_count < flow.effects.size());
+       flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
+       flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrRcas;
+-    } else {
++    } else if (!is_downsampling && config.GetEffect() == GuestOutputPaintConfig::Effect::kCas) {
+       // AMD FidelityFX Contrast Adaptive Sharpening - sharpen or downsample, or
+       // upsample up to 2x2 if CAS is specified to be used for upscaling too.
+       // Using the unclamped output size as CAS may be the last pass - if a
+@@ -1276,6 +1292,41 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+ 
+   assert_not_zero(flow.effect_count);
+ 
++  static uint32_t s_last_flow_in_width = 0, s_last_flow_in_height = 0;
++  static uint32_t s_last_flow_out_width = 0, s_last_flow_out_height = 0;
++  if (properties.frontbuffer_width != s_last_flow_in_width ||
++      properties.frontbuffer_height != s_last_flow_in_height ||
++      output_width != s_last_flow_out_width || output_height != s_last_flow_out_height) {
++    s_last_flow_in_width = properties.frontbuffer_width;
++    s_last_flow_in_height = properties.frontbuffer_height;
++    s_last_flow_out_width = output_width;
++    s_last_flow_out_height = output_height;
++    const char* effect_name = "unknown";
++    if (flow.effect_count) {
++      switch (flow.effects[flow.effect_count - 1]) {
++        case GuestOutputPaintEffect::kBilinear:
++          if (properties.frontbuffer_width > output_width ||
++              properties.frontbuffer_height > output_height) {
++            effect_name = "bilinear (supersampling downscale)";
++          } else if (properties.frontbuffer_width == output_width &&
++                     properties.frontbuffer_height == output_height) {
++            effect_name = "bilinear (1:1 / direct blit)";
++          } else {
++            effect_name = "bilinear (upscale)";
++          }
++          break;
++        case GuestOutputPaintEffect::kCasSharpen: effect_name = "cas_sharpen"; break;
++        case GuestOutputPaintEffect::kCasResample: effect_name = "cas_resample"; break;
++        case GuestOutputPaintEffect::kFsrEasu: effect_name = "fsr_easu"; break;
++        case GuestOutputPaintEffect::kFsrRcas: effect_name = "fsr_rcas"; break;
++        default: effect_name = "other"; break;
++      }
++    }
++    REXLOG_INFO("Presenter: input {}x{} -> output {}x{}, {} effect(s), final pass: {}",
++                properties.frontbuffer_width, properties.frontbuffer_height,
++                output_width, output_height, flow.effect_count, effect_name);
++  }
++
+   if (config.GetDither()) {
+     // Dithering must be applied only to the final effect since resampling and
+     // sharpening filters may considering the dithering noise features and

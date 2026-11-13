@@ -1,0 +1,248 @@
+diff --git a/include/rex/graphics/vulkan/pipeline_cache.h b/include/rex/graphics/vulkan/pipeline_cache.h
+index cd7e67f..9f84cf5 100644
+--- a/include/rex/graphics/vulkan/pipeline_cache.h
++++ b/include/rex/graphics/vulkan/pipeline_cache.h
+@@ -135,7 +135,8 @@ class VulkanPipelineCache {
+       VulkanRenderTargetCache::RenderPassKey render_pass_key);
+   void GetPipelineAndLayoutByHandle(void* handle, VkPipeline& pipeline_out,
+                                     const PipelineLayoutProvider*& pipeline_layout_out,
+-                                    bool* is_placeholder_out = nullptr) const;
++                                    bool* is_placeholder_out = nullptr,
++                                    bool* is_async_safe_pass_out = nullptr) const;
+ 
+  private:
+   REXPACKEDSTRUCT(ShaderStoredHeader, {
+@@ -260,6 +261,26 @@ class VulkanPipelineCache {
+     uint64_t GetHash() const {
+       return XXH3_64bits(this, sizeof(*this));
+     }
++    bool IsAsyncSafePass() const {
++      // RULE 1: Must write ZERO depth
++      if (depth_write_enable) return false;
++
++      // RULE 2: Must write color
++      if (render_targets[0].color_write_mask == 0) return false;
++
++      // RULE 3: Must be Main Scene world render target (RP 0x8c)
++      if (render_pass_key.key != 0x8c) return false;
++
++      // RULE 4: POSITIVE ALLOWLIST: Pure Additive VFX (Category 6A)
++      const auto src_blend = render_targets[0].src_color_blend_factor;
++      const auto dst_blend = render_targets[0].dst_color_blend_factor;
++
++      const bool is_additive_vfx =
++          (src_blend == PipelineBlendFactor::kSrcAlpha && dst_blend == PipelineBlendFactor::kOne) ||
++          (src_blend == PipelineBlendFactor::kOne && dst_blend == PipelineBlendFactor::kOne);
++
++      return is_additive_vfx;
++    }
+     struct Hasher {
+       size_t operator()(const PipelineDescription& description) const {
+         return size_t(description.GetHash());
+@@ -288,6 +309,7 @@ class VulkanPipelineCache {
+     // is stored at the first. While being built, is_placeholder is set with no pipeline.
+     // Command processor thread only.
+     bool fh1_ahead = false;
++    bool is_async_safe_pass = false;
+     Pipeline() = default;
+     Pipeline(const PipelineLayoutProvider* pipeline_layout_provider)
+         : pipeline_layout(pipeline_layout_provider) {}
+@@ -295,7 +317,8 @@ class VulkanPipelineCache {
+         : pipeline(other.pipeline.load(std::memory_order_acquire)),
+           pipeline_layout(other.pipeline_layout.load(std::memory_order_acquire)),
+           is_placeholder(other.is_placeholder.load(std::memory_order_acquire)),
+-          fh1_ahead(other.fh1_ahead) {}
++          fh1_ahead(other.fh1_ahead),
++          is_async_safe_pass(other.is_async_safe_pass) {}
+     Pipeline& operator=(const Pipeline& other) {
+       if (this == &other) {
+         return *this;
+@@ -306,6 +329,7 @@ class VulkanPipelineCache {
+       is_placeholder.store(other.is_placeholder.load(std::memory_order_acquire),
+                            std::memory_order_release);
+       fh1_ahead = other.fh1_ahead;
++      is_async_safe_pass = other.is_async_safe_pass;
+       return *this;
+     }
+   };
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 65142e2..b1e851b 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -5139,14 +5139,14 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+ 
+   bool skip_present_due_async_placeholder = REXCVAR_GET(async_shader_compilation) &&
+                                             REXCVAR_GET(vulkan_async_skip_incomplete_frames) &&
+-                                            frame_used_async_placeholder_pipeline_;
++                                            frame_used_async_placeholder_pipeline_ &&
++                                            fh1_frame_skipped_critical_;
+   // FH1 (#167): the pipelines are built in the background across frames now (a frame waits for
+   // them only briefly, Fh1PipelineWaitMs), so frames that need one are held back for at most
+   // vulkan_async_skip_incomplete_frames_ms, then shown without those draws until it is ready.
+-  // Only object draws, though: a frame that skipped a draw whose absence leaves stale contents
+-  // (Fh1SkipMustHoldFrame) is held however long the build takes.
++  // Only critical draws whose absence leaves stale contents are held.
+   bool held_for_stale_contents = false;
+-  if (!frame_used_async_placeholder_pipeline_) {
++  if (!frame_used_async_placeholder_pipeline_ || !fh1_frame_skipped_critical_) {
+     fh1_incomplete_frames_ = false;
+   } else {
+     const auto now = std::chrono::steady_clock::now();
+@@ -5157,11 +5157,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+     const uint32_t hold_ms = REXCVAR_GET(vulkan_async_skip_incomplete_frames_ms);
+     if (skip_present_due_async_placeholder && hold_ms &&
+         now - fh1_incomplete_since_ >= std::chrono::milliseconds(hold_ms)) {
+-      if (fh1_frame_skipped_critical_) {
+-        held_for_stale_contents = true;
+-      } else {
+-        skip_present_due_async_placeholder = false;
+-      }
++      held_for_stale_contents = true;
+     }
+   }
+   // FH1 (#378): the log's pipeline summary (fh1_pipeline_lookahead.h).
+@@ -7342,29 +7338,72 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+     return draw_fail("configure_pipeline");
+   }
+   bool pipeline_is_placeholder = false;
++  bool is_pso_async_safe = false;
+   // Reload the current handle state to observe async hot-swap completions that
+   // may happen between pipeline configuration and binding.
+   pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline, pipeline_layout_provider,
+-                                                &pipeline_is_placeholder);
+-  if (pipeline_is_placeholder && REXCVAR_GET(async_shader_compilation) &&
+-      REXCVAR_GET(sync_pipeline_creation)) {
+-    // A render that is made once (a car's picture) cannot lose this draw: wait for the
+-    // creation thread to swap the real pipeline in (a stuck creation falls back to the skip).
+-    const auto wait_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+-    while (pipeline_is_placeholder && std::chrono::steady_clock::now() < wait_deadline) {
+-      std::this_thread::sleep_for(std::chrono::microseconds(200));
+-      pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline,
+-                                                    pipeline_layout_provider,
+-                                                    &pipeline_is_placeholder);
++                                                &pipeline_is_placeholder, &is_pso_async_safe);
++  if (pipeline_is_placeholder && REXCVAR_GET(async_shader_compilation)) {
++    // Two-Layer Defense-in-Depth classifier (Milestone M3):
++    // Layer 1: PSO positive allowlist for pure additive transient 3D particle VFX (Category 6A)
++    // Layer 2: Draw-level guard ensuring vertices > 6 (excludes full-screen quads)
++    auto is_async_safe_draw = [&]() -> bool {
++      // RULE 1: Must write ZERO depth
++      if (normalized_depth_control.z_write_enable) return false;
++
++      // RULE 2: Must write color (exclude null-write / occlusion passes)
++      if ((normalized_color_mask & 0b1111) == 0) return false;
++
++      // RULE 3: Must be Main Scene world render target (RP 0x8c)
++      // Excludes Screen Post-FX/HUD/Bloom (RP 0x8) and offscreen targets (0xe018, 0xee18)
++      if (render_target_cache_->last_update_render_pass_key().key != 0x8c) return false;
++
++      // RULE 4: POSITIVE ALLOWLIST: Pure Additive VFX (Category 6A: 44 PSOs)
++      // Transient 3D particles (sparks, impact bursts, magic dust) with zero depth impact
++      const auto blend_control = regs.Get<reg::RB_BLENDCONTROL>(reg::RB_BLENDCONTROL::rt_register_indices[0]);
++      const auto src_blend = blend_control.color_srcblend;
++      const auto dst_blend = blend_control.color_destblend;
++
++      const bool is_additive_vfx =
++          (src_blend == xenos::BlendFactor::kSrcAlpha && dst_blend == xenos::BlendFactor::kOne) ||
++          (src_blend == xenos::BlendFactor::kOne && dst_blend == xenos::BlendFactor::kOne);
++
++      if (!is_additive_vfx) return false;
++
++      return true;
++    };
++
++    const bool is_screen_quad = (primitive_processing_result.host_draw_vertex_count <= 6);
++    const bool is_safe = (is_pso_async_safe || is_async_safe_draw()) && !is_screen_quad;
++
++    if (!REXCVAR_GET(sync_pipeline_creation) && is_safe) {
++      // Benign 3D transient VFX: drop draw while compiling in worker pool (3-12 frames)
++      frame_used_async_placeholder_pipeline_ = true;
++      ++fh1_pipeline_lookahead::stats.skipped_draws;
++      // Do NOT set fh1_frame_skipped_critical_ - this draw is safe to drop without visual harm
++      return true;
++    }
++
++    // Critical draw (Opaque, Shadow, UI, Screen-FX, Bloom, or Water): MUST BLOCK synchronously
++    // Wait for the background creation thread to swap the real pipeline in
++    {
++      fh1_frame_cost::Timer wait_timer(fh1_frame_cost::Current().pipeline_ms,
++                                       fh1_frame_cost::Current().pipeline_wait_ms);
++      const auto wait_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
++      while (pipeline_is_placeholder && std::chrono::steady_clock::now() < wait_deadline) {
++        std::this_thread::sleep_for(std::chrono::microseconds(100));
++        pipeline_cache_->GetPipelineAndLayoutByHandle(pipeline_handle, pipeline,
++                                                      pipeline_layout_provider,
++                                                      &pipeline_is_placeholder,
++                                                      &is_pso_async_safe);
++      }
+     }
+   }
+   if (REXCVAR_GET(async_shader_compilation) && pipeline_is_placeholder) {
++    // Only if a critical draw timed out after 5s
+     frame_used_async_placeholder_pipeline_ = true;
+-    ++fh1_pipeline_lookahead::stats.skipped_draws;  // FH1 (#378)
+-    if (Fh1SkipMustHoldFrame(pixel_shader != nullptr, normalized_color_mask,
+-                             primitive_processing_result.host_draw_vertex_count)) {
+-      fh1_frame_skipped_critical_ = true;
+-    }
++    ++fh1_pipeline_lookahead::stats.skipped_draws;
++    fh1_frame_skipped_critical_ = true;
+     return true;
+   }
+   if (pipeline == VK_NULL_HANDLE || pipeline_layout_provider == nullptr) {
+diff --git a/src/graphics/vulkan/pipeline_cache.cpp b/src/graphics/vulkan/pipeline_cache.cpp
+index 5f24255..2a2819f 100644
+--- a/src/graphics/vulkan/pipeline_cache.cpp
++++ b/src/graphics/vulkan/pipeline_cache.cpp
+@@ -920,6 +920,7 @@ void VulkanPipelineCache::InitializeShaderStorage(const std::filesystem::path& c
+       continue;
+     }
+     auto& pipeline = *pipelines_.emplace(pipeline_description, Pipeline()).first;
++    pipeline.second.is_async_safe_pass = pipeline_description.IsAsyncSafePass();
+     // FH1 (#45): the minute summary's counts (fh1_frame_cost.h).
+     fh1_frame_cost::GetSizes().pipelines.store(int64_t(pipelines_.size()), std::memory_order_relaxed);
+     PipelineCreationArguments creation_arguments;
+@@ -1759,6 +1760,7 @@ bool VulkanPipelineCache::ConfigurePipeline(
+                                    fh1_frame_cost::Current().pipeline_compile_ms);
+   ++fh1_frame_cost::Current().pipelines;
+   auto& pipeline = *pipelines_.emplace(description, Pipeline()).first;
++  pipeline.second.is_async_safe_pass = description.IsAsyncSafePass();
+   fh1_frame_cost::GetSizes().pipelines.store(int64_t(pipelines_.size()), std::memory_order_relaxed);
+   PipelineCreationArguments creation_arguments_real;
+   if (!TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
+@@ -1853,6 +1855,7 @@ VulkanPipelineCache::AheadResult VulkanPipelineCache::QueuePipelineAhead(
+     return AheadResult::kKnown;
+   }
+   auto& pipeline = *pipelines_.emplace(description, Pipeline()).first;
++  pipeline.second.is_async_safe_pass = description.IsAsyncSafePass();
+   fh1_frame_cost::GetSizes().pipelines.store(int64_t(pipelines_.size()), std::memory_order_relaxed);
+   PipelineCreationArguments creation_arguments;
+   if (!TryGetPipelineCreationArgumentsForDescription(description, &pipeline,
+@@ -1934,13 +1937,16 @@ void VulkanPipelineCache::Fh1StoreDrawnAhead(
+ 
+ void VulkanPipelineCache::GetPipelineAndLayoutByHandle(
+     void* handle, VkPipeline& pipeline_out, const PipelineLayoutProvider*& pipeline_layout_out,
+-    bool* is_placeholder_out) const {
++    bool* is_placeholder_out, bool* is_async_safe_pass_out) const {
+   if (!handle) {
+     pipeline_out = VK_NULL_HANDLE;
+     pipeline_layout_out = nullptr;
+     if (is_placeholder_out) {
+       *is_placeholder_out = false;
+     }
++    if (is_async_safe_pass_out) {
++      *is_async_safe_pass_out = false;
++    }
+     return;
+   }
+   const auto* pipeline = reinterpret_cast<const Pipeline*>(handle);
+@@ -1949,6 +1955,9 @@ void VulkanPipelineCache::GetPipelineAndLayoutByHandle(
+   if (is_placeholder_out) {
+     *is_placeholder_out = pipeline->is_placeholder.load(std::memory_order_acquire);
+   }
++  if (is_async_safe_pass_out) {
++    *is_async_safe_pass_out = pipeline->is_async_safe_pass;
++  }
+ }
+ 
+ bool VulkanPipelineCache::TranslateAnalyzedShader(SpirvShaderTranslator& translator,

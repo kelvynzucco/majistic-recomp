@@ -4,7 +4,7 @@ param(
     $Fullscreen = $false,
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
-    [ValidateSet('none','fxaa','fxaa_extreme')][string]$PostEffect = 'none',
+    [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
     [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
@@ -26,6 +26,7 @@ param(
     $AutoCapture = $false,
     $PresentDither = $false,
     [string]$GameDataRoot = 'game-data',
+    [switch]$ShaderPrebuildOnly,
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -111,6 +112,9 @@ if ($isVulkan) {
         '--vulkan_dynamic_rendering=false',
         '--vulkan_async_skip_incomplete_frames=false'
     )
+    if ($ShaderPrebuildOnly) {
+        $launchArgs += '--shader_prebuild_only=true'
+    }
 } else {
     $launchArgs += "--render_target_path_d3d12=$renderTarget"
 }
@@ -207,5 +211,6 @@ $workingDir = if (Test-Path (Split-Path $exe -Parent)) {
 } else {
     $projectRoot
 }
-$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle Normal -PassThru -Wait
+$windowStyle = if ($ShaderPrebuildOnly) { 'Hidden' } else { 'Normal' }
+$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle $windowStyle -PassThru -Wait
 Write-Output "majin.exe exited with ExitCode: $($process.ExitCode)"

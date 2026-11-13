@@ -1,0 +1,273 @@
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+index 528ceb0..2d04ff9 100644
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -178,19 +178,18 @@ class VulkanCommandProcessor : public CommandProcessor {
+     current_external_graphics_pipeline_ = VK_NULL_HANDLE;
+     current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
+     current_graphics_descriptor_sets_bound_up_to_date_ = 0;
+-    if (fh1_dlss_ && fh1_dlss_->UsesMetalFx()) {
+-      // The native pass starts a new Vulkan command buffer; dynamic state is not inherited.
+-      dynamic_viewport_update_needed_ = dynamic_scissor_update_needed_ = true;
+-      dynamic_depth_bias_update_needed_ = dynamic_blend_constants_update_needed_ = true;
+-      dynamic_stencil_compare_mask_front_update_needed_ = dynamic_stencil_compare_mask_back_update_needed_ = true;
+-      dynamic_stencil_write_mask_front_update_needed_ = dynamic_stencil_write_mask_back_update_needed_ = true;
+-      dynamic_stencil_reference_front_update_needed_ = dynamic_stencil_reference_back_update_needed_ = true;
+-      dynamic_cull_mode_update_needed_ = dynamic_front_face_update_needed_ = true;
+-      dynamic_depth_test_enable_update_needed_ = dynamic_depth_write_enable_update_needed_ = dynamic_depth_compare_op_update_needed_ = true;
+-      dynamic_stencil_test_enable_update_needed_ = dynamic_stencil_op_front_update_needed_ = dynamic_stencil_op_back_update_needed_ = true;
+-      dynamic_primitive_restart_enable_update_needed_ = dynamic_rasterizer_discard_enable_update_needed_ = true;
+-      dynamic_color_blend_enable_update_needed_ = dynamic_color_blend_equation_update_needed_ = dynamic_color_write_mask_update_needed_ = true;
+-    }
++    // Command buffer or pass boundary: dynamic state is not inherited.
++    dynamic_viewport_update_needed_ = dynamic_scissor_update_needed_ = true;
++    dynamic_depth_bias_update_needed_ = dynamic_blend_constants_update_needed_ = true;
++    dynamic_stencil_compare_mask_front_update_needed_ = dynamic_stencil_compare_mask_back_update_needed_ = true;
++    dynamic_stencil_write_mask_front_update_needed_ = dynamic_stencil_write_mask_back_update_needed_ = true;
++    dynamic_stencil_reference_front_update_needed_ = dynamic_stencil_reference_back_update_needed_ = true;
++    dynamic_cull_mode_update_needed_ = dynamic_front_face_update_needed_ = true;
++    dynamic_depth_test_enable_update_needed_ = dynamic_depth_write_enable_update_needed_ = dynamic_depth_compare_op_update_needed_ = true;
++    dynamic_stencil_test_enable_update_needed_ = dynamic_stencil_op_front_update_needed_ = dynamic_stencil_op_back_update_needed_ = true;
++    dynamic_primitive_restart_enable_update_needed_ = dynamic_rasterizer_discard_enable_update_needed_ = true;
++    dynamic_color_blend_enable_update_needed_ = dynamic_color_blend_equation_update_needed_ = dynamic_color_write_mask_update_needed_ = true;
++    dynamic_color_attachment_count_ = 0;
+   }
+   uint64_t GetCurrentSubmission() const {
+     return submission_completed_ + uint64_t(submissions_in_flight_fences_.size()) + 1;
+@@ -1134,6 +1133,7 @@ class VulkanCommandProcessor : public CommandProcessor {
+   VkBool32 dynamic_color_blend_enables_[4] = {};
+   VkColorBlendEquationEXT dynamic_color_blend_equations_[4] = {};
+   VkColorComponentFlags dynamic_color_write_masks_[4] = {};
++  uint32_t dynamic_color_attachment_count_ = 0;
+ 
+   bool dynamic_cull_mode_update_needed_ = true;
+   bool dynamic_front_face_update_needed_ = true;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index b1e851b..a20f191 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -6153,6 +6153,10 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+                                                   VK_SUBPASS_CONTENTS_INLINE);
+   }
+   in_render_pass_ = true;
++  if (current_guest_graphics_pipeline_ != VK_NULL_HANDLE) {
++    deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
++                                               current_guest_graphics_pipeline_);
++  }
+ }
+ 
+ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+@@ -6246,6 +6250,10 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+                                                   VK_SUBPASS_CONTENTS_INLINE);
+   }
+   in_render_pass_ = true;
++  if (current_guest_graphics_pipeline_ != VK_NULL_HANDLE) {
++    deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS,
++                                               current_guest_graphics_pipeline_);
++  }
+ }
+ 
+ bool VulkanCommandProcessor::CanHoistSharedMemoryUpload(
+@@ -6585,13 +6593,30 @@ void VulkanCommandProcessor::BindExternalGraphicsPipeline(VkPipeline pipeline,
+     dynamic_stencil_reference_front_update_needed_ = true;
+     dynamic_stencil_reference_back_update_needed_ = true;
+   }
++  // External pipelines (e.g. transfer pipelines) do not specify Extended Dynamic State,
++  // making all dynamic state in the command buffer undefined upon binding.
++  dynamic_cull_mode_update_needed_ = true;
++  dynamic_front_face_update_needed_ = true;
++  dynamic_depth_test_enable_update_needed_ = true;
++  dynamic_depth_write_enable_update_needed_ = true;
++  dynamic_depth_compare_op_update_needed_ = true;
++  dynamic_stencil_test_enable_update_needed_ = true;
++  dynamic_stencil_op_front_update_needed_ = true;
++  dynamic_stencil_op_back_update_needed_ = true;
++  dynamic_primitive_restart_enable_update_needed_ = true;
++  dynamic_rasterizer_discard_enable_update_needed_ = true;
++  dynamic_color_blend_enable_update_needed_ = true;
++  dynamic_color_blend_equation_update_needed_ = true;
++  dynamic_color_write_mask_update_needed_ = true;
++  dynamic_color_attachment_count_ = 0;
+   if (current_external_graphics_pipeline_ == pipeline) {
+     return;
+   }
+   deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+   current_external_graphics_pipeline_ = pipeline;
+   current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
+-  current_guest_graphics_pipeline_layout_ = VK_NULL_HANDLE;
++  current_guest_graphics_pipeline_layout_ = nullptr;
++  current_graphics_descriptor_sets_bound_up_to_date_ = 0;
+ }
+ 
+ void VulkanCommandProcessor::BindExternalComputePipeline(VkPipeline pipeline) {
+@@ -7435,6 +7460,8 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+         descriptor_sets_kept = std::min(
+             descriptor_sets_kept, uint32_t(SpirvShaderTranslator::kDescriptorSetTexturesPixel));
+       }
++      current_graphics_descriptor_sets_bound_up_to_date_ &=
++          (UINT32_C(1) << descriptor_sets_kept) - 1;
+     } else {
+       // No or unknown pipeline layout previously bound - all bindings are in an
+       // indeterminate state.
+@@ -9492,6 +9519,7 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
+     dynamic_color_blend_enable_update_needed_ = true;
+     dynamic_color_blend_equation_update_needed_ = true;
+     dynamic_color_write_mask_update_needed_ = true;
++    dynamic_color_attachment_count_ = 0;
+     current_render_pass_ = VK_NULL_HANDLE;
+     current_framebuffer_ = nullptr;
+     in_render_pass_ = false;
+@@ -10398,10 +10426,15 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+       dynamic_front_face_update_needed_ = false;
+     }
+ 
++    const bool has_depth_attachment =
++        render_target_cache_ &&
++        (render_target_cache_->last_update_render_pass_key().depth_and_color_used & 1) != 0;
++
+     VkBool32 depth_test_enable = VK_FALSE;
+     VkBool32 depth_write_enable = VK_FALSE;
+     VkCompareOp depth_compare_op = VK_COMPARE_OP_ALWAYS;
+-    if (render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets) {
++    if (render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets &&
++        has_depth_attachment) {
+       if (normalized_depth_control.z_enable) {
+         depth_test_enable = VK_TRUE;
+         depth_write_enable = normalized_depth_control.z_write_enable ? VK_TRUE : VK_FALSE;
+@@ -10435,6 +10468,7 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+     VkStencilOp back_depth_fail_op = VK_STENCIL_OP_KEEP;
+     VkCompareOp back_compare_op = VK_COMPARE_OP_NEVER;
+     if (render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets &&
++        has_depth_attachment &&
+         normalized_depth_control.stencil_enable) {
+       stencil_test_enable = VK_TRUE;
+       front_fail_op =
+@@ -10621,32 +10655,51 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+       }
+     }
+ 
+-    if (device_properties.extendedDynamicState3ColorBlendEnable) {
+-      if (dynamic_color_blend_enable_update_needed_ ||
+-          std::memcmp(dynamic_color_blend_enables_, blend_enables, sizeof(blend_enables)) != 0) {
+-        std::memcpy(dynamic_color_blend_enables_, blend_enables, sizeof(blend_enables));
+-        deferred_command_buffer_.CmdVkSetColorBlendEnableEXT(0, xenos::kMaxColorRenderTargets,
+-                                                             blend_enables);
+-        dynamic_color_blend_enable_update_needed_ = false;
++    uint32_t color_attachment_count = 0;
++    if (render_target_cache_) {
++      color_attachment_count =
++          32 - rex::lzcnt(uint32_t(render_target_cache_->last_update_render_pass_key().depth_and_color_used >> 1));
++    }
++    if (dynamic_color_attachment_count_ != color_attachment_count) {
++      dynamic_color_attachment_count_ = color_attachment_count;
++      dynamic_color_blend_enable_update_needed_ = true;
++      dynamic_color_blend_equation_update_needed_ = true;
++      dynamic_color_write_mask_update_needed_ = true;
++    }
++
++    if (color_attachment_count > 0) {
++      if (device_properties.extendedDynamicState3ColorBlendEnable) {
++        if (dynamic_color_blend_enable_update_needed_ ||
++            std::memcmp(dynamic_color_blend_enables_, blend_enables,
++                        sizeof(VkBool32) * color_attachment_count) != 0) {
++          std::memcpy(dynamic_color_blend_enables_, blend_enables,
++                      sizeof(VkBool32) * color_attachment_count);
++          deferred_command_buffer_.CmdVkSetColorBlendEnableEXT(0, color_attachment_count,
++                                                               blend_enables);
++          dynamic_color_blend_enable_update_needed_ = false;
++        }
+       }
+-    }
+-    if (device_properties.extendedDynamicState3ColorBlendEquation) {
+-      if (dynamic_color_blend_equation_update_needed_ ||
+-          std::memcmp(dynamic_color_blend_equations_, blend_equations,
+-                      sizeof(blend_equations)) != 0) {
+-        std::memcpy(dynamic_color_blend_equations_, blend_equations, sizeof(blend_equations));
+-        deferred_command_buffer_.CmdVkSetColorBlendEquationEXT(0, xenos::kMaxColorRenderTargets,
+-                                                               blend_equations);
+-        dynamic_color_blend_equation_update_needed_ = false;
++      if (device_properties.extendedDynamicState3ColorBlendEquation) {
++        if (dynamic_color_blend_equation_update_needed_ ||
++            std::memcmp(dynamic_color_blend_equations_, blend_equations,
++                        sizeof(VkColorBlendEquationEXT) * color_attachment_count) != 0) {
++          std::memcpy(dynamic_color_blend_equations_, blend_equations,
++                      sizeof(VkColorBlendEquationEXT) * color_attachment_count);
++          deferred_command_buffer_.CmdVkSetColorBlendEquationEXT(0, color_attachment_count,
++                                                                 blend_equations);
++          dynamic_color_blend_equation_update_needed_ = false;
++        }
+       }
+-    }
+-    if (device_properties.extendedDynamicState3ColorWriteMask) {
+-      if (dynamic_color_write_mask_update_needed_ ||
+-          std::memcmp(dynamic_color_write_masks_, write_masks, sizeof(write_masks)) != 0) {
+-        std::memcpy(dynamic_color_write_masks_, write_masks, sizeof(write_masks));
+-        deferred_command_buffer_.CmdVkSetColorWriteMaskEXT(0, xenos::kMaxColorRenderTargets,
+-                                                           write_masks);
+-        dynamic_color_write_mask_update_needed_ = false;
++      if (device_properties.extendedDynamicState3ColorWriteMask) {
++        if (dynamic_color_write_mask_update_needed_ ||
++            std::memcmp(dynamic_color_write_masks_, write_masks,
++                        sizeof(VkColorComponentFlags) * color_attachment_count) != 0) {
++          std::memcpy(dynamic_color_write_masks_, write_masks,
++                      sizeof(VkColorComponentFlags) * color_attachment_count);
++          deferred_command_buffer_.CmdVkSetColorWriteMaskEXT(0, color_attachment_count,
++                                                             write_masks);
++          dynamic_color_write_mask_update_needed_ = false;
++        }
+       }
+     }
+   }
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index 4f64e6f..dc59e58 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -1720,9 +1720,9 @@ void VulkanRenderTargetCache::GetLastUpdateRenderingAttachments(
+   for (uint32_t i = 0; i < xenos::kMaxColorRenderTargets; ++i) {
+     VkRenderingAttachmentInfo& color_attachment = color_attachments[i];
+     std::memset(&color_attachment, 0, sizeof(VkRenderingAttachmentInfo));
++    color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+     if ((key.depth_and_color_used & (1 << (1 + i))) && rts[1 + i]) {
+       const auto* vulkan_rt = static_cast<const VulkanRenderTarget*>(rts[1 + i]);
+-      color_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+       color_attachment.pNext = nullptr;
+       color_attachment.imageView = vulkan_rt->view_depth_color();
+       color_attachment.imageLayout = VulkanRenderTarget::kColorDrawLayout;
+@@ -5700,6 +5700,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+       command_buffer.CmdVkClearAttachments(1, &resolve_clear_attachment, 1, &resolve_clear_rect);
+     }
+   }
++  command_processor_.EndRenderPass();
+ }
+ 
+ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
+diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
+index 3242727..6d08899 100644
+--- a/src/graphics/vulkan/texture_cache.cpp
++++ b/src/graphics/vulkan/texture_cache.cpp
+@@ -1421,8 +1421,8 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
+       texture.image(), ui::vulkan::util::InitializeSubresourceRange(), src_stage,
+       VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, src_access, VK_ACCESS_SHADER_WRITE_BIT, old_layout,
+       VK_IMAGE_LAYOUT_GENERAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
+-  command_processor_.BindExternalComputePipeline(load_image_pipeline_);
+   command_processor_.SubmitBarriers(true);
++  command_processor_.BindExternalComputePipeline(load_image_pipeline_);
+   LoadConstants constants = {};
+   uint32_t sx = draw_resolution_scale_x(), sy = draw_resolution_scale_y();
+   constants.is_tiled_3d_endian_scale = 1 | (uint32_t(key.endianness) << 2) | (sx << 4) | (sy << 7);
+@@ -1744,6 +1744,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+   }
+ 
+   // Submit the copy buffer population commands.
++  command_processor_.SubmitBarriers(true);
+ 
+   DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
+ 
+@@ -1875,6 +1876,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+                                                  VK_ACCESS_SHADER_WRITE_BIT),
+         VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+ 
++    command_processor_.SubmitBarriers(true);
+     command_processor_.BindExternalComputePipeline(pipeline_float_convert);
+     command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, load_pipeline_layout_,
+                                            kLoadDescriptorSetIndexDestination, 1,

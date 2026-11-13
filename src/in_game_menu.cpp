@@ -91,6 +91,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const bool vsync = rex::cvar::Query<bool>("vsync");
   const bool step_fix = rex::cvar::Query<bool>("majin_step_fix");
   const bool anim_fix = rex::cvar::Query<bool>("majin_submotion_fix");
+  const bool dt_smoothing = rex::cvar::Query<bool>("majin_dt_smooth");
   const bool skip_cutscenes = rex::cvar::Query<bool>("majin_skip_cutscenes");
   const int32_t cutscene_speed = rex::cvar::Query<int32_t>("majin_cutscene_speed");
 
@@ -113,6 +114,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "VSync", vsync ? "true" : "false");
   ReplaceJsonField(json, "StepFix", step_fix ? "true" : "false");
   ReplaceJsonField(json, "AnimSpeedFix", anim_fix ? "true" : "false");
+  ReplaceJsonField(json, "DtSmoothing", dt_smoothing ? "true" : "false");
   ReplaceJsonField(json, "SkipCutscenes", skip_cutscenes ? "true" : "false");
   ReplaceJsonField(json, "CutsceneSpeed", std::to_string(cutscene_speed));
 
@@ -443,6 +445,17 @@ void InGameMenuDialog::DrawFixesTab() {
     rex::cvar::SetFlagByName("majin_step_fix", step_fix ? "true" : "false");
   }
   ImGui::TextDisabled("Prevents Tepeu and enemies from getting stuck against small curbs and ledges above 30 FPS.");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  // Engine Delta-Time Smoothing
+  bool dt_smooth = rex::cvar::Query<bool>("majin_dt_smooth");
+  if (ImGui::Checkbox("Engine Delta-Time Smoothing (dt_smooth)", &dt_smooth)) {
+    rex::cvar::SetFlagByName("majin_dt_smooth", dt_smooth ? "true" : "false");
+  }
+  ImGui::TextDisabled("Replaces guest frame delta-time with a smoothed moving average. Leave off for purest vanilla console physics pacing.");
 
   ImGui::Spacing();
   ImGui::Separator();

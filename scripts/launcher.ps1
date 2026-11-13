@@ -123,9 +123,14 @@ $scale = Add-Dropdown $grpDisplay 120 57 354 @(
 ) 1
 
 Add-FieldLabel $grpDisplay 'Anti-aliasing:' 16 94 100
+$script:postEffectValues = @('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme')
 $effect = Add-Dropdown $grpDisplay 120 91 150 @(
-    'FXAA (Recommended)',
-    'Original (None)'
+    'Off (Native Raw)',
+    'FXAA Fast',
+    'FXAA High',
+    'De-Dither',
+    'De-Dither + FXAA Fast',
+    'De-Dither + FXAA High'
 ) 0
 
 Add-FieldLabel $grpDisplay 'Upscaler:' 278 94 60
@@ -312,7 +317,8 @@ if (Test-Path -LiteralPath $settingsPath) {
         } else {
             $renderingPath.SelectedIndex = 0
         }
-        if ($saved.PostEffect -eq 'none') { $effect.SelectedIndex = 1 } else { $effect.SelectedIndex = 0 }
+        $effectIdx = $script:postEffectValues.IndexOf([string]$saved.PostEffect)
+        if ($effectIdx -ge 0) { $effect.SelectedIndex = $effectIdx } else { $effect.SelectedIndex = 0 }
         $upscalerIdx = @('fsr','cas','bilinear').IndexOf([string]$saved.Upscaler)
         if ($upscalerIdx -ge 0) { $upscaler.SelectedIndex = $upscalerIdx }
         if ($saved.SkipIntroLogos -is [bool]) { $chkSkipLogos.Checked = $saved.SkipIntroLogos }
@@ -373,7 +379,8 @@ $play.Add_Click({
             Fullscreen        = ($mode.SelectedIndex -eq 1)
             VSync             = ($sync.SelectedIndex -eq 1)
             RenderScale       = ($scale.SelectedIndex + 1)
-            PostEffect        = (@('fxaa','none')[$effect.SelectedIndex])
+            PostEffect        = $script:postEffectValues[$effect.SelectedIndex]
+            DeDitherStrength  = if ($saved.DeDitherStrength -is [ValueType]) { [double]$saved.DeDitherStrength } else { 0.85 }
             Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])
             FrameRateMode     = (@('60','Original')[$frameRate.SelectedIndex])
             RenderingPath     = (@('Vulkan','Default','ROV')[$renderingPath.SelectedIndex])

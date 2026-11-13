@@ -164,6 +164,9 @@ const elements = {
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
   postEffect: document.getElementById("postEffect"),
+  deDitherStrength: document.getElementById("deDitherStrength"),
+  deDitherStrengthVal: document.getElementById("deDitherStrengthVal"),
+  deDitherStrengthContainer: document.getElementById("deDitherStrengthContainer"),
   vsync: document.getElementById("vsync"),
   presentDither: document.getElementById("presentDither"),
   inputMode: document.getElementById("inputMode"),
@@ -293,6 +296,17 @@ function safeInt(val, fallback) {
   return Number.isFinite(num) ? num : fallback;
 }
 
+function updateDeDitherVisibility() {
+  if (!elements.deDitherStrengthContainer || !elements.postEffect) return;
+  const val = String(elements.postEffect.value || "");
+  const isDeDither = val.startsWith("dedither");
+  if (isDeDither) {
+    elements.deDitherStrengthContainer.classList.remove("hidden");
+  } else {
+    elements.deDitherStrengthContainer.classList.add("hidden");
+  }
+}
+
 // ==========================================
 // Settings Management
 // ==========================================
@@ -307,6 +321,14 @@ function populateForm(settings) {
   }
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
+  if (elements.deDitherStrength) {
+    const strength = safeFloat(settings.DeDitherStrength, 0.85);
+    elements.deDitherStrength.value = String(strength);
+    if (elements.deDitherStrengthVal) {
+      elements.deDitherStrengthVal.textContent = strength.toFixed(2);
+    }
+  }
+  updateDeDitherVisibility();
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? false;
   if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
@@ -357,7 +379,7 @@ function readForm() {
     VSync: elements.vsync ? elements.vsync.checked : false,
     PresentDither: elements.presentDither ? elements.presentDither.checked : false,
     PostEffect: elements.postEffect?.value || "none",
-    DeDitherStrength: currentSettings.DeDitherStrength ?? 0.85,
+    DeDitherStrength: elements.deDitherStrength ? safeFloat(elements.deDitherStrength.value, 0.85) : safeFloat(currentSettings.DeDitherStrength, 0.85),
     Upscaler: elements.upscaler?.value || "bilinear",
     SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
     SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
@@ -931,6 +953,21 @@ if (elements.mouseSensitivity) {
     if (elements.mouseSensitivityVal && !isNaN(val)) {
       elements.mouseSensitivityVal.textContent = val.toFixed(1) + "x";
     }
+  });
+}
+
+if (elements.deDitherStrength) {
+  elements.deDitherStrength.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.deDitherStrengthVal && !isNaN(val)) {
+      elements.deDitherStrengthVal.textContent = val.toFixed(2);
+    }
+  });
+}
+
+if (elements.postEffect) {
+  elements.postEffect.addEventListener("change", () => {
+    updateDeDitherVisibility();
   });
 }
 

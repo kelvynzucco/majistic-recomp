@@ -350,33 +350,65 @@
               </div>
 
               <div>
-                <label class="block text-xs text-slate-300 mb-1">Upscaler</label>
+                <label class="block text-xs text-slate-300 mb-1"
+                  >Presenter Upscaler</label
+                >
                 <select
                   id="upscaler"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="bilinear" selected>Bilinear</option>
-                  <option value="fsr">AMD FSR</option>
-                  <option value="cas">AMD CAS</option>
+                  <option value="bilinear" selected>Bilinear (Direct Blit / Smooth Downsample)</option>
+                  <option value="fsr">AMD FidelityFX Super Resolution 1.0 (FSR)</option>
+                  <option value="cas">Contrast Adaptive Sharpening (CAS)</option>
                 </select>
               </div>
 
               <div>
                 <label class="block text-xs text-slate-300 mb-1"
-                  >Anti-Aliasing</label
+                  >Anti-Aliasing &amp; De-Dither</label
                 >
                 <select
                   id="postEffect"
                   class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
                 >
-                  <option value="none" selected>Off</option>
-                  <option value="fxaa">FXAA Fast</option>
-                  <option value="fxaa_extreme">FXAA High</option>
-                  <option value="dedither">De-Dither (Edge-Preserving)</option>
-                  <option value="dedither_fxaa">De-Dither + FXAA Fast</option>
+                  <option value="none" selected>Off (Native Raw)</option>
+                  <option value="fxaa">FXAA Fast (FXAA 3.11 Default)</option>
+                  <option value="fxaa_extreme">FXAA High (FXAA 3.11 Quality)</option>
+                  <option value="dedither">De-Dither (Edge-Preserving Cross Filter)</option>
+                  <option value="dedither_fxaa">De-Dither + FXAA Fast (Recommended)</option>
                   <option value="dedither_fxaa_extreme">De-Dither + FXAA High</option>
+                  <option value="dedither_debug" data-dev-only>De-Dither Debug Heatmap (Magenta = Dither Detected)</option>
                 </select>
               </div>
+            </div>
+
+            <!-- De-Dither Intensity Slider (Shown when any De-Dither mode is active) -->
+            <div
+              id="deDitherStrengthContainer"
+              class="hidden p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1"
+            >
+              <div class="flex items-center justify-between">
+                <label for="deDitherStrength" class="text-xs font-semibold text-slate-300">
+                  De-Dither Intensity / Strength
+                </label>
+                <span
+                  id="deDitherStrengthVal"
+                  class="text-xs font-mono text-accent font-semibold"
+                  >0.85</span
+                >
+              </div>
+              <input
+                type="range"
+                id="deDitherStrength"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value="0.85"
+                class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+              />
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                Controls foliage cross-blend strength (0.00 = off, 1.00 = maximum smoothing).
+              </p>
             </div>
 
             <div class="space-y-2 pt-1">
@@ -511,8 +543,11 @@
                     id="skipCutscenes"
                     class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
                   />
-                  <label for="skipCutscenes" class="text-xs text-slate-300"
-                    >Allow Skipping In-Game Cutscenes</label
+                  <label
+                    for="skipCutscenes"
+                    class="text-xs text-slate-300"
+                    title="Hold [Select/Back] or [Tab] to speed through cutscenes"
+                    >Allow Fast-Forwarding In-Game Cutscenes</label
                   >
                 </div>
 

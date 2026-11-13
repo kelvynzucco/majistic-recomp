@@ -7,7 +7,7 @@
 const BTN_CLASS =
   "w-full flex items-center justify-between gap-2 bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none focus:border-accent cursor-pointer";
 const LIST_CLASS =
-  "fixed z-[9999] overflow-y-auto bg-darkCard border border-darkBorder rounded shadow-lg py-1 text-xs";
+  "fixed z-[9999] overflow-y-auto bg-darkCard border border-darkBorder rounded shadow-lg py-1 text-xs select-none";
 
 let openInstance = null;
 
@@ -93,7 +93,7 @@ function enhance(select) {
     if (openUp) list.style.bottom = window.innerHeight - r.top + 2 + "px";
     else list.style.top = r.bottom + 2 + "px";
 
-    openInstance = { close };
+    openInstance = { close, list, btn };
   }
 
   btn.addEventListener("click", (e) => {
@@ -126,9 +126,27 @@ function enhance(select) {
 export function initCustomSelects() {
   document.querySelectorAll("select").forEach(enhance);
   document.addEventListener("mousedown", (e) => {
-    if (openInstance && !e.target.closest(".fixed.z-\\[9999\\], button")) closeOpen();
+    if (!openInstance) return;
+    if (openInstance.list && (openInstance.list === e.target || openInstance.list.contains(e.target))) {
+      return;
+    }
+    if (openInstance.btn && (openInstance.btn === e.target || openInstance.btn.contains(e.target))) {
+      return;
+    }
+    closeOpen();
   });
   window.addEventListener("blur", closeOpen);
   window.addEventListener("resize", closeOpen);
-  document.addEventListener("scroll", closeOpen, true);
+  document.addEventListener(
+    "scroll",
+    (e) => {
+      if (!openInstance) return;
+      // Do not close when scrolling inside the dropdown list itself
+      if (openInstance.list && (openInstance.list === e.target || openInstance.list.contains(e.target))) {
+        return;
+      }
+      closeOpen();
+    },
+    true
+  );
 }

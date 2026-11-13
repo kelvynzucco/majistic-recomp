@@ -229,4 +229,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'SharedMemory watch page bitmask patch application'
 }
 
-Write-Host "[1.1 - 1.15] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.16: Apply Vulkan draw-scale swap source and present gating patch (Issue #21)
+$vulkanSwapPatch = Join-Path $patchRoot 'vulkan-swap-scale-and-present-gating.patch'
+git -C $source apply --reverse --check $vulkanSwapPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanSwapPatch
+    Check-Native 'Vulkan draw-scale swap source and present gating patch check'
+    git -C $source apply $vulkanSwapPatch
+    Check-Native 'Vulkan draw-scale swap source and present gating patch application'
+}
+
+Write-Host "[1.1 - 1.16] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

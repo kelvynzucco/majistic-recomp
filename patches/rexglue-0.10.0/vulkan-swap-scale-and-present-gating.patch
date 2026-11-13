@@ -41,19 +41,31 @@ index a20f191..4d1786e 100644
      if (!draw_scale_swap_unscaled_logged) {
        draw_scale_swap_unscaled_logged = true;
 diff --git a/src/ui/presenter.cpp b/src/ui/presenter.cpp
-index c022d65..7939225 100644
+index c022d65..49740dc 100644
 --- a/src/ui/presenter.cpp
 +++ b/src/ui/presenter.cpp
-@@ -1230,7 +1230,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+@@ -1163,7 +1163,10 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+     bool temporal_quality_mode_forced =
+         is_temporal_effect &&
+         config.GetFsrQualityMode() != GuestOutputPaintConfig::FsrQualityMode::kAuto;
+-    if ((config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr || is_temporal_effect) &&
++    bool is_downsampling =
++        ffx_last_size.first > output_width || ffx_last_size.second > output_height;
++    if (!is_downsampling &&
++        (config.GetEffect() == GuestOutputPaintConfig::Effect::kFsr || is_temporal_effect) &&
+         ((ffx_last_size.first < output_width_clamped ||
+           ffx_last_size.second < output_height_clamped) ||
+          temporal_quality_mode_forced)) {
+@@ -1230,7 +1233,7 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
        assert_true(flow.effect_count < flow.effects.size());
        flow.effect_output_sizes[flow.effect_count] = ffx_last_size;
        flow.effects[flow.effect_count++] = GuestOutputPaintEffect::kFsrRcas;
 -    } else {
-+    } else if (config.GetEffect() == GuestOutputPaintConfig::Effect::kCas) {
++    } else if (!is_downsampling && config.GetEffect() == GuestOutputPaintConfig::Effect::kCas) {
        // AMD FidelityFX Contrast Adaptive Sharpening - sharpen or downsample, or
        // upsample up to 2x2 if CAS is specified to be used for upscaling too.
        // Using the unclamped output size as CAS may be the last pass - if a
-@@ -1276,6 +1276,31 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
+@@ -1276,6 +1279,41 @@ Presenter::GuestOutputPaintFlow Presenter::GetGuestOutputPaintFlow(
  
    assert_not_zero(flow.effect_count);
  
@@ -69,7 +81,17 @@ index c022d65..7939225 100644
 +    const char* effect_name = "unknown";
 +    if (flow.effect_count) {
 +      switch (flow.effects[flow.effect_count - 1]) {
-+        case GuestOutputPaintEffect::kBilinear: effect_name = "bilinear (1:1 / direct blit)"; break;
++        case GuestOutputPaintEffect::kBilinear:
++          if (properties.frontbuffer_width > output_width ||
++              properties.frontbuffer_height > output_height) {
++            effect_name = "bilinear (supersampling downscale)";
++          } else if (properties.frontbuffer_width == output_width &&
++                     properties.frontbuffer_height == output_height) {
++            effect_name = "bilinear (1:1 / direct blit)";
++          } else {
++            effect_name = "bilinear (upscale)";
++          }
++          break;
 +        case GuestOutputPaintEffect::kCasSharpen: effect_name = "cas_sharpen"; break;
 +        case GuestOutputPaintEffect::kCasResample: effect_name = "cas_resample"; break;
 +        case GuestOutputPaintEffect::kFsrEasu: effect_name = "fsr_easu"; break;

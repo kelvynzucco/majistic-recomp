@@ -168,52 +168,32 @@ name = "Majin_DrawDistanceScale"
 registers = ["f13"]
 after_instruction = true
 
-# Real-time float prop, gimmick and actor draw distance & LOD thresholds (Issue #25)
-# Scene prop distance culling in sub_82974418 (USA sub_829743A8)
+# Static scenery frustum culling fix for FOV > 1.0 (sub_82974FB0, USA sub_82974F40)
 [[midasm_hook]]
-address = 0x829744D0
-name = "Majin_DrawDistanceScale"
-registers = ["f7"]
+address = 0x8297585C
+name = "Majin_SceneryFrustumCulled"
+registers = ["r3"]
 after_instruction = true
 
-# Gimmick / map object distance culling in sub_829983B8 (USA sub_82998348)
+# Portal PVS filter relaxation for draw distance > 1.0 (sub_824542F0, USA sub_82454280)
 [[midasm_hook]]
-address = 0x829983A4
+address = 0x824542E8
+name = "Majin_PortalPvsFilter"
+registers = ["r3", "r31"]
+after_instruction = true
+
+# Static scenery chunk distance threshold (sub_829C9040, USA sub_829C8FD0)
+[[midasm_hook]]
+address = 0x829C9024
+name = "Majin_DrawDistanceScale"
+registers = ["f31"]
+after_instruction = true
+
+# Scene graph actor & model submission distance threshold (sub_82328FA8, USA sub_82328F38)
+[[midasm_hook]]
+address = 0x82329004
 name = "Majin_DrawDistanceScale"
 registers = ["f5"]
-after_instruction = true
-
-# Entity / prop distance culling in sub_8296D518 (USA sub_8296D4A8) and sub_82A11820 (USA sub_82A117B8)
-[[midasm_hook]]
-address = 0x8296D510
-name = "Majin_DrawDistanceScale"
-registers = ["f5"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x82A11818
-name = "Majin_DrawDistanceScale"
-registers = ["f5"]
-after_instruction = true
-
-# Mechanism distance culling in sub_8239D228 (USA sub_8239D1B8)
-[[midasm_hook]]
-address = 0x8239D214
-name = "Majin_DrawDistanceScale"
-registers = ["f5"]
-after_instruction = true
-
-# Scenery multi-object distance culling in sub_829EBFC8 (USA sub_829EBF58)
-[[midasm_hook]]
-address = 0x829EBFD4
-name = "Majin_DrawDistanceScale"
-registers = ["f9"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829EC014
-name = "Majin_DrawDistanceScale"
-registers = ["f13"]
 after_instruction = true
 
 # Actor draw distance & LOD transition thresholds in sub_821F0820 (USA sub_821F07B0)

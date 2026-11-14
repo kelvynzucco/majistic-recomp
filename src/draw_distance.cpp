@@ -21,3 +21,9 @@ void Majin_DrawDistanceScale(PPCRegister& f) {
     f.f64 = double(float(f.f64 * clamped_scale));
   }
 }
+
+void Majin_PortalPvsFilter(PPCRegister& r3, PPCRegister& r31) {
+  if (REXCVAR_GET(majin_draw_distance_scale) > 1.0 && r31.u32 != 0) {
+    r3.u64 = r31.u64;
+  }
+}

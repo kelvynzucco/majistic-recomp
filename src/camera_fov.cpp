@@ -43,3 +43,9 @@ void Majin_ClampTanHalfHfov(PPCRegister& f) {
     f.f64 = double(float(std::clamp(f.f64, -10.0, 10.0)));
   }
 }
+
+void Majin_SceneryFrustumCulled(PPCRegister& r3) {
+  if (REXCVAR_GET(majin_fov_scale) > 1.0) {
+    r3.u64 = 1;
+  }
+}

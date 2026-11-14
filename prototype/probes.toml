@@ -190,6 +190,32 @@ name = "Majin_LodDistanceScale"
 registers = ["f2"]
 after_instruction = true
 
+# Per-Submesh / Per-Cluster Foliage & Scenery LOD distance selector in sub_829AE860 (fsqrts f5,f6 before fctidz f4,f5)
+[[midasm_hook]]
+address = 0x829AF0B0
+name = "Majin_LodDistanceScale"
+registers = ["f5"]
+after_instruction = true
+
+# Foliage / Bush / Grass GPU shader fade-out thresholds (constant 3164(r25)) in sub_8218B600 (when 644(r28) != 0)
+[[midasm_hook]]
+address = 0x8218B8E4
+name = "Majin_DrawDistanceScale"
+registers = ["f12"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8218B910
+name = "Majin_DrawDistanceScale"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8218B914
+name = "Majin_DrawDistanceScale"
+registers = ["f31"]
+after_instruction = true
+
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.
 [[midasm_hook]]
 address = 0x821A0530

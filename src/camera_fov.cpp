@@ -33,3 +33,10 @@ void Scale(PPCRegister& f) {
 void Majin_FovFrustumA(PPCRegister& f0) { Scale(f0); }
 void Majin_FovFrustumB(PPCRegister& f12) { Scale(f12); }
 void Majin_FovProjection(PPCRegister& f13) { Scale(f13); }
+
+void Majin_ClampTanHalfHfov(PPCRegister& f) {
+  if (REXCVAR_GET(majin_fov_scale) != 1.0) {
+    // Prevent extreme tan(HFOV/2) values on ultrawide displays at high FOV.
+    f.f64 = double(float(std::clamp(f.f64, -10.0, 10.0)));
+  }
+}

@@ -108,6 +108,7 @@ const defaultSettings = {
   AnimSpeedFix: false,
   DtSmoothing: false,
   FovScale: 1.0,
+  DrawDistanceScale: 1.0,
   PauseBlur: false,
   DepthOfField: false,
   Bloom: false,
@@ -183,6 +184,8 @@ const elements = {
   dtSmoothing: document.getElementById("dtSmoothing"),
   animSpeedFix: document.getElementById("animSpeedFix"),
   fovScale: document.getElementById("fovScale"),
+  drawDistanceScale: document.getElementById("drawDistanceScale"),
+  drawDistanceScaleVal: document.getElementById("drawDistanceScaleVal"),
   depthOfField: document.getElementById("depthOfField"),
   bloom: document.getElementById("bloom"),
   pauseBlur: document.getElementById("pauseBlur"),
@@ -364,6 +367,13 @@ function populateForm(settings) {
       elements.fovScale.value = "1.0";
     }
   }
+  if (elements.drawDistanceScale) {
+    const targetDist = Math.min(3.0, Math.max(0.5, safeFloat(settings.DrawDistanceScale, 1.0)));
+    elements.drawDistanceScale.value = targetDist.toFixed(2);
+    if (elements.drawDistanceScaleVal) {
+      elements.drawDistanceScaleVal.textContent = targetDist.toFixed(2) + "x";
+    }
+  }
   if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? false;
   if (elements.bloom) elements.bloom.checked = settings.Bloom ?? false;
   if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? false;
@@ -394,6 +404,7 @@ function readForm() {
     AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : false,
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
+    DrawDistanceScale: safeFloat(elements.drawDistanceScale?.value, 1.0),
     DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,
     Bloom: elements.bloom ? elements.bloom.checked : false,
     PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : false,
@@ -952,6 +963,15 @@ if (elements.mouseSensitivity) {
     const val = parseFloat(e.target.value);
     if (elements.mouseSensitivityVal && !isNaN(val)) {
       elements.mouseSensitivityVal.textContent = val.toFixed(1) + "x";
+    }
+  });
+}
+
+if (elements.drawDistanceScale) {
+  elements.drawDistanceScale.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.drawDistanceScaleVal && !isNaN(val)) {
+      elements.drawDistanceScaleVal.textContent = val.toFixed(2) + "x";
     }
   });
 }

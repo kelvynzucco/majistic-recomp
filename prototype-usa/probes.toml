@@ -40,6 +40,108 @@ name = "Majin_FovProjection"
 registers = ["f13"]
 after_instruction = true
 
+# Horizontal frustum culling VFOV sync (Issue #25)
+# sub_822C9370 & sub_829FE860 compute tan(HFOV/2), tan(VFOV/2), cos(HFOV/2), cos(VFOV/2)
+[[midasm_hook]]
+address = 0x822C93D8
+name = "Majin_FovFrustumA"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822C9408
+name = "Majin_FovFrustumA"
+registers = ["f10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822C9434
+name = "Majin_FovFrustumA"
+registers = ["f5"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822C943C
+name = "Majin_ClampTanHalfHfov"
+registers = ["f3"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FEAB0
+name = "Majin_FovFrustumA"
+registers = ["f11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FEAE0
+name = "Majin_FovFrustumA"
+registers = ["f7"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FEB08
+name = "Majin_ClampTanHalfHfov"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FEB14
+name = "Majin_FovFrustumA"
+registers = ["f2"]
+after_instruction = true
+
+# Draw Distance & Far Plane Multiplier (Issue #25)
+# Far plane in sub_829FC7A0, sub_829FD3E8, sub_829FD950, sub_82A09828
+[[midasm_hook]]
+address = 0x829FC7FC
+name = "Majin_DrawDistanceScale"
+registers = ["f7"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FD4C8
+name = "Majin_DrawDistanceScale"
+registers = ["f2"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FE330
+name = "Majin_DrawDistanceScale"
+registers = ["f2"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82A09848
+name = "Majin_DrawDistanceScale"
+registers = ["f13"]
+after_instruction = true
+
+# Secondary frustum culling far plane in sub_829FC0A8 and sub_829FC3F0
+[[midasm_hook]]
+address = 0x829FC0F4
+name = "Majin_DrawDistanceScale"
+registers = ["f10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FC538
+name = "Majin_DrawDistanceScale"
+registers = ["f16"]
+after_instruction = true
+
+# Renderer object fade/draw distance thresholds in sub_829E00A8
+[[midasm_hook]]
+address = 0x829E019C
+name = "Majin_DrawDistanceScale"
+registers = ["f31"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829E01A4
+name = "Majin_DrawDistanceScale"
+registers = ["f31"]
+after_instruction = true
+
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.
 [[midasm_hook]]
 address = 0x821A0530

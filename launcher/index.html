@@ -706,6 +706,31 @@
                   Scales the camera projection matrix and culling frustum simultaneously to eliminate side object popping.
                 </p>
               </div>
+
+              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-2">
+                <div class="flex items-center justify-between">
+                  <label for="drawDistanceScale" class="text-xs font-semibold text-slate-300">
+                    Draw Distance Multiplier
+                  </label>
+                  <span
+                    id="drawDistanceScaleVal"
+                    class="text-xs font-mono text-accent font-semibold"
+                    >1.00x</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="drawDistanceScale"
+                  min="0.50"
+                  max="3.00"
+                  step="0.05"
+                  value="1.00"
+                  class="w-full accent-accent bg-darkBg cursor-pointer h-2 rounded-lg"
+                />
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  Scales far clip planes and object draw/fade distances (1.00x = original, up to 3.00x).
+                </p>
+              </div>
             </section>
 
             <!-- Post-Processing Effects -->

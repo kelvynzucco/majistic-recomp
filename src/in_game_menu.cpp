@@ -38,7 +38,16 @@ std::filesystem::path FindLauncherConfigPath() {
 void ReplaceJsonField(std::string& json, const std::string& key, const std::string& new_val) {
   const std::string pattern = "\"" + key + "\":";
   size_t pos = json.find(pattern);
-  if (pos == std::string::npos) return;
+  if (pos == std::string::npos) {
+    // Insert missing keys before the closing brace so older launcher configs upgrade cleanly.
+    size_t close_brace = json.rfind('}');
+    if (close_brace == std::string::npos) return;
+    size_t last_non_ws = json.find_last_not_of(" \t\r\n", close_brace - 1);
+    const bool needs_comma = (last_non_ws != std::string::npos && json[last_non_ws] != '{' && json[last_non_ws] != ',');
+    const std::string entry = (needs_comma ? ",\n  " : "\n  ") + pattern + " " + new_val + "\n";
+    json.insert(last_non_ws != std::string::npos ? last_non_ws + 1 : close_brace, entry);
+    return;
+  }
   size_t val_start = json.find_first_not_of(" \t", pos + pattern.size());
   if (val_start == std::string::npos) return;
   size_t val_end = json.find_first_of(",\r\n}", val_start);
@@ -84,6 +93,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const std::string upscaler = rex::cvar::Query<std::string>("present_effect");
   const double mouse_sens = rex::cvar::Query<double>("mnk_sensitivity");
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
+  const double draw_distance_scale = rex::cvar::Query<double>("majin_draw_distance_scale");
   const bool dof = rex::cvar::Query<bool>("majin_dof");
   const bool bloom = rex::cvar::Query<bool>("majin_bloom");
   const bool pause_blur = rex::cvar::Query<bool>("majin_pause_blur");
@@ -99,6 +109,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(sens_buf, sizeof(sens_buf), "%.1f", mouse_sens);
   char fov_buf[32];
   snprintf(fov_buf, sizeof(fov_buf), "%.2f", fov_scale);
+  char draw_dist_buf[32];
+  snprintf(draw_dist_buf, sizeof(draw_dist_buf), "%.2f", draw_distance_scale);
   char strength_buf[32];
   snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
 
@@ -107,6 +119,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "Upscaler", "\"" + upscaler + "\"");
   ReplaceJsonField(json, "MouseSensitivity", sens_buf);
   ReplaceJsonField(json, "FovScale", fov_buf);
+  ReplaceJsonField(json, "DrawDistanceScale", draw_dist_buf);
   ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
   ReplaceJsonField(json, "Bloom", bloom ? "true" : "false");
   ReplaceJsonField(json, "PauseBlur", pause_blur ? "true" : "false");
@@ -391,6 +404,22 @@ void InGameMenuDialog::DrawVisualsTab() {
     rex::cvar::SetFlagByName("majin_fov_scale", buf);
   }
   ImGui::TextDisabled("Dynamically widens view frustum and projection culling (default: 1.00x).");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  // Draw Distance Multiplier
+  float draw_distance_scale =
+      static_cast<float>(rex::cvar::Query<double>("majin_draw_distance_scale"));
+  ImGui::Text("Draw Distance & LOD Multiplier:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##DrawDistanceScale", &draw_distance_scale, 0.50f, 3.00f, "%.2fx")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", draw_distance_scale);
+    rex::cvar::SetFlagByName("majin_draw_distance_scale", buf);
+  }
+  ImGui::TextDisabled("Scales far clip planes and object draw/fade distances (default: 1.00x).");
 
   ImGui::Spacing();
   ImGui::Separator();

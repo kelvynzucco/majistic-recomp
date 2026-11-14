@@ -65,6 +65,10 @@ fn default_fov_scale() -> f64 {
     1.0
 }
 
+fn default_draw_distance_scale() -> f64 {
+    1.0
+}
+
 fn default_dedither_strength() -> f64 {
     0.85
 }
@@ -156,6 +160,8 @@ pub struct Settings {
     pub dt_smoothing: bool,
     #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub fov_scale: f64,
+    #[serde(default = "default_draw_distance_scale", deserialize_with = "deserialize_nullable_f64")]
+    pub draw_distance_scale: f64,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub pause_blur: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
@@ -191,6 +197,7 @@ impl Default for Settings {
             anim_speed_fix: false,
             dt_smoothing: false,
             fov_scale: 1.0,
+            draw_distance_scale: 1.0,
             pause_blur: false,
             depth_of_field: false,
             bloom: false,
@@ -978,6 +985,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         format!("-DtSmoothing:${}", settings.dt_smoothing),
         "-FovScale".to_string(),
         settings.fov_scale.to_string(),
+        "-DrawDistanceScale".to_string(),
+        settings.draw_distance_scale.to_string(),
         format!("-PauseBlur:${}", settings.pause_blur),
         format!("-DepthOfField:${}", settings.depth_of_field),
         format!("-Bloom:${}", settings.bloom),
@@ -1496,6 +1505,7 @@ mod tests {
             "AnimSpeedFix": true,
             "DtSmoothing": false,
             "FovScale": null,
+            "DrawDistanceScale": null,
             "PauseBlur": null,
             "DepthOfField": true,
             "Bloom": true
@@ -1505,6 +1515,7 @@ mod tests {
         assert!(parsed.is_ok(), "Failed to deserialize settings with null fields: {:?}", parsed.err());
         let settings = parsed.unwrap();
         assert_eq!(settings.fov_scale, 1.0);
+        assert_eq!(settings.draw_distance_scale, 1.0);
         assert_eq!(settings.mouse_sensitivity, 1.0);
         assert!(!settings.pause_blur);
     }
@@ -1523,6 +1534,7 @@ mod tests {
         assert!(settings.fullscreen);
         assert_eq!(settings.render_scale, 1);
         assert_eq!(settings.fov_scale, 1.0);
+        assert_eq!(settings.draw_distance_scale, 1.0);
         assert_eq!(settings.cutscene_speed, 4);
         assert_eq!(settings.language, "English");
         assert!(!settings.step_fix);
@@ -1575,6 +1587,7 @@ mod tests {
             "AnimSpeedFix": false,
             "DtSmoothing": true,
             "FovScale": 1.2,
+            "DrawDistanceScale": 2.25,
             "PauseBlur": false,
             "DepthOfField": false,
             "Bloom": false,
@@ -1591,6 +1604,7 @@ mod tests {
         assert_eq!(settings.frame_rate_mode, "120");
         assert!(!settings.vsync);
         assert_eq!(settings.fov_scale, 1.2);
+        assert_eq!(settings.draw_distance_scale, 2.25);
         assert_eq!(settings.mouse_sensitivity, 1.5);
         assert_eq!(settings.language, "Japanese");
         assert!(settings.step_fix);

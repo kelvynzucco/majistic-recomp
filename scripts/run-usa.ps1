@@ -21,6 +21,7 @@ param(
     $AnimSpeedFix = $false,
     $DtSmoothing = $false,
     [ValidateRange(0.5, 2.0)][double]$FovScale = 1.0,
+    [ValidateRange(0.5, 3.0)][double]$DrawDistanceScale = 1.0,
     $PauseBlur = $false,
     $DepthOfField = $false,
     $Bloom = $false,
@@ -180,6 +181,7 @@ $isDtSmoothing = ConvertTo-Bool $DtSmoothing
 $launchArgs += "--majin_dt_smooth=$($isDtSmoothing.ToString().ToLowerInvariant())"
 
 $launchArgs += "--majin_fov_scale=$($FovScale.ToString([Globalization.CultureInfo]::InvariantCulture))"
+$launchArgs += "--majin_draw_distance_scale=$($DrawDistanceScale.ToString([Globalization.CultureInfo]::InvariantCulture))"
 
 $isPauseBlur = ConvertTo-Bool $PauseBlur
 $launchArgs += "--majin_pause_blur=$($isPauseBlur.ToString().ToLowerInvariant())"

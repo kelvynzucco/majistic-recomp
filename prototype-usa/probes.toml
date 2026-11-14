@@ -168,110 +168,102 @@ name = "Majin_DrawDistanceScale"
 registers = ["f13"]
 after_instruction = true
 
-# sub_829DCBA8 real-time prop & mesh draw distance thresholds
+# Real-time float prop, gimmick and actor draw distance & LOD thresholds (Issue #25)
+# Scene prop distance culling in sub_82974418 (USA sub_829743A8)
 [[midasm_hook]]
-address = 0x829DCC50
-name = "Majin_ScaleIntDistance"
-registers = ["r10"]
+address = 0x829744D0
+name = "Majin_DrawDistanceScale"
+registers = ["f7"]
+after_instruction = true
+
+# Gimmick / map object distance culling in sub_829983B8 (USA sub_82998348)
+[[midasm_hook]]
+address = 0x829983A4
+name = "Majin_DrawDistanceScale"
+registers = ["f5"]
+after_instruction = true
+
+# Entity / prop distance culling in sub_8296D518 (USA sub_8296D4A8) and sub_82A11820 (USA sub_82A117B8)
+[[midasm_hook]]
+address = 0x8296D510
+name = "Majin_DrawDistanceScale"
+registers = ["f5"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x829DCC54
-name = "Majin_ScaleIntDistance"
-registers = ["r9"]
+address = 0x82A11818
+name = "Majin_DrawDistanceScale"
+registers = ["f5"]
+after_instruction = true
+
+# Mechanism distance culling in sub_8239D228 (USA sub_8239D1B8)
+[[midasm_hook]]
+address = 0x8239D214
+name = "Majin_DrawDistanceScale"
+registers = ["f5"]
+after_instruction = true
+
+# Scenery multi-object distance culling in sub_829EBFC8 (USA sub_829EBF58)
+[[midasm_hook]]
+address = 0x829EBFD4
+name = "Majin_DrawDistanceScale"
+registers = ["f9"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x829DCCD4
-name = "Majin_ScaleIntDistance"
-registers = ["r9"]
+address = 0x829EC014
+name = "Majin_DrawDistanceScale"
+registers = ["f13"]
+after_instruction = true
+
+# Actor draw distance & LOD transition thresholds in sub_821F0820 (USA sub_821F07B0)
+[[midasm_hook]]
+address = 0x821F0A2C
+name = "Majin_DrawDistanceScale"
+registers = ["f13"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x829DCCDC
-name = "Majin_ScaleIntDistance"
-registers = ["r7"]
-after_instruction = true
-
-# sub_82471830 room/cell distance threshold copies
-[[midasm_hook]]
-address = 0x82471840
-name = "Majin_ScaleIntDistance"
-registers = ["r7"]
+address = 0x821F0B18
+name = "Majin_DrawDistanceScale"
+registers = ["f12"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x82471838
-name = "Majin_ScaleIntDistance"
-registers = ["r9"]
+address = 0x821F0A1C
+name = "Majin_DrawDistanceScale"
+registers = ["f0"]
+after_instruction = true
+
+# Mesh & prop frustum culling bounding radius scaling
+[[midasm_hook]]
+address = 0x82A16F18
+name = "Majin_DrawDistanceScale"
+registers = ["f1"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x82471844
-name = "Majin_ScaleIntDistance"
-registers = ["r6"]
+address = 0x82A19D50
+name = "Majin_DrawDistanceScale"
+registers = ["f1"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x82471848
-name = "Majin_ScaleIntDistance"
-registers = ["r5"]
+address = 0x82A15D5C
+name = "Majin_DrawDistanceScale"
+registers = ["f1"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x82471834
-name = "Majin_ScaleIntDistance"
-registers = ["r10"]
+address = 0x82A15AC8
+name = "Majin_DrawDistanceScale"
+registers = ["f1"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x82471830
-name = "Majin_ScaleIntDistance"
-registers = ["r11"]
-after_instruction = true
-
-# sub_8244F7C0 map load cell & gimmick limits
-[[midasm_hook]]
-address = 0x8244F8D0
-name = "Majin_ScaleIntDistance"
-registers = ["r4"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8244F8D4
-name = "Majin_ScaleIntDistance"
-registers = ["r3"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8244F8D8
-name = "Majin_ScaleIntDistance"
-registers = ["r11"]
-after_instruction = true
-
-# sub_8215C758 world manager static setup limits
-[[midasm_hook]]
-address = 0x8215C858
-name = "Majin_ScaleIntDistance"
-registers = ["r9"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8215C85C
-name = "Majin_ScaleIntDistance"
-registers = ["r8"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8215C864
-name = "Majin_ScaleIntDistance"
-registers = ["r6"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8215C868
-name = "Majin_ScaleIntDistance"
-registers = ["r5"]
+address = 0x829D6CF0
+name = "Majin_DrawDistanceScale"
+registers = ["f1"]
 after_instruction = true
 
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.

@@ -120,13 +120,6 @@ registers = ["f0"]
 after_instruction = true
 
 # Draw Distance & Far Plane Multiplier (Issue #25)
-# Actor & Gimmick activation distance scaling (sub_822A55F8)
-[[midasm_hook]]
-address = 0x822A5614
-name = "Majin_DrawDistanceScale"
-registers = ["f31"]
-after_instruction = true
-
 # Far plane in sub_829FC810, sub_829FD458, sub_829FD9C0, sub_82A09898
 [[midasm_hook]]
 address = 0x829FC86C
@@ -165,100 +158,36 @@ name = "Majin_DrawDistanceScale"
 registers = ["f16"]
 after_instruction = true
 
-# Renderer object fade/draw distance thresholds in sub_829E0118
+# 3D Model & Actor CPU distance culling thresholds in sub_8233DE98 (636(r31) per-object and 120(r11) global)
 [[midasm_hook]]
-address = 0x829E01D8
-name = "Majin_DrawDistanceScale"
-registers = ["f30"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829E01E0
-name = "Majin_DrawDistanceScale"
-registers = ["f30"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829E020C
-name = "Majin_DrawDistanceScale"
-registers = ["f31"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829E0214
-name = "Majin_DrawDistanceScale"
-registers = ["f31"]
-after_instruction = true
-
-# sub_829E1628 master scene frustum far plane (+612)
-[[midasm_hook]]
-address = 0x829E1650
+address = 0x8233E0F8
 name = "Majin_DrawDistanceScale"
 registers = ["f13"]
 after_instruction = true
 
-# Static scenery chunk distance threshold (sub_829C9040)
 [[midasm_hook]]
-address = 0x829C9094
+address = 0x8233E108
 name = "Majin_DrawDistanceScale"
-registers = ["f31"]
+registers = ["f13"]
 after_instruction = true
 
-# Scene graph actor & model submission distance threshold (sub_82328FA8)
 [[midasm_hook]]
-address = 0x82329074
+address = 0x8233E270
+name = "Majin_DrawDistanceScale"
+registers = ["f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8233E2B4
 name = "Majin_DrawDistanceScale"
 registers = ["f5"]
 after_instruction = true
 
-# Actor draw distance & LOD transition thresholds in sub_821F0820
+# Static Scenery & 3D Model Mesh LOD distance selector in sub_829AD170 (fsqrts f2,f3 before fctidz f1,f2)
 [[midasm_hook]]
-address = 0x821F0A9C
-name = "Majin_DrawDistanceScale"
-registers = ["f13"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x821F0B88
-name = "Majin_DrawDistanceScale"
-registers = ["f12"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x821F0A8C
-name = "Majin_DrawDistanceScale"
-registers = ["f0"]
-after_instruction = true
-
-# Mesh & prop frustum culling bounding radius scaling
-[[midasm_hook]]
-address = 0x82A16F88
-name = "Majin_DrawDistanceScale"
-registers = ["f1"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x82A19DC0
-name = "Majin_DrawDistanceScale"
-registers = ["f1"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x82A15DCC
-name = "Majin_DrawDistanceScale"
-registers = ["f1"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x82A15B38
-name = "Majin_DrawDistanceScale"
-registers = ["f1"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829D6D60
-name = "Majin_DrawDistanceScale"
-registers = ["f1"]
+address = 0x829AD1AC
+name = "Majin_LodDistanceScale"
+registers = ["f2"]
 after_instruction = true
 
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.

@@ -93,6 +93,25 @@ name = "Majin_FovFrustumA"
 registers = ["f2"]
 after_instruction = true
 
+# sub_829E1628 master scene frustum culling FOV & tan clamp (0x82BE0A40)
+[[midasm_hook]]
+address = 0x829E1664
+name = "Majin_FovFrustumA"
+registers = ["f12"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829E1684
+name = "Majin_FovFrustumA"
+registers = ["f9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829E168C
+name = "Majin_ClampTanHalfHfov"
+registers = ["f8"]
+after_instruction = true
+
 # Draw Distance & Far Plane Multiplier (Issue #25)
 # Far plane in sub_829FC810, sub_829FD458, sub_829FD9C0, sub_82A09898
 [[midasm_hook]]
@@ -143,6 +162,119 @@ after_instruction = true
 address = 0x829E0214
 name = "Majin_DrawDistanceScale"
 registers = ["f31"]
+after_instruction = true
+
+# sub_829E1628 master scene frustum far plane (+612)
+[[midasm_hook]]
+address = 0x829E1650
+name = "Majin_DrawDistanceScale"
+registers = ["f13"]
+after_instruction = true
+
+# sub_829DCC18 real-time prop & mesh draw distance thresholds
+[[midasm_hook]]
+address = 0x829DCCC0
+name = "Majin_ScaleIntDistance"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829DCCC4
+name = "Majin_ScaleIntDistance"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829DCD44
+name = "Majin_ScaleIntDistance"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829DCD4C
+name = "Majin_ScaleIntDistance"
+registers = ["r7"]
+after_instruction = true
+
+# sub_824718A0 room/cell distance threshold copies
+[[midasm_hook]]
+address = 0x824718B0
+name = "Majin_ScaleIntDistance"
+registers = ["r7"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824718A8
+name = "Majin_ScaleIntDistance"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824718B4
+name = "Majin_ScaleIntDistance"
+registers = ["r6"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824718B8
+name = "Majin_ScaleIntDistance"
+registers = ["r5"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824718A4
+name = "Majin_ScaleIntDistance"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824718A0
+name = "Majin_ScaleIntDistance"
+registers = ["r11"]
+after_instruction = true
+
+# sub_8244F830 map load cell & gimmick limits
+[[midasm_hook]]
+address = 0x8244F940
+name = "Majin_ScaleIntDistance"
+registers = ["r4"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8244F944
+name = "Majin_ScaleIntDistance"
+registers = ["r3"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8244F948
+name = "Majin_ScaleIntDistance"
+registers = ["r11"]
+after_instruction = true
+
+# sub_8215C758 world manager static setup limits
+[[midasm_hook]]
+address = 0x8215C858
+name = "Majin_ScaleIntDistance"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8215C85C
+name = "Majin_ScaleIntDistance"
+registers = ["r8"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8215C864
+name = "Majin_ScaleIntDistance"
+registers = ["r6"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8215C868
+name = "Majin_ScaleIntDistance"
+registers = ["r5"]
 after_instruction = true
 
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.

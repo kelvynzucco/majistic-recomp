@@ -13,6 +13,7 @@
 #include <rex/ppc/context.h>
 
 #include <algorithm>
+#include <cmath>
 
 REXCVAR_DEFINE_DOUBLE(majin_fov_scale, 1.0, "Majin",
                       "Field of view multiplier (1 = original)")
@@ -35,7 +36,9 @@ void Majin_FovFrustumB(PPCRegister& f12) { Scale(f12); }
 void Majin_FovProjection(PPCRegister& f13) { Scale(f13); }
 
 void Majin_ClampTanHalfHfov(PPCRegister& f) {
-  if (REXCVAR_GET(majin_fov_scale) != 1.0) {
+  if (!std::isfinite(f.f64)) {
+    f.f64 = 1.0;
+  } else {
     // Prevent extreme tan(HFOV/2) values on ultrawide displays at high FOV.
     f.f64 = double(float(std::clamp(f.f64, -10.0, 10.0)));
   }

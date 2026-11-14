@@ -109,7 +109,21 @@ name = "Majin_ClampTanHalfHfov"
 registers = ["f8"]
 after_instruction = true
 
+# Actor & Gimmick update directional cone threshold sync with FOV (sub_822A55F8 in PAL / sub_822A5588 in USA)
+[[midasm_hook]]
+address = 0x822A56A4
+name = "Majin_ActorConeCullThreshold"
+registers = ["f0"]
+after_instruction = true
+
 # Draw Distance & Far Plane Multiplier (Issue #25)
+# Actor & Gimmick activation distance scaling (sub_822A55F8 in PAL / sub_822A5588 in USA)
+[[midasm_hook]]
+address = 0x822A55A4
+name = "Majin_DrawDistanceScale"
+registers = ["f31"]
+after_instruction = true
+
 # Far plane in sub_829FC7A0, sub_829FD3E8, sub_829FD950, sub_82A09828
 [[midasm_hook]]
 address = 0x829FC7FC
@@ -150,6 +164,18 @@ after_instruction = true
 
 # Renderer object fade/draw distance thresholds in sub_829E00A8
 [[midasm_hook]]
+address = 0x829E0168
+name = "Majin_DrawDistanceScale"
+registers = ["f30"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829E0170
+name = "Majin_DrawDistanceScale"
+registers = ["f30"]
+after_instruction = true
+
+[[midasm_hook]]
 address = 0x829E019C
 name = "Majin_DrawDistanceScale"
 registers = ["f31"]
@@ -166,20 +192,6 @@ after_instruction = true
 address = 0x829E15E0
 name = "Majin_DrawDistanceScale"
 registers = ["f13"]
-after_instruction = true
-
-# Static scenery frustum culling fix for FOV > 1.0 (sub_82974FB0, USA sub_82974F40)
-[[midasm_hook]]
-address = 0x8297585C
-name = "Majin_SceneryFrustumCulled"
-registers = ["r3"]
-after_instruction = true
-
-# Portal PVS filter relaxation for draw distance > 1.0 (sub_824542F0, USA sub_82454280)
-[[midasm_hook]]
-address = 0x824542E8
-name = "Majin_PortalPvsFilter"
-registers = ["r3", "r31"]
 after_instruction = true
 
 # Static scenery chunk distance threshold (sub_829C9040, USA sub_829C8FD0)

@@ -1,13 +1,6 @@
-// Majistic Recomp - camera field of view multiplier
+// SPDX-License-Identifier: GPL-3.0-only
+// Majistic Recomp - camera field of view multiplier (Issue #25)
 // Adapted from ArthurMS15/MajinRecomp
-//
-// The engine camera keeps its vertical field of view in degrees at +0x268
-// (aspect ratio +0x264, near +0x26C, far +0x270). Two functions read it every
-// frame: sub_829FC7A0 builds the view frustum used for culling (two loads),
-// and sub_829FD3E8 / sub_829FD950 build the projection matrix
-// (sub_82A02EA0). --majin_fov_scale scales the value at each of those loads,
-// so the picture and the culling widen together; the stored value is left
-// alone, so nothing compounds.
 
 #include <rex/cvar.h>
 #include <rex/ppc/context.h>
@@ -44,8 +37,14 @@ void Majin_ClampTanHalfHfov(PPCRegister& f) {
   }
 }
 
-void Majin_SceneryFrustumCulled(PPCRegister& r3) {
-  if (REXCVAR_GET(majin_fov_scale) > 1.0) {
-    r3.u64 = 1;
+void Majin_ActorConeCullThreshold(PPCRegister& f0) {
+  const double scale = REXCVAR_GET(majin_fov_scale);
+  if (scale > 1.0) {
+    // Original threshold in .rdata is cos(45 deg) = ~0.7071 for a 90 deg view cone.
+    // When FOV is expanded, widen the cone up to 170 deg (85 deg half-angle)
+    // so actors and props on screen edges are not put into SLEEP/INACTIVE state.
+    constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
+    const double scaled_half_angle_deg = std::min(45.0 * scale, 85.0);
+    f0.f64 = double(float(std::cos(scaled_half_angle_deg * kDegToRad)));
   }
 }

@@ -26,28 +26,26 @@ uint32_t LoadU32(uint32_t address) {
   return std::byteswap(v);
 }
 
-uint8_t LoadU8(uint32_t address) {
-  if (address < 0x10000) return 0;
-  return *REX_KERNEL_MEMORY()->TranslateVirtual<uint8_t*>(address);
-}
-
 // Inspects a 608-byte CMaterial descriptor (sub_82340768 / sub_829AC6D0 / sub_829AC7D0):
-//   +296 (uint32_t): blend_mode
+//   +296 (uint32_t Big-Endian): blend_mode
 //     0 = Opaque
 //     1 = Alpha-Test Cutout (leaves, bushes, grass, foliage)
 //     2 = Translucent Alpha-Blend (SRCALPHA / INVSRCALPHA)
 //     3 = Alpha-Test Dither / Foliage Fade
 //     4 = Additive Blend (SRCALPHA / ONE, BLENDOP_ADD - magic barriers, energy fields, auras)
 //     5 = Reverse-Subtract Blend (BLENDOP_REVSUBTRACT - dark corruption barriers/auras)
-//   +300 (uint8_t): material_flags (bit 0 = custom per-material fade range at +308/+312)
+//   +300 (uint32_t Big-Endian): material_flags (lwz r11, 300(r22))
+//     bit 8  (0x00800000) = Alpha-test enable (D3DRS_ALPHATESTENABLE in sub_82340768)
+//     bit 9  (0x00400000) = Dynamic fade / effect flag in sub_8218B600
+//     bit 11 (0x00100000) = Custom per-material fade range in sub_8218B600
 bool IsTranslucentOrEffectMaterial(uint32_t mat_addr) {
   if (mat_addr < 0x10000) return false;
   const uint32_t blend_mode = LoadU32(mat_addr + 296);
-  if (blend_mode == 2 || blend_mode == 4 || blend_mode == 5) {
+  if (blend_mode >= 2 && blend_mode <= 5) {
     return true;
   }
-  const uint8_t mat_flags = LoadU8(mat_addr + 300);
-  if ((mat_flags & 0x01) != 0) {
+  const uint32_t mat_flags = LoadU32(mat_addr + 300);
+  if (mat_flags != 0) {
     return true;
   }
   return false;
@@ -69,19 +67,27 @@ bool IsTranslucentOrEffectMesh(uint32_t mesh_res_addr) {
     }
   }
 
-  // 2. Check submesh table (136(mesh_res) = CSubmesh*, 140(mesh_res) = count, stride = 72)
+  // 2. Check mesh parts (160(mesh_res) = part*, 164(mesh_res) = count, stride = 60)
+  // Each part contains submesh table (12(part) = CSubmesh*, 20(part) = count, stride = 72).
   // Submesh +52 holds the LOD visibility bitmask (1 = Near, 2 = Mid, 4 = Far).
   // If a mesh only has Mid/Far submeshes and no Near-LOD (bit 0) submesh,
   // forcing Near LOD (1) would cull it completely.
-  const uint32_t submesh_array = LoadU32(mesh_res_addr + 136);
-  const uint32_t submesh_count = LoadU32(mesh_res_addr + 140);
-  if (submesh_array >= 0x10000 && submesh_count > 0 && submesh_count <= 512) {
+  const uint32_t parts_array = LoadU32(mesh_res_addr + 160);
+  const uint32_t parts_count = LoadU32(mesh_res_addr + 164);
+  if (parts_array >= 0x10000 && parts_count > 0 && parts_count <= 128) {
     bool has_near_lod = false;
     bool has_mid_or_far_lod = false;
-    for (uint32_t i = 0; i < submesh_count; ++i) {
-      const uint32_t lod_mask = LoadU32(submesh_array + i * 72 + 52);
-      if ((lod_mask & 0x1) != 0) has_near_lod = true;
-      if ((lod_mask & 0x6) != 0) has_mid_or_far_lod = true;
+    for (uint32_t p = 0; p < parts_count; ++p) {
+      const uint32_t part_addr = parts_array + p * 60;
+      const uint32_t submesh_array = LoadU32(part_addr + 12);
+      const uint32_t submesh_count = LoadU32(part_addr + 20);
+      if (submesh_array >= 0x10000 && submesh_count > 0 && submesh_count <= 512) {
+        for (uint32_t s = 0; s < submesh_count; ++s) {
+          const uint32_t lod_mask = LoadU32(submesh_array + s * 72 + 52);
+          if ((lod_mask & 0x1) != 0) has_near_lod = true;
+          if ((lod_mask & 0x6) != 0) has_mid_or_far_lod = true;
+        }
+      }
     }
     if (has_mid_or_far_lod && !has_near_lod) {
       return true;
@@ -120,10 +126,14 @@ void Majin_LodDistanceScale(PPCRegister& f, PPCRegister& mesh_res) {
 void Majin_FoliageFadeScale(PPCRegister& f, PPCRegister& mat, PPCRegister& model) {
   const double scale = REXCVAR_GET(majin_draw_distance_scale);
   if (scale != 1.0 && std::isfinite(f.f64) && f.f64 > 0.0) {
-    // Skip translucent/additive/subtractive materials and forced-translucent models (+544)
-    // so near-camera proximity fade on barriers/auras is never inverted.
-    if (IsTranslucentOrEffectMaterial(mat.u32) ||
-        (model.u32 >= 0x10000 && LoadU32(model.u32 + 544) != 0)) {
+    // 1. If the model specifies a custom per-object fade distance (628(model) != 0),
+    // it is a custom gimmick/barrier object, NOT global foliage. Never scale its GPU fade register.
+    if (model.u32 >= 0x10000 && LoadU32(model.u32 + 628) != 0) {
+      return;
+    }
+    // 2. Skip translucent/additive/subtractive/effect materials so near-camera
+    // proximity fade on barriers/auras is never inverted.
+    if (IsTranslucentOrEffectMaterial(mat.u32)) {
       return;
     }
     const double clamped_scale = std::clamp(scale, 0.5, 3.0);

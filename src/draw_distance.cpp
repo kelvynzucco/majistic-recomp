@@ -29,71 +29,17 @@ uint32_t LoadU32(uint32_t address) {
 // Inspects a 608-byte CMaterial descriptor (sub_82340768 / sub_829AC6D0 / sub_829AC7D0):
 //   +296 (uint32_t Big-Endian): blend_mode
 //     0 = Opaque
-//     1 = Alpha-Test Cutout (leaves, bushes, grass, foliage)
+//     1 = Alpha-Test Cutout (foliage leaves, grass, bushes)
 //     2 = Translucent Alpha-Blend (SRCALPHA / INVSRCALPHA)
 //     3 = Alpha-Test Dither / Foliage Fade
 //     4 = Additive Blend (SRCALPHA / ONE, BLENDOP_ADD - magic barriers, energy fields, auras)
 //     5 = Reverse-Subtract Blend (BLENDOP_REVSUBTRACT - dark corruption barriers/auras)
-//   +300 (uint32_t Big-Endian): material_flags (lwz r11, 300(r22))
-//     bit 8  (0x00800000) = Alpha-test enable (D3DRS_ALPHATESTENABLE in sub_82340768)
-//     bit 9  (0x00400000) = Dynamic fade / effect flag in sub_8218B600
-//     bit 11 (0x00100000) = Custom per-material fade range in sub_8218B600
 bool IsTranslucentOrEffectMaterial(uint32_t mat_addr) {
   if (mat_addr < 0x10000) return false;
   const uint32_t blend_mode = LoadU32(mat_addr + 296);
   if (blend_mode >= 2 && blend_mode <= 5) {
     return true;
   }
-  const uint32_t mat_flags = LoadU32(mat_addr + 300);
-  if (mat_flags != 0) {
-    return true;
-  }
-  return false;
-}
-
-// Inspects a CMeshResource descriptor (r10 in sub_829AD170, r24 in sub_829AE860)
-// to preserve native LOD on translucent magic barriers, glowing auras, and effects.
-bool IsTranslucentOrEffectMesh(uint32_t mesh_res_addr) {
-  if (mesh_res_addr < 0x10000) return false;
-
-  // 1. Check material table (144(mesh_res) = CMaterial*, 148(mesh_res) = count, stride = 608)
-  const uint32_t mat_array = LoadU32(mesh_res_addr + 144);
-  const uint32_t mat_count = LoadU32(mesh_res_addr + 148);
-  if (mat_array >= 0x10000 && mat_count > 0 && mat_count <= 256) {
-    for (uint32_t i = 0; i < mat_count; ++i) {
-      if (IsTranslucentOrEffectMaterial(mat_array + i * 608)) {
-        return true;
-      }
-    }
-  }
-
-  // 2. Check mesh parts (160(mesh_res) = part*, 164(mesh_res) = count, stride = 60)
-  // Each part contains submesh table (12(part) = CSubmesh*, 20(part) = count, stride = 72).
-  // Submesh +52 holds the LOD visibility bitmask (1 = Near, 2 = Mid, 4 = Far).
-  // If a mesh only has Mid/Far submeshes and no Near-LOD (bit 0) submesh,
-  // forcing Near LOD (1) would cull it completely.
-  const uint32_t parts_array = LoadU32(mesh_res_addr + 160);
-  const uint32_t parts_count = LoadU32(mesh_res_addr + 164);
-  if (parts_array >= 0x10000 && parts_count > 0 && parts_count <= 128) {
-    bool has_near_lod = false;
-    bool has_mid_or_far_lod = false;
-    for (uint32_t p = 0; p < parts_count; ++p) {
-      const uint32_t part_addr = parts_array + p * 60;
-      const uint32_t submesh_array = LoadU32(part_addr + 12);
-      const uint32_t submesh_count = LoadU32(part_addr + 20);
-      if (submesh_array >= 0x10000 && submesh_count > 0 && submesh_count <= 512) {
-        for (uint32_t s = 0; s < submesh_count; ++s) {
-          const uint32_t lod_mask = LoadU32(submesh_array + s * 72 + 52);
-          if ((lod_mask & 0x1) != 0) has_near_lod = true;
-          if ((lod_mask & 0x6) != 0) has_mid_or_far_lod = true;
-        }
-      }
-    }
-    if (has_mid_or_far_lod && !has_near_lod) {
-      return true;
-    }
-  }
-
   return false;
 }
 
@@ -110,30 +56,31 @@ void Majin_DrawDistanceScale(PPCRegister& f) {
 }
 
 void Majin_LodDistanceScale(PPCRegister& f, PPCRegister& mesh_res) {
-  const double scale = REXCVAR_GET(majin_draw_distance_scale);
-  if (scale != 1.0 && scale > 0.0 && std::isfinite(f.f64) && f.f64 > 0.0) {
-    if (IsTranslucentOrEffectMesh(mesh_res.u32)) {
-      return;
-    }
-    // Divide the computed Euclidean distance before float-to-int conversion
-    // (fctidz) in sub_829AD170 and sub_829AE860 so integer LOD thresholds
-    // (168(mesh_res) and 172(mesh_res)) scale proportionally in floating point.
-    const double clamped_scale = std::clamp(scale, 0.5, 3.0);
-    f.f64 = double(float(f.f64 / clamped_scale));
-  }
+  // Intentionally no-op:
+  // In Majin's engine, submeshes declare an allowed LOD visibility bitmask at +52:
+  //   Bit 0 (0x1) = Near LOD
+  //   Bit 1 (0x2) = Mid LOD
+  //   Bit 2 (0x4) = Far LOD
+  // Submeshes that only exist in Mid or Far LOD (such as distance visual effects,
+  // magical barriers, energy fields, and portals) have Bit 0 clear.
+  // Artificially dividing the Euclidean distance (f) in sub_829AD170 / sub_829AE860
+  // causes the engine to select Near LOD (1) for distant objects. When evaluated
+  // in sub_82344580 and sub_829AE0D8, (submesh_mask & lod_level) evaluates to
+  // (submesh_mask & 1) == 0, which culls the submesh completely and erases the effect.
+  // Extended draw distance is fully achieved via CPU culling (sub_8233DE98),
+  // foliage shader fade (sub_8218B600), and camera far plane projection without
+  // tampering with mesh LOD selection.
+  (void)f;
+  (void)mesh_res;
 }
 
 void Majin_FoliageFadeScale(PPCRegister& f, PPCRegister& mat, PPCRegister& model) {
   const double scale = REXCVAR_GET(majin_draw_distance_scale);
   if (scale != 1.0 && std::isfinite(f.f64) && f.f64 > 0.0) {
-    // 1. If the model specifies a custom per-object fade distance (628(model) != 0),
-    // it is a custom gimmick/barrier object, NOT global foliage. Never scale its GPU fade register.
-    if (model.u32 >= 0x10000 && LoadU32(model.u32 + 628) != 0) {
-      return;
-    }
-    // 2. Skip translucent/additive/subtractive/effect materials so near-camera
-    // proximity fade on barriers/auras is never inverted.
-    if (IsTranslucentOrEffectMaterial(mat.u32)) {
+    // Skip translucent/additive/subtractive materials and forced-translucent models (+544)
+    // so near-camera proximity fade on barriers/auras is never scaled.
+    if (IsTranslucentOrEffectMaterial(mat.u32) ||
+        (model.u32 >= 0x10000 && LoadU32(model.u32 + 544) != 0)) {
       return;
     }
     const double clamped_scale = std::clamp(scale, 0.5, 3.0);

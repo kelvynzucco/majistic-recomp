@@ -195,8 +195,12 @@ registers = ["f5", "r24"]
 after_instruction = true
 
 # Foliage / Bush / Grass GPU shader fade-out thresholds (constant 3164(r25)) in sub_8218B600 (r22 = CMaterial*, r28 = CModel*)
-# Note: 0x8218B8E4 is omitted as it scales 636(r28) per-model fade for barriers/gimmicks (628(r28) != 0).
-# Global foliage uses 628(r28) == 0, branching to 0x8218B910 (f0) and 0x8218B914 (f31).
+[[midasm_hook]]
+address = 0x8218B8E4
+name = "Majin_FoliageFadeScale"
+registers = ["f12", "r22", "r28"]
+after_instruction = true
+
 [[midasm_hook]]
 address = 0x8218B910
 name = "Majin_FoliageFadeScale"

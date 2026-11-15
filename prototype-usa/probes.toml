@@ -116,45 +116,7 @@ name = "Majin_ActorConeCullThreshold"
 registers = ["f0"]
 after_instruction = true
 
-# Draw Distance & Far Plane Multiplier (Issue #25)
-# Far plane in sub_829FC7A0, sub_829FD3E8, sub_829FD950, sub_82A09828
-[[midasm_hook]]
-address = 0x829FC7FC
-name = "Majin_DrawDistanceScale"
-registers = ["f7"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829FD4C8
-name = "Majin_DrawDistanceScale"
-registers = ["f2"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829FE330
-name = "Majin_DrawDistanceScale"
-registers = ["f2"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x82A09848
-name = "Majin_DrawDistanceScale"
-registers = ["f13"]
-after_instruction = true
-
-# Secondary frustum culling far plane in sub_829FC0A8 and sub_829FC3F0
-[[midasm_hook]]
-address = 0x829FC0F4
-name = "Majin_DrawDistanceScale"
-registers = ["f10"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x829FC538
-name = "Majin_DrawDistanceScale"
-registers = ["f16"]
-after_instruction = true
-
+# Draw Distance Multiplier (Issue #25)
 # 3D Model & Actor CPU distance culling thresholds in sub_8233DE28 (636(r31) per-object and 120(r11) global)
 [[midasm_hook]]
 address = 0x8233E088
@@ -178,20 +140,6 @@ after_instruction = true
 address = 0x8233E244
 name = "Majin_DrawDistanceScale"
 registers = ["f5"]
-after_instruction = true
-
-# Static Scenery & 3D Model Mesh LOD distance selector in sub_829AD100 (fsqrts f2,f3 before fctidz f1,f2; r10 = mesh_res)
-[[midasm_hook]]
-address = 0x829AD13C
-name = "Majin_LodDistanceScale"
-registers = ["f2", "r10"]
-after_instruction = true
-
-# Per-Submesh / Per-Cluster Foliage & Scenery LOD distance selector in sub_829AE7F0 (fsqrts f5,f6 before fctidz f4,f5; r24 = mesh_res)
-[[midasm_hook]]
-address = 0x829AF03C
-name = "Majin_LodDistanceScale"
-registers = ["f5", "r24"]
 after_instruction = true
 
 # Foliage / Bush / Grass GPU shader fade-out thresholds (constant 3164(r25)) in sub_8218B600 (r22 = CMaterial*, r28 = CModel*)

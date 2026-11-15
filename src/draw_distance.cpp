@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Majistic Recomp - Dynamic Draw Distance & Far Plane Multiplier (Issue #25)
+// Majistic Recomp - Dynamic Draw Distance Multiplier (Issue #25)
 
 #include <rex/cvar.h>
 #include <rex/ppc/context.h>
@@ -14,7 +14,7 @@
 
 REXCVAR_DEFINE_DOUBLE(
     majin_draw_distance_scale, 1.0, "Majin",
-    "Draw distance & far clip plane multiplier (1.0 = original)")
+    "Draw distance multiplier (1.0 = original)")
     .range(0.5, 3.0);
 
 namespace {
@@ -45,6 +45,7 @@ bool IsTranslucentOrEffectMaterial(uint32_t mat_addr) {
 
 }  // namespace
 
+// 3D Model & Actor CPU distance culling thresholds in sub_8233DE98 (PAL) / sub_8233DE28 (USA)
 void Majin_DrawDistanceScale(PPCRegister& f) {
   const double scale = REXCVAR_GET(majin_draw_distance_scale);
   if (scale != 1.0 && std::isfinite(f.f64) && f.f64 > 0.0) {
@@ -55,25 +56,7 @@ void Majin_DrawDistanceScale(PPCRegister& f) {
   }
 }
 
-void Majin_LodDistanceScale(PPCRegister& f, PPCRegister& mesh_res) {
-  // Intentionally no-op:
-  // In Majin's engine, submeshes declare an allowed LOD visibility bitmask at +52:
-  //   Bit 0 (0x1) = Near LOD
-  //   Bit 1 (0x2) = Mid LOD
-  //   Bit 2 (0x4) = Far LOD
-  // Submeshes that only exist in Mid or Far LOD (such as distance visual effects,
-  // magical barriers, energy fields, and portals) have Bit 0 clear.
-  // Artificially dividing the Euclidean distance (f) in sub_829AD170 / sub_829AE860
-  // causes the engine to select Near LOD (1) for distant objects. When evaluated
-  // in sub_82344580 and sub_829AE0D8, (submesh_mask & lod_level) evaluates to
-  // (submesh_mask & 1) == 0, which culls the submesh completely and erases the effect.
-  // Extended draw distance is fully achieved via CPU culling (sub_8233DE98),
-  // foliage shader fade (sub_8218B600), and camera far plane projection without
-  // tampering with mesh LOD selection.
-  (void)f;
-  (void)mesh_res;
-}
-
+// Foliage / Bush / Grass GPU shader fade-out thresholds (constant 3164(r25)) in sub_8218B600
 void Majin_FoliageFadeScale(PPCRegister& f, PPCRegister& mat, PPCRegister& model) {
   const double scale = REXCVAR_GET(majin_draw_distance_scale);
   if (scale != 1.0 && std::isfinite(f.f64) && f.f64 > 0.0) {

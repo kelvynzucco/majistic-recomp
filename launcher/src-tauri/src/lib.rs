@@ -735,7 +735,7 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
     Ok(())
 }
 
-pub const BASELINE_PIPELINE_COUNT: usize = 270;
+pub const BASELINE_PIPELINE_COUNT: usize = 288;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderCacheInfo {

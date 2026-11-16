@@ -168,6 +168,7 @@ const elements = {
   deDitherStrength: document.getElementById("deDitherStrength"),
   deDitherStrengthVal: document.getElementById("deDitherStrengthVal"),
   deDitherStrengthContainer: document.getElementById("deDitherStrengthContainer"),
+  deDitherDisabledBadge: document.getElementById("deDitherDisabledBadge"),
   vsync: document.getElementById("vsync"),
   presentDither: document.getElementById("presentDither"),
   inputMode: document.getElementById("inputMode"),
@@ -179,11 +180,12 @@ const elements = {
   gameDataRoot: document.getElementById("gameDataRoot"),
   language: document.getElementById("language"),
 
-  // Fixes form elements
+  // Fixes & Graphics form elements
   stepFix: document.getElementById("stepFix"),
   dtSmoothing: document.getElementById("dtSmoothing"),
   animSpeedFix: document.getElementById("animSpeedFix"),
   fovScale: document.getElementById("fovScale"),
+  fovScaleVal: document.getElementById("fovScaleVal"),
   drawDistanceScale: document.getElementById("drawDistanceScale"),
   drawDistanceScaleVal: document.getElementById("drawDistanceScaleVal"),
   depthOfField: document.getElementById("depthOfField"),
@@ -304,9 +306,13 @@ function updateDeDitherVisibility() {
   const val = String(elements.postEffect.value || "");
   const isDeDither = val.startsWith("dedither");
   if (isDeDither) {
-    elements.deDitherStrengthContainer.classList.remove("hidden");
+    elements.deDitherStrengthContainer.classList.remove("opacity-50", "pointer-events-none");
+    if (elements.deDitherDisabledBadge) elements.deDitherDisabledBadge.classList.add("hidden");
+    if (elements.deDitherStrength) elements.deDitherStrength.disabled = false;
   } else {
-    elements.deDitherStrengthContainer.classList.add("hidden");
+    elements.deDitherStrengthContainer.classList.add("opacity-50", "pointer-events-none");
+    if (elements.deDitherDisabledBadge) elements.deDitherDisabledBadge.classList.remove("hidden");
+    if (elements.deDitherStrength) elements.deDitherStrength.disabled = true;
   }
 }
 
@@ -325,8 +331,8 @@ function populateForm(settings) {
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
   if (elements.deDitherStrength) {
-    const strength = safeFloat(settings.DeDitherStrength, 0.85);
-    elements.deDitherStrength.value = String(strength);
+    const strength = Math.min(1.0, Math.max(0.0, safeFloat(settings.DeDitherStrength, 0.85)));
+    elements.deDitherStrength.value = strength.toFixed(2);
     if (elements.deDitherStrengthVal) {
       elements.deDitherStrengthVal.textContent = strength.toFixed(2);
     }
@@ -348,23 +354,15 @@ function populateForm(settings) {
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data";
   if (elements.language) elements.language.value = settings.Language || "English";
 
-  // Fixes form
+  // Visuals, Camera & Fixes form
   if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
   if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? false;
   if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? false;
   if (elements.fovScale) {
-    const targetFov = safeFloat(settings.FovScale, 1.0);
-    let matched = false;
-    for (let i = 0; i < elements.fovScale.options.length; i++) {
-      const optVal = parseFloat(elements.fovScale.options[i].value);
-      if (Math.abs(optVal - targetFov) < 0.001) {
-        elements.fovScale.selectedIndex = i;
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      elements.fovScale.value = "1.0";
+    const targetFov = Math.min(1.50, Math.max(0.80, safeFloat(settings.FovScale, 1.0)));
+    elements.fovScale.value = targetFov.toFixed(2);
+    if (elements.fovScaleVal) {
+      elements.fovScaleVal.textContent = targetFov.toFixed(2) + "x";
     }
   }
   if (elements.drawDistanceScale) {
@@ -972,6 +970,15 @@ if (elements.drawDistanceScale) {
     const val = parseFloat(e.target.value);
     if (elements.drawDistanceScaleVal && !isNaN(val)) {
       elements.drawDistanceScaleVal.textContent = val.toFixed(2) + "x";
+    }
+  });
+}
+
+if (elements.fovScale) {
+  elements.fovScale.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.fovScaleVal && !isNaN(val)) {
+      elements.fovScaleVal.textContent = val.toFixed(2) + "x";
     }
   });
 }

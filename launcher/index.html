@@ -259,7 +259,7 @@
                     d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"
                   />
                 </svg>
-                <span>Display &amp; Graphics</span>
+                <span>Visuals &amp; Graphics</span>
               </h2>
               <span class="text-[10px] text-slate-400 font-mono">D3D12 AGILITY</span>
             </div>
@@ -347,6 +347,10 @@
                   <span id="precompileInlineStatusIcon" class="flex items-center justify-center"></span>
                   <span>Precompile Shaders</span>
                 </button>
+                <p class="text-[10px] text-slate-400 mt-1 leading-snug flex items-start gap-1">
+                  <span class="text-amber-400/90 font-medium shrink-0">WIP:</span>
+                  <span>Not all pipelines have been discovered yet.</span>
+                </p>
               </div>
 
               <div>
@@ -382,15 +386,18 @@
               </div>
             </div>
 
-            <!-- De-Dither Intensity Slider (Shown when any De-Dither mode is active) -->
+            <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
             <div
               id="deDitherStrengthContainer"
-              class="hidden p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1"
+              class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-opacity duration-150"
             >
               <div class="flex items-center justify-between">
-                <label for="deDitherStrength" class="text-xs font-semibold text-slate-300">
-                  De-Dither Intensity / Strength
-                </label>
+                <div class="flex items-center gap-2">
+                  <label for="deDitherStrength" class="text-xs font-semibold text-slate-300">
+                    De-Dither Intensity / Strength
+                  </label>
+                  <span id="deDitherDisabledBadge" class="hidden text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Requires De-Dither</span>
+                </div>
                 <span
                   id="deDitherStrengthVal"
                   class="text-xs font-mono text-accent font-semibold"
@@ -400,8 +407,8 @@
               <input
                 type="range"
                 id="deDitherStrength"
-                min="0.0"
-                max="1.0"
+                min="0.00"
+                max="1.00"
                 step="0.05"
                 value="0.85"
                 class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
@@ -411,7 +418,94 @@
               </p>
             </div>
 
-            <div class="space-y-2 pt-1">
+            <!-- Camera FOV & Draw Distance Sliders (Standardized with In-Game) -->
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <!-- Camera FOV Slider -->
+              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="fovScale" class="text-xs font-semibold text-slate-300">
+                    Camera Field of View (FOV)
+                  </label>
+                  <span
+                    id="fovScaleVal"
+                    class="text-xs font-mono text-accent font-semibold"
+                    >1.00x</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="fovScale"
+                  min="0.80"
+                  max="1.50"
+                  step="0.05"
+                  value="1.00"
+                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                />
+                <p class="text-[10px] text-slate-400 leading-tight">
+                  Dynamically widens view frustum and projection culling (default: 1.00x).
+                </p>
+              </div>
+
+              <!-- Draw Distance Slider -->
+              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="drawDistanceScale" class="text-xs font-semibold text-slate-300">
+                    Draw Distance &amp; LOD Multiplier
+                  </label>
+                  <span
+                    id="drawDistanceScaleVal"
+                    class="text-xs font-mono text-accent font-semibold"
+                    >1.00x</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="drawDistanceScale"
+                  min="0.50"
+                  max="3.00"
+                  step="0.05"
+                  value="1.00"
+                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                />
+                <p class="text-[10px] text-slate-400 leading-tight">
+                  Scales far clip planes and object draw distance (default: 1.00x).
+                </p>
+              </div>
+            </div>
+
+            <!-- In-Engine Shaders & Effects (DoF, Bloom, Pause Blur) -->
+            <div class="space-y-1.5 pt-1 border-t border-darkBorder/40">
+              <span class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400">In-Engine Shaders &amp; Effects</span>
+              <div class="grid grid-cols-3 gap-2">
+                <label for="depthOfField" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="depthOfField"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Cinematic background distance blur">Depth of Field</span>
+                </label>
+                <label for="bloom" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="bloom"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Glare &amp; specular light glow">Specular Bloom</span>
+                </label>
+                <label for="pauseBlur" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="pauseBlur"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Pause screen background motion blur">Pause Menu Blur</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Display & Swapchain (VSync, Output Dithering) -->
+            <div class="flex items-center justify-between pt-1 border-t border-darkBorder/40">
               <div class="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -676,125 +770,20 @@
 
           <!-- Right Column: Camera & Post-Processing -->
           <div class="space-y-3.5">
-            <!-- Camera & Field of View -->
-            <section class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2.5">
-              <h2 class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-accent shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
-                  <path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/>
+            <!-- Visuals & Camera Settings Relocation Note -->
+            <section class="bg-darkCard/50 border border-darkBorder/60 rounded-lg p-3 space-y-2 text-xs text-slate-400">
+              <div class="flex items-center gap-1.5 text-accent font-semibold text-[11px] uppercase tracking-wider">
+                <svg class="w-3.5 h-3.5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+                  <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/>
                 </svg>
-                <span>Camera Field of View</span>
-              </h2>
-
-              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-2">
-                <div class="flex items-center justify-between">
-                  <label for="fovScale" class="text-xs font-semibold text-slate-300">
-                    FOV Multiplier
-                  </label>
-                  <select
-                    id="fovScale"
-                    class="bg-darkBg border border-darkBorder text-slate-200 text-xs rounded px-2.5 py-1 focus:border-accent focus:outline-none"
-                  >
-                    <option value="0.85">0.85x (Narrow)</option>
-                    <option value="1.0" selected>1.0x (Original Console FOV - Recommended)</option>
-                    <option value="1.1">1.1x (+10% Wider)</option>
-                    <option value="1.2">1.2x (Widescreen 16:9+)</option>
-                    <option value="1.3">1.3x (Ultrawide 21:9)</option>
-                    <option value="1.5">1.5x (Super Ultrawide 32:9)</option>
-                  </select>
-                </div>
-                <p class="text-[11px] text-slate-400 leading-relaxed">
-                  Scales the camera projection matrix and culling frustum simultaneously to eliminate side object popping.
-                </p>
+                <span>Visuals &amp; Camera Consolidated</span>
               </div>
-
-              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-2">
-                <div class="flex items-center justify-between">
-                  <label for="drawDistanceScale" class="text-xs font-semibold text-slate-300">
-                    Draw Distance Multiplier
-                  </label>
-                  <span
-                    id="drawDistanceScaleVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >1.00x</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="drawDistanceScale"
-                  min="0.50"
-                  max="3.00"
-                  step="0.05"
-                  value="1.00"
-                  class="w-full accent-accent bg-darkBg cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[11px] text-slate-400 leading-relaxed">
-                  Scales far clip planes and object draw/fade distances (1.00x = original, up to 3.00x).
-                </p>
-              </div>
+              <p class="leading-relaxed">
+                Camera FOV slider, Draw Distance slider, De-Dither intensity, and in-engine shaders (DoF, Bloom, Pause Blur) are now configured directly in the <strong class="text-slate-200">Settings &gt; Visuals &amp; Graphics</strong> tab for full parity with the in-game overlay.
+              </p>
             </section>
 
-            <!-- Post-Processing Effects -->
-            <section class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2.5">
-              <h2 class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-accent shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
-                  <path d="M221.66,133.66l-72,72a8,8,0,0,1-11.32,0L34.34,101.66a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,0l104,104A8,8,0,0,1,221.66,133.66ZM144,196.69,204.69,136,120,51.31,59.31,112Z"/>
-                </svg>
-                <span>Post-Processing Toggles</span>
-              </h2>
 
-              <div class="space-y-2">
-                <!-- Depth of Field -->
-                <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <label for="depthOfField" class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="depthOfField"
-                        class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                      />
-                      <span>Depth of Field (DoF Background Blur)</span>
-                    </label>
-                  </div>
-                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                    Applies cinematic background blur during cutscenes and close-up dialogues.
-                  </p>
-                </div>
-
-                <!-- Glare & Bloom -->
-                <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <label for="bloom" class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="bloom"
-                        class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                      />
-                      <span>Glare & Specular Bloom</span>
-                    </label>
-                  </div>
-                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                    Adds glow effect to intense light sources, sunbeams, and magic crystals.
-                  </p>
-                </div>
-
-                <!-- Pause Menu Blur -->
-                <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <label for="pauseBlur" class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="pauseBlur"
-                        class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                      />
-                      <span>Pause Menu Motion Blur</span>
-                    </label>
-                  </div>
-                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                    Blurs the background gameplay while the pause menu is open.
-                  </p>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </div>
@@ -1040,6 +1029,14 @@
                   <span>CLEAN</span>
                 </button>
               </div>
+
+              <!-- Shader Precompilation WIP Notice -->
+              <p class="text-[11px] text-slate-400 flex items-start gap-1.5 px-0.5 leading-snug">
+                <svg class="w-3.5 h-3.5 text-amber-400/90 shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+                  <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/>
+                </svg>
+                <span><span class="text-amber-300 font-medium">Work in progress:</span> Pipeline precompilation is still expanding. Not all in-game pipelines have been discovered yet.</span>
+              </p>
 
               <!-- Dev Only: Shader Cache Monitor Card -->
               <div

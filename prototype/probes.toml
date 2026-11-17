@@ -166,12 +166,6 @@ after_instruction = true
 
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.
 [[midasm_hook]]
-address = 0x821A0530
-name = "Majin_PauseBlurEnabled"
-registers = ["r11"]
-after_instruction = false
-
-[[midasm_hook]]
 address = 0x821A0578
 name = "Majin_DofEnabled"
 registers = ["r11"]

@@ -97,6 +97,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const bool dof = rex::cvar::Query<bool>("majin_dof");
   const bool bloom = rex::cvar::Query<bool>("majin_bloom");
   const bool pause_blur = rex::cvar::Query<bool>("majin_pause_blur");
+  const bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
   const bool dither = rex::cvar::Query<bool>("present_dither");
   const bool vsync = rex::cvar::Query<bool>("vsync");
   const bool step_fix = rex::cvar::Query<bool>("majin_step_fix");
@@ -123,6 +124,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
   ReplaceJsonField(json, "Bloom", bloom ? "true" : "false");
   ReplaceJsonField(json, "PauseBlur", pause_blur ? "true" : "false");
+  ReplaceJsonField(json, "PauseDistortion", pause_distortion ? "true" : "false");
   ReplaceJsonField(json, "PresentDither", dither ? "true" : "false");
   ReplaceJsonField(json, "VSync", vsync ? "true" : "false");
   ReplaceJsonField(json, "StepFix", step_fix ? "true" : "false");
@@ -443,6 +445,12 @@ void InGameMenuDialog::DrawVisualsTab() {
   bool pause_blur = rex::cvar::Query<bool>("majin_pause_blur");
   if (ImGui::Checkbox("Pause Screen Background Blur", &pause_blur)) {
     rex::cvar::SetFlagByName("majin_pause_blur", pause_blur ? "true" : "false");
+  }
+
+  // Pause & Map Wave Distortion
+  bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
+  if (ImGui::Checkbox("Pause & Map Screen Wave Distortion", &pause_distortion)) {
+    rex::cvar::SetFlagByName("majin_pause_distortion", pause_distortion ? "true" : "false");
   }
 
   ImGui::Spacing();

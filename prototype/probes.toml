@@ -183,6 +183,12 @@ name = "Majin_BloomEnabled"
 registers = ["r11"]
 after_instruction = false
 
+[[midasm_hook]]
+address = 0x821A0B64
+name = "Majin_PauseDistortionEnabled"
+registers = ["f0"]
+after_instruction = false
+
 # Partial animations (anim_speed.cpp): sub_822BC228 in PAL (sub_822BBEB8 in USA) advances sub-motion slots.
 [[midasm_hook]]
 address = 0x822BC214

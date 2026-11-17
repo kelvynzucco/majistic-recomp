@@ -12,6 +12,7 @@
 #include "generated/default/majin_pch.h"
 
 #include <rex/cvar.h>
+#include <rex/logging.h>
 #include <rex/ppc/context.h>
 
 #include <cmath>
@@ -94,61 +95,106 @@ void Majin_PauseDistortionEnabled(PPCRegister& f0) {
 
 // Intercepts SysKemumaki Glare & Specular Bloom pass (sub_821A2C10, 0x821A2C10).
 // - When majin_bloom <= 0.0f, skips execution completely.
-// - When majin_bloom > 0.0f, scales the bloom highlight extraction RGB multipliers
-//   at 980(r3), 984(r3), 988(r3) and streak brightness at 1008(r3) in SysKemumaki
-//   by majin_bloom for this pass, and cleanly restores them afterwards.
+// - When majin_bloom > 0.0f, scales both:
+//   1. Static highlight extraction multipliers at 0x820E2BA0 (+956 R, +512 G, +608 B),
+//      which are read by loc_821A2EA0 when 1000(r31) != 0 (active gameplay profile).
+//   2. Dynamic highlight extraction multipliers at 980(r3), 984(r3), 988(r3) and streak
+//      brightness at 1008(r3), which are read when 1000(r31) == 0 / sub_821A3548.
+//   All modified memory entries are cleanly restored immediately after the draw call.
 REX_EXTERN(__imp__sub_821A2C10);
 REX_EXTERN(sub_821A2C10) {
   const float intensity = static_cast<float>(REXCVAR_GET(majin_bloom));
   if (intensity <= 0.0f) {
     return;
   }
-  if (intensity != 1.0f && ctx.r3.u32 >= 0x10000) {
-    const uint32_t orig_980 = REX_LOAD_U32(ctx.r3.u32 + 980);
-    const uint32_t orig_984 = REX_LOAD_U32(ctx.r3.u32 + 984);
-    const uint32_t orig_988 = REX_LOAD_U32(ctx.r3.u32 + 988);
-    const uint32_t orig_1008 = REX_LOAD_U32(ctx.r3.u32 + 1008);
+  if (intensity != 1.0f) {
+    // 1. Static table entries at 0x820E2BA0 (read by loc_821A2EA0 when 1000(r31) != 0):
+    // 956(r9) = Red multiplier
+    // 512(r9) = Green multiplier
+    // 608(r9) = Blue multiplier
+    constexpr uint32_t kStaticBloomR = 0x820E2BA0 + 956;  // 0x820E2F5C
+    constexpr uint32_t kStaticBloomG = 0x820E2BA0 + 512;  // 0x820E2DA0
+    constexpr uint32_t kStaticBloomB = 0x820E2BA0 + 608;  // 0x820E2E00
 
-    float val_980 = 0.0f;
-    float val_984 = 0.0f;
-    float val_988 = 0.0f;
-    float val_1008 = 0.0f;
-    std::memcpy(&val_980, &orig_980, sizeof(float));
-    std::memcpy(&val_984, &orig_984, sizeof(float));
-    std::memcpy(&val_988, &orig_988, sizeof(float));
-    std::memcpy(&val_1008, &orig_1008, sizeof(float));
+    const uint32_t orig_sr = REX_LOAD_U32(kStaticBloomR);
+    const uint32_t orig_sg = REX_LOAD_U32(kStaticBloomG);
+    const uint32_t orig_sb = REX_LOAD_U32(kStaticBloomB);
 
-    if (!std::isfinite(val_980) || !std::isfinite(val_984) ||
-        !std::isfinite(val_988) || !std::isfinite(val_1008)) {
-      __imp__sub_821A2C10(ctx, base);
-      return;
+    float val_sr = 0.0f, val_sg = 0.0f, val_sb = 0.0f;
+    std::memcpy(&val_sr, &orig_sr, sizeof(float));
+    std::memcpy(&val_sg, &orig_sg, sizeof(float));
+    std::memcpy(&val_sb, &orig_sb, sizeof(float));
+
+    bool scaled_static = false;
+    if (std::isfinite(val_sr) && std::isfinite(val_sg) && std::isfinite(val_sb)) {
+      float new_sr = val_sr * intensity;
+      float new_sg = val_sg * intensity;
+      float new_sb = val_sb * intensity;
+      uint32_t u_sr = 0, u_sg = 0, u_sb = 0;
+      std::memcpy(&u_sr, &new_sr, sizeof(float));
+      std::memcpy(&u_sg, &new_sg, sizeof(float));
+      std::memcpy(&u_sb, &new_sb, sizeof(float));
+      REX_STORE_U32(kStaticBloomR, u_sr);
+      REX_STORE_U32(kStaticBloomG, u_sg);
+      REX_STORE_U32(kStaticBloomB, u_sb);
+      scaled_static = true;
     }
 
-    float scaled_980 = val_980 * intensity;
-    float scaled_984 = val_984 * intensity;
-    float scaled_988 = val_988 * intensity;
-    float scaled_1008 = val_1008 * intensity;
+    // 2. Dynamic struct entries at ctx.r3 (read when 1000(r31) == 0, plus streaks at 1008):
+    bool scaled_dynamic = false;
+    uint32_t orig_980 = 0, orig_984 = 0, orig_988 = 0, orig_1008 = 0;
+    if (ctx.r3.u32 >= 0x10000) {
+      orig_980 = REX_LOAD_U32(ctx.r3.u32 + 980);
+      orig_984 = REX_LOAD_U32(ctx.r3.u32 + 984);
+      orig_988 = REX_LOAD_U32(ctx.r3.u32 + 988);
+      orig_1008 = REX_LOAD_U32(ctx.r3.u32 + 1008);
 
-    uint32_t s980 = 0;
-    uint32_t s984 = 0;
-    uint32_t s988 = 0;
-    uint32_t s1008 = 0;
-    std::memcpy(&s980, &scaled_980, sizeof(float));
-    std::memcpy(&s984, &scaled_984, sizeof(float));
-    std::memcpy(&s988, &scaled_988, sizeof(float));
-    std::memcpy(&s1008, &scaled_1008, sizeof(float));
+      float val_980 = 0.0f, val_984 = 0.0f, val_988 = 0.0f, val_1008 = 0.0f;
+      std::memcpy(&val_980, &orig_980, sizeof(float));
+      std::memcpy(&val_984, &orig_984, sizeof(float));
+      std::memcpy(&val_988, &orig_988, sizeof(float));
+      std::memcpy(&val_1008, &orig_1008, sizeof(float));
 
-    REX_STORE_U32(ctx.r3.u32 + 980, s980);
-    REX_STORE_U32(ctx.r3.u32 + 984, s984);
-    REX_STORE_U32(ctx.r3.u32 + 988, s988);
-    REX_STORE_U32(ctx.r3.u32 + 1008, s1008);
+      if (std::isfinite(val_980) && std::isfinite(val_984) &&
+          std::isfinite(val_988) && std::isfinite(val_1008)) {
+        float new_980 = val_980 * intensity;
+        float new_984 = val_984 * intensity;
+        float new_988 = val_988 * intensity;
+        float new_1008 = val_1008 * intensity;
+        uint32_t u_980 = 0, u_984 = 0, u_988 = 0, u_1008 = 0;
+        std::memcpy(&u_980, &new_980, sizeof(float));
+        std::memcpy(&u_984, &new_984, sizeof(float));
+        std::memcpy(&u_988, &new_988, sizeof(float));
+        std::memcpy(&u_1008, &new_1008, sizeof(float));
+        REX_STORE_U32(ctx.r3.u32 + 980, u_980);
+        REX_STORE_U32(ctx.r3.u32 + 984, u_984);
+        REX_STORE_U32(ctx.r3.u32 + 988, u_988);
+        REX_STORE_U32(ctx.r3.u32 + 1008, u_1008);
+        scaled_dynamic = true;
+      }
+    }
+
+    static float s_last_logged = -1.0f;
+    if (std::abs(intensity - s_last_logged) > 0.05f) {
+      s_last_logged = intensity;
+      REXLOG_INFO("[Majin Bloom] Intensity={:.2f} static_scaled={} dyn_scaled={}",
+                  intensity, scaled_static, scaled_dynamic);
+    }
 
     __imp__sub_821A2C10(ctx, base);
 
-    REX_STORE_U32(ctx.r3.u32 + 980, orig_980);
-    REX_STORE_U32(ctx.r3.u32 + 984, orig_984);
-    REX_STORE_U32(ctx.r3.u32 + 988, orig_988);
-    REX_STORE_U32(ctx.r3.u32 + 1008, orig_1008);
+    // Cleanly restore all values
+    if (scaled_static) {
+      REX_STORE_U32(kStaticBloomR, orig_sr);
+      REX_STORE_U32(kStaticBloomG, orig_sg);
+      REX_STORE_U32(kStaticBloomB, orig_sb);
+    }
+    if (scaled_dynamic) {
+      REX_STORE_U32(ctx.r3.u32 + 980, orig_980);
+      REX_STORE_U32(ctx.r3.u32 + 984, orig_984);
+      REX_STORE_U32(ctx.r3.u32 + 988, orig_988);
+      REX_STORE_U32(ctx.r3.u32 + 1008, orig_1008);
+    }
     return;
   }
   __imp__sub_821A2C10(ctx, base);

@@ -14,25 +14,58 @@
 #include <rex/cvar.h>
 #include <rex/ppc/context.h>
 
+#include <cmath>
 #include <cstring>
+#include <string>
+#include <string_view>
 
-#ifndef REXCVAR_DEFINE_FLOAT
-#define REXCVAR_DEFINE_FLOAT REXCVAR_DEFINE_DOUBLE
-#endif
-
-REXCVAR_DEFINE_FLOAT(majin_pause_blur, 1.0f, "Majin",
-                     "Atmospheric light glow intensity")
-    .range(0.0, 2.0);
+REXCVAR_DEFINE_BOOL(majin_pause_blur, true, "Majin", "Blur the game behind the pause menu");
 REXCVAR_DEFINE_BOOL(majin_dof, true, "Majin", "Depth of field (background blur)");
-REXCVAR_DEFINE_BOOL(majin_bloom, true, "Majin", "Glare and bloom around bright light");
+
+// Glare and specular bloom intensity (slider from 0.0 to 2.0, default 1.0).
+// Accepts both booleans ("true" -> 1.0, "false" -> 0.0) from the launcher / CLI
+// and float numbers ("0.0" to "2.0") from the in-game settings slider.
+double& FLAGS_majin_bloom_storage_() {
+  static double storage = 1.0;
+  return storage;
+}
+static auto _cvar_reg_majin_bloom = ::rex::cvar::FlagRegistrar({
+    "majin_bloom",
+    ::rex::cvar::FlagType::Double,
+    "Majin",
+    "Glare and specular bloom intensity",
+    [](std::string_view v) {
+      if (v == "true" || v == "yes" || v == "on") {
+        FLAGS_majin_bloom_storage_() = 1.0;
+        return true;
+      }
+      if (v == "false" || v == "no" || v == "off") {
+        FLAGS_majin_bloom_storage_() = 0.0;
+        return true;
+      }
+      double val = 0.0;
+      if (!::rex::cvar::ParseDouble(v, val)) {
+        return false;
+      }
+      if (val < 0.0) val = 0.0;
+      if (val > 2.0) val = 2.0;
+      FLAGS_majin_bloom_storage_() = val;
+      return true;
+    },
+    []() { return std::to_string(FLAGS_majin_bloom_storage_()); },
+    [](std::string_view) {},
+    ::rex::cvar::Lifecycle::kHotReload,
+    {},
+    "1.000000",
+    false});
+
 REXCVAR_DEFINE_BOOL(majin_force_pause_blur, false, "Majin",
                     "Draw the pause screen blur all the time (testing)");
 REXCVAR_DEFINE_BOOL(majin_pause_distortion, true, "Graphics",
                     "Screen wave distortion effect behind pause and map menus");
 
 void Majin_PauseBlurEnabled(PPCRegister& r11) {
-  const double intensity = REXCVAR_GET(majin_pause_blur);
-  if (intensity <= 0.0) {
+  if (!REXCVAR_GET(majin_pause_blur)) {
     r11.u64 = 0;
   } else if (REXCVAR_GET(majin_force_pause_blur)) {
     r11.u64 = 1;
@@ -44,7 +77,9 @@ void Majin_DofEnabled(PPCRegister& r11) {
 }
 
 void Majin_BloomEnabled(PPCRegister& r11) {
-  if (!REXCVAR_GET(majin_bloom)) r11.u64 = 0;
+  if (REXCVAR_GET(majin_bloom) <= 0.0) {
+    r11.u64 = 0;
+  }
 }
 
 // Intercepts the TKemumakiPause transition factor load (lfs f0, 1444(r28) at 0x821A0B60)
@@ -57,44 +92,66 @@ void Majin_PauseDistortionEnabled(PPCRegister& f0) {
   }
 }
 
-// Intercepts SysKemumaki atmospheric light diffusion / pause blur pass (sub_821A1530).
-// - When majin_pause_blur <= 0.0f, skips execution completely.
-// - When majin_pause_blur > 0.0f, scales the blur intensity parameters at
-//   1096(r3) and 1108(r3) in SysKemumaki by majin_pause_blur for this pass
-//   and cleanly restores them afterwards.
-REX_EXTERN(__imp__sub_821A1530);
-REX_EXTERN(sub_821A1530) {
-  const float intensity = static_cast<float>(REXCVAR_GET(majin_pause_blur));
+// Intercepts SysKemumaki Glare & Specular Bloom pass (sub_821A2C10, 0x821A2C10).
+// - When majin_bloom <= 0.0f, skips execution completely.
+// - When majin_bloom > 0.0f, scales the bloom highlight extraction RGB multipliers
+//   at 980(r3), 984(r3), 988(r3) and streak brightness at 1008(r3) in SysKemumaki
+//   by majin_bloom for this pass, and cleanly restores them afterwards.
+REX_EXTERN(__imp__sub_821A2C10);
+REX_EXTERN(sub_821A2C10) {
+  const float intensity = static_cast<float>(REXCVAR_GET(majin_bloom));
   if (intensity <= 0.0f) {
     return;
   }
-  if (ctx.r3.u32 >= 0x10000) {
-    const uint32_t orig_1096_u32 = REX_LOAD_U32(ctx.r3.u32 + 1096);
-    const uint32_t orig_1108_u32 = REX_LOAD_U32(ctx.r3.u32 + 1108);
+  if (intensity != 1.0f && ctx.r3.u32 >= 0x10000) {
+    const uint32_t orig_980 = REX_LOAD_U32(ctx.r3.u32 + 980);
+    const uint32_t orig_984 = REX_LOAD_U32(ctx.r3.u32 + 984);
+    const uint32_t orig_988 = REX_LOAD_U32(ctx.r3.u32 + 988);
+    const uint32_t orig_1008 = REX_LOAD_U32(ctx.r3.u32 + 1008);
 
-    float val_1096 = 0.0f;
-    float val_1108 = 0.0f;
-    std::memcpy(&val_1096, &orig_1096_u32, sizeof(float));
-    std::memcpy(&val_1108, &orig_1108_u32, sizeof(float));
+    float val_980 = 0.0f;
+    float val_984 = 0.0f;
+    float val_988 = 0.0f;
+    float val_1008 = 0.0f;
+    std::memcpy(&val_980, &orig_980, sizeof(float));
+    std::memcpy(&val_984, &orig_984, sizeof(float));
+    std::memcpy(&val_988, &orig_988, sizeof(float));
+    std::memcpy(&val_1008, &orig_1008, sizeof(float));
 
-    float scaled_1096 = val_1096 * intensity;
-    float scaled_1108 = val_1108 * intensity;
+    if (!std::isfinite(val_980) || !std::isfinite(val_984) ||
+        !std::isfinite(val_988) || !std::isfinite(val_1008)) {
+      __imp__sub_821A2C10(ctx, base);
+      return;
+    }
 
-    uint32_t scaled_1096_u32 = 0;
-    uint32_t scaled_1108_u32 = 0;
-    std::memcpy(&scaled_1096_u32, &scaled_1096, sizeof(float));
-    std::memcpy(&scaled_1108_u32, &scaled_1108, sizeof(float));
+    float scaled_980 = val_980 * intensity;
+    float scaled_984 = val_984 * intensity;
+    float scaled_988 = val_988 * intensity;
+    float scaled_1008 = val_1008 * intensity;
 
-    REX_STORE_U32(ctx.r3.u32 + 1096, scaled_1096_u32);
-    REX_STORE_U32(ctx.r3.u32 + 1108, scaled_1108_u32);
+    uint32_t s980 = 0;
+    uint32_t s984 = 0;
+    uint32_t s988 = 0;
+    uint32_t s1008 = 0;
+    std::memcpy(&s980, &scaled_980, sizeof(float));
+    std::memcpy(&s984, &scaled_984, sizeof(float));
+    std::memcpy(&s988, &scaled_988, sizeof(float));
+    std::memcpy(&s1008, &scaled_1008, sizeof(float));
 
-    __imp__sub_821A1530(ctx, base);
+    REX_STORE_U32(ctx.r3.u32 + 980, s980);
+    REX_STORE_U32(ctx.r3.u32 + 984, s984);
+    REX_STORE_U32(ctx.r3.u32 + 988, s988);
+    REX_STORE_U32(ctx.r3.u32 + 1008, s1008);
 
-    REX_STORE_U32(ctx.r3.u32 + 1096, orig_1096_u32);
-    REX_STORE_U32(ctx.r3.u32 + 1108, orig_1108_u32);
+    __imp__sub_821A2C10(ctx, base);
+
+    REX_STORE_U32(ctx.r3.u32 + 980, orig_980);
+    REX_STORE_U32(ctx.r3.u32 + 984, orig_984);
+    REX_STORE_U32(ctx.r3.u32 + 988, orig_988);
+    REX_STORE_U32(ctx.r3.u32 + 1008, orig_1008);
     return;
   }
-  __imp__sub_821A1530(ctx, base);
+  __imp__sub_821A2C10(ctx, base);
 }
 
 // Intercepts SysKemumaki TKemumakiPause pass (sub_821A5F98, 0x821A5F98 in both USA and PAL).

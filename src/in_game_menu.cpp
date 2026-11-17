@@ -95,8 +95,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
   const double draw_distance_scale = rex::cvar::Query<double>("majin_draw_distance_scale");
   const bool dof = rex::cvar::Query<bool>("majin_dof");
-  const bool bloom = rex::cvar::Query<bool>("majin_bloom");
-  const double pause_blur = rex::cvar::Query<double>("majin_pause_blur");
+  const double bloom = rex::cvar::Query<double>("majin_bloom");
+  const bool pause_blur = rex::cvar::Query<bool>("majin_pause_blur");
   const bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
   const bool dither = rex::cvar::Query<bool>("present_dither");
   const bool vsync = rex::cvar::Query<bool>("vsync");
@@ -114,8 +114,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(draw_dist_buf, sizeof(draw_dist_buf), "%.2f", draw_distance_scale);
   char strength_buf[32];
   snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
-  char pause_blur_buf[32];
-  snprintf(pause_blur_buf, sizeof(pause_blur_buf), "%.2f", pause_blur);
+  char bloom_buf[32];
+  snprintf(bloom_buf, sizeof(bloom_buf), "%.2f", bloom);
 
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
@@ -124,8 +124,9 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "FovScale", fov_buf);
   ReplaceJsonField(json, "DrawDistanceScale", draw_dist_buf);
   ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
-  ReplaceJsonField(json, "Bloom", bloom ? "true" : "false");
-  ReplaceJsonField(json, "PauseBlur", pause_blur_buf);
+  ReplaceJsonField(json, "Bloom", bloom > 0.0 ? "true" : "false");
+  ReplaceJsonField(json, "BloomIntensity", bloom_buf);
+  ReplaceJsonField(json, "PauseBlur", pause_blur ? "true" : "false");
   ReplaceJsonField(json, "PauseDistortion", pause_distortion ? "true" : "false");
   ReplaceJsonField(json, "PresentDither", dither ? "true" : "false");
   ReplaceJsonField(json, "VSync", vsync ? "true" : "false");
@@ -437,19 +438,19 @@ void InGameMenuDialog::DrawVisualsTab() {
     rex::cvar::SetFlagByName("majin_dof", dof ? "true" : "false");
   }
 
-  // Specular Bloom
-  bool bloom = rex::cvar::Query<bool>("majin_bloom");
-  if (ImGui::Checkbox("Glare & Specular Bloom", &bloom)) {
-    rex::cvar::SetFlagByName("majin_bloom", bloom ? "true" : "false");
+  // Specular Bloom & Glare Intensity Slider (replaces the boolean checkbox)
+  float bloom_intensity = static_cast<float>(rex::cvar::Query<double>("majin_bloom"));
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("Glare & Specular Bloom Intensity", &bloom_intensity, 0.0f, 2.0f, "%.2f")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", bloom_intensity);
+    rex::cvar::SetFlagByName("majin_bloom", buf);
   }
 
-  // Atmospheric Light Glow Intensity (formerly Pause Screen Background Blur)
-  float pause_blur = static_cast<float>(rex::cvar::Query<double>("majin_pause_blur"));
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("Atmospheric Light Glow Intensity", &pause_blur, 0.0f, 2.0f, "%.2f")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", pause_blur);
-    rex::cvar::SetFlagByName("majin_pause_blur", buf);
+  // Pause Blur
+  bool pause_blur = rex::cvar::Query<bool>("majin_pause_blur");
+  if (ImGui::Checkbox("Pause Screen Background Blur", &pause_blur)) {
+    rex::cvar::SetFlagByName("majin_pause_blur", pause_blur ? "true" : "false");
   }
 
   // Pause & Map Wave Distortion

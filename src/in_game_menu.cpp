@@ -104,6 +104,9 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const bool dt_smoothing = rex::cvar::Query<bool>("majin_dt_smooth");
   const bool skip_cutscenes = rex::cvar::Query<bool>("majin_skip_cutscenes");
   const int32_t cutscene_speed = rex::cvar::Query<int32_t>("majin_cutscene_speed");
+  const double cas_sharp = rex::cvar::Query<double>("present_cas_additional_sharpness");
+  const double fsr_reduction = rex::cvar::Query<double>("present_fsr_sharpness_reduction");
+  const bool window_fps = rex::cvar::Query<bool>("majin_window_fps");
 
   char sens_buf[32];
   snprintf(sens_buf, sizeof(sens_buf), "%.1f", mouse_sens);
@@ -115,10 +118,16 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
   char bloom_buf[32];
   snprintf(bloom_buf, sizeof(bloom_buf), "%.2f", bloom);
+  char cas_buf[32];
+  snprintf(cas_buf, sizeof(cas_buf), "%.2f", cas_sharp);
+  char fsr_buf[32];
+  snprintf(fsr_buf, sizeof(fsr_buf), "%.2f", fsr_reduction);
 
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
   ReplaceJsonField(json, "Upscaler", "\"" + upscaler + "\"");
+  ReplaceJsonField(json, "CasSharpness", cas_buf);
+  ReplaceJsonField(json, "FsrReduction", fsr_buf);
   ReplaceJsonField(json, "MouseSensitivity", sens_buf);
   ReplaceJsonField(json, "FovScale", fov_buf);
   ReplaceJsonField(json, "DrawDistanceScale", draw_dist_buf);
@@ -127,6 +136,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "BloomIntensity", bloom_buf);
   ReplaceJsonField(json, "PauseDistortion", pause_distortion ? "true" : "false");
   ReplaceJsonField(json, "PresentDither", dither ? "true" : "false");
+  ReplaceJsonField(json, "WindowFps", window_fps ? "true" : "false");
   ReplaceJsonField(json, "VSync", vsync ? "true" : "false");
   ReplaceJsonField(json, "StepFix", step_fix ? "true" : "false");
   ReplaceJsonField(json, "AnimSpeedFix", anim_fix ? "true" : "false");

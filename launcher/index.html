@@ -338,19 +338,6 @@
                   <option value="ROV">D3D12 (ROV Interlock)</option>
                   <option value="RTV">D3D12 (RTV Direct)</option>
                 </select>
-                <button
-                  id="btnPrecompileInline"
-                  type="button"
-                  class="text-[11px] text-accent hover:underline flex items-center gap-1.5 mt-1 font-semibold cursor-pointer"
-                  title="Precompile all Vulkan pipeline shaders"
-                >
-                  <span id="precompileInlineStatusIcon" class="flex items-center justify-center"></span>
-                  <span>Precompile Shaders</span>
-                </button>
-                <p class="text-[10px] text-slate-400 mt-1 leading-snug flex items-start gap-1">
-                  <span class="text-amber-400/90 font-medium shrink-0">WIP:</span>
-                  <span>Not all pipelines have been discovered yet.</span>
-                </p>
               </div>
 
               <div>
@@ -386,36 +373,117 @@
               </div>
             </div>
 
-            <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
-            <div
-              id="deDitherStrengthContainer"
-              class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-opacity duration-150"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <label for="deDitherStrength" class="text-xs font-semibold text-slate-300">
-                    De-Dither Intensity / Strength
-                  </label>
-                  <span id="deDitherDisabledBadge" class="hidden text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Requires De-Dither</span>
+            <!-- De-Dither & Upscaler Sharpening Sliders -->
+            <div class="grid grid-cols-2 gap-3">
+              <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
+              <div
+                id="deDitherStrengthContainer"
+                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-opacity duration-150"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <label for="deDitherStrength" class="text-xs font-semibold text-slate-300">
+                      De-Dither Intensity
+                    </label>
+                    <span id="deDitherDisabledBadge" class="hidden text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Requires De-Dither</span>
+                  </div>
+                  <span
+                    id="deDitherStrengthVal"
+                    class="text-xs font-mono text-accent font-semibold"
+                    >0.85</span
+                  >
                 </div>
-                <span
-                  id="deDitherStrengthVal"
-                  class="text-xs font-mono text-accent font-semibold"
-                  >0.85</span
-                >
+                <input
+                  type="range"
+                  id="deDitherStrength"
+                  min="0.00"
+                  max="1.00"
+                  step="0.05"
+                  value="0.85"
+                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                />
+                <p class="text-[10px] text-slate-400 leading-tight">
+                  Controls foliage cross-blend strength (0.00 = off, 1.00 = max smoothing).
+                </p>
               </div>
-              <input
-                type="range"
-                id="deDitherStrength"
-                min="0.00"
-                max="1.00"
-                step="0.05"
-                value="0.85"
-                class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-              />
-              <p class="text-[11px] text-slate-400 leading-relaxed">
-                Controls foliage cross-blend strength (0.00 = off, 1.00 = maximum smoothing).
-              </p>
+
+              <!-- Upscaler Sharpening Controls -->
+              <div
+                id="upscalerSharpeningContainer"
+                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-opacity duration-150"
+              >
+                <!-- CAS Additional Sharpness -->
+                <div id="casSharpnessBlock" class="hidden space-y-1">
+                  <div class="flex items-center justify-between">
+                    <label for="casSharpness" class="text-xs font-semibold text-slate-300">
+                      CAS Additional Sharpness
+                    </label>
+                    <span
+                      id="casSharpnessVal"
+                      class="text-xs font-mono text-accent font-semibold"
+                      >0.00</span
+                    >
+                  </div>
+                  <input
+                    type="range"
+                    id="casSharpness"
+                    min="0.00"
+                    max="1.00"
+                    step="0.05"
+                    value="0.00"
+                    class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                  />
+                  <p class="text-[10px] text-slate-400 leading-tight">
+                    Contrast Adaptive Sharpening intensity (0.00 = default, 1.00 = max).
+                  </p>
+                </div>
+
+                <!-- FSR RCAS Sharpness Reduction -->
+                <div id="fsrReductionBlock" class="hidden space-y-1">
+                  <div class="flex items-center justify-between">
+                    <label for="fsrReduction" class="text-xs font-semibold text-slate-300">
+                      FSR RCAS Sharpness Reduction
+                    </label>
+                    <span
+                      id="fsrReductionVal"
+                      class="text-xs font-mono text-accent font-semibold"
+                      >0.00 stops</span
+                    >
+                  </div>
+                  <input
+                    type="range"
+                    id="fsrReduction"
+                    min="0.00"
+                    max="2.00"
+                    step="0.05"
+                    value="0.00"
+                    class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                  />
+                  <p class="text-[10px] text-slate-400 leading-tight">
+                    0.00 = max sharpness; higher values reduce RCAS sharpening strength.
+                  </p>
+                </div>
+
+                <!-- Bilinear / Fixed Upscaler Info -->
+                <div id="bilinearUpscalerBlock" class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-slate-300">Upscaler Sharpening</span>
+                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Bilinear Filter</span>
+                  </div>
+                  <input
+                    type="range"
+                    disabled
+                    min="0.00"
+                    max="1.00"
+                    step="0.05"
+                    value="0.00"
+                    class="w-full accent-accent bg-darkControl opacity-40 cursor-not-allowed h-2 rounded-lg"
+                  />
+                  <p class="text-[10px] text-slate-400 leading-tight">
+                    Bilinear uses smooth hardware blit without sharpening filters.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <!-- Camera FOV & Draw Distance Sliders (Standardized with In-Game) -->
@@ -473,62 +541,83 @@
               </div>
             </div>
 
-            <!-- In-Engine Shaders & Effects (DoF, Bloom, Pause Blur) -->
-            <div class="space-y-1.5 pt-1 border-t border-darkBorder/40">
+            <!-- In-Engine Shaders & Effects (DoF, Pause Distortion, Glare & Bloom) -->
+            <div class="space-y-2 pt-1 border-t border-darkBorder/40">
               <span class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400">In-Engine Shaders &amp; Effects</span>
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-2 gap-3">
                 <label for="depthOfField" class="flex items-center space-x-1.5 cursor-pointer">
                   <input
                     type="checkbox"
                     id="depthOfField"
                     class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
-                  <span class="text-[11px] text-slate-300 truncate" title="Cinematic background distance blur">Depth of Field</span>
+                  <span class="text-[11px] text-slate-300 truncate" title="Cinematic background distance blur">Depth of Field (majin_dof)</span>
                 </label>
-                <label for="bloom" class="flex items-center space-x-1.5 cursor-pointer">
+                <label for="pauseDistortion" class="flex items-center space-x-1.5 cursor-pointer">
                   <input
                     type="checkbox"
-                    id="bloom"
+                    id="pauseDistortion"
                     class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
-                  <span class="text-[11px] text-slate-300 truncate" title="Glare &amp; specular light glow">Specular Bloom</span>
+                  <span class="text-[11px] text-slate-300 truncate" title="Pause &amp; Map screen wave distortion effect">Pause &amp; Map Distortion</span>
                 </label>
-                <label for="pauseBlur" class="flex items-center space-x-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="pauseBlur"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span class="text-[11px] text-slate-300 truncate" title="Pause screen background motion blur">Pause Menu Blur</span>
-                </label>
+              </div>
+
+              <!-- Glare & Specular Bloom Slider -->
+              <div class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="bloomIntensity" class="text-xs font-semibold text-slate-300">
+                    Glare &amp; Specular Bloom
+                  </label>
+                  <span
+                    id="bloomIntensityVal"
+                    class="text-xs font-mono text-accent font-semibold"
+                    >1.00</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="bloomIntensity"
+                  min="0.00"
+                  max="2.00"
+                  step="0.05"
+                  value="1.00"
+                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                />
+                <p class="text-[10px] text-slate-400 leading-tight">
+                  Controls glare and specular light intensity (0.00 = disabled, 1.00 = default, 2.00 = 2x glow).
+                </p>
               </div>
             </div>
 
-            <!-- Display & Swapchain (VSync, Output Dithering) -->
-            <div class="flex items-center justify-between pt-1 border-t border-darkBorder/40">
-              <div class="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="vsync"
-                  class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                />
-                <label for="vsync" class="text-xs text-slate-300"
-                  >Enable Vertical Synchronization (VSync)</label
-                >
-              </div>
-
-              <div class="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="presentDither"
-                  class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                />
-                <label
-                  for="presentDither"
-                  class="text-xs text-slate-300"
-                  title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise."
-                  >Enable Output Dithering (present_dither)</label
-                >
+            <!-- Display & Swapchain (VSync, Output Dithering, Live Window FPS) -->
+            <div class="space-y-1.5 pt-1 border-t border-darkBorder/40">
+              <span class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400">Display &amp; Swapchain</span>
+              <div class="grid grid-cols-3 gap-2">
+                <label for="vsync" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="vsync"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Enable Vertical Synchronization (VSync)">VSync</span>
+                </label>
+                <label for="presentDither" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="presentDither"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise.">Output Dithering</span>
+                </label>
+                <label for="windowFps" class="flex items-center space-x-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="windowFps"
+                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                  />
+                  <span class="text-[11px] text-slate-300 truncate" title="Show Live Guest FPS in Window Title (majin_window_fps)">Window Title FPS</span>
+                </label>
               </div>
             </div>
           </section>
@@ -779,7 +868,7 @@
                 <span>Visuals &amp; Camera Consolidated</span>
               </div>
               <p class="leading-relaxed">
-                Camera FOV slider, Draw Distance slider, De-Dither intensity, and in-engine shaders (DoF, Bloom, Pause Blur) are now configured directly in the <strong class="text-slate-200">Settings &gt; Visuals &amp; Graphics</strong> tab for full parity with the in-game overlay.
+                Camera FOV slider, Draw Distance slider, De-Dither intensity, and in-engine shaders (DoF, Glare &amp; Bloom, Pause Distortion) are now configured directly in the <strong class="text-slate-200">Settings &gt; Visuals &amp; Graphics</strong> tab for full parity with the in-game overlay.
               </p>
             </section>
 

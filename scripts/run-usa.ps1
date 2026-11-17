@@ -23,8 +23,13 @@ param(
     [ValidateRange(0.5, 2.0)][double]$FovScale = 1.0,
     [ValidateRange(0.5, 3.0)][double]$DrawDistanceScale = 1.0,
     $PauseBlur = $false,
+    $PauseDistortion = $true,
     $DepthOfField = $false,
-    $Bloom = $false,
+    $Bloom = 1.0,
+    [ValidateRange(0.0, 2.0)][double]$BloomIntensity = 1.0,
+    [ValidateRange(0.0, 1.0)][double]$CasSharpness = 0.0,
+    [ValidateRange(0.0, 2.0)][double]$FsrReduction = 0.0,
+    $WindowFps = $null,
     $AutoCapture = $false,
     $PresentDither = $false,
     [string]$GameDataRoot = 'game-data',
@@ -109,6 +114,11 @@ $launchArgs = @(
     "--present_dither=$((ConvertTo-Bool $PresentDither).ToString().ToLowerInvariant())",
     "--gpu_allow_invalid_fetch_constants=$allowInvalid"
 )
+if ($Upscaler -eq 'cas') {
+    $launchArgs += "--present_cas_additional_sharpness=$($CasSharpness.ToString([Globalization.CultureInfo]::InvariantCulture))"
+} elseif ($Upscaler -eq 'fsr') {
+    $launchArgs += "--present_fsr_sharpness_reduction=$($FsrReduction.ToString([Globalization.CultureInfo]::InvariantCulture))"
+}
 if ($isVulkan) {
     $launchArgs += @(
         "--render_target_path_vulkan=$vulkanTargetPath",
@@ -146,7 +156,8 @@ if ($InputMode -eq 'KeyboardMouse') {
     }
 }
 
-$launchArgs += "--majin_window_fps=$((-not $isFullscreen).ToString().ToLowerInvariant())"
+$isWindowFps = if ($null -ne $WindowFps) { ConvertTo-Bool $WindowFps } else { (-not $isFullscreen) }
+$launchArgs += "--majin_window_fps=$($isWindowFps.ToString().ToLowerInvariant())"
 $launchArgs += "--majin_record_performance=$($isRecordPerf.ToString().ToLowerInvariant())"
 if ($isRecordPerf) { $launchArgs += "--perf_log_csv=$logPath.performance.csv" }
 $is60fps = ($FrameRateMode -eq '60' -or $FrameRateMode -eq 'Uncapped')
@@ -183,14 +194,25 @@ $launchArgs += "--majin_dt_smooth=$($isDtSmoothing.ToString().ToLowerInvariant()
 $launchArgs += "--majin_fov_scale=$($FovScale.ToString([Globalization.CultureInfo]::InvariantCulture))"
 $launchArgs += "--majin_draw_distance_scale=$($DrawDistanceScale.ToString([Globalization.CultureInfo]::InvariantCulture))"
 
-$isPauseBlur = ConvertTo-Bool $PauseBlur
-$launchArgs += "--majin_pause_blur=$($isPauseBlur.ToString().ToLowerInvariant())"
+$isPauseDistortion = ConvertTo-Bool $PauseDistortion
+$launchArgs += "--majin_pause_distortion=$($isPauseDistortion.ToString().ToLowerInvariant())"
 
 $isDof = ConvertTo-Bool $DepthOfField
 $launchArgs += "--majin_dof=$($isDof.ToString().ToLowerInvariant())"
 
-$isBloom = ConvertTo-Bool $Bloom
-$launchArgs += "--majin_bloom=$($isBloom.ToString().ToLowerInvariant())"
+# Handle Bloom intensity (accepts float directly or bool)
+$bloomVal = 1.0
+if ($BloomIntensity -ne 1.0) {
+    $bloomVal = $BloomIntensity
+} elseif ($Bloom -is [bool] -or $Bloom -eq 'true' -or $Bloom -eq 'false' -or $Bloom -eq '$true' -or $Bloom -eq '$false') {
+    $bloomVal = if (ConvertTo-Bool $Bloom) { 1.0 } else { 0.0 }
+} else {
+    $parsed = 1.0
+    if ([double]::TryParse("$Bloom", [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
+        $bloomVal = $parsed
+    }
+}
+$launchArgs += "--majin_bloom=$($bloomVal.ToString([Globalization.CultureInfo]::InvariantCulture))"
 
 $isAutoCapture = ConvertTo-Bool $AutoCapture
 if ($isAutoCapture) {

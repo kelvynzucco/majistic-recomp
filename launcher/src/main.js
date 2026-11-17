@@ -92,9 +92,12 @@ const defaultSettings = {
   RenderingPath: "Vulkan",
   FrameRateMode: "30",
   VSync: false,
+  PresentDither: false,
   PostEffect: "none",
   DeDitherStrength: 0.85,
   Upscaler: "bilinear",
+  CasSharpness: 0.0,
+  FsrReduction: 0.0,
   SkipIntroLogos: true,
   SkipCutscenes: true,
   CutsceneSpeed: 4,
@@ -109,10 +112,11 @@ const defaultSettings = {
   DtSmoothing: false,
   FovScale: 1.0,
   DrawDistanceScale: 1.0,
-  PauseBlur: false,
   DepthOfField: false,
-  Bloom: false,
-  PresentDither: false,
+  Bloom: true,
+  BloomIntensity: 1.0,
+  PauseDistortion: true,
+  WindowFps: false,
 };
 
 let currentSettings = { ...defaultSettings };
@@ -164,6 +168,13 @@ const elements = {
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
+  casSharpness: document.getElementById("casSharpness"),
+  casSharpnessVal: document.getElementById("casSharpnessVal"),
+  casSharpnessBlock: document.getElementById("casSharpnessBlock"),
+  fsrReduction: document.getElementById("fsrReduction"),
+  fsrReductionVal: document.getElementById("fsrReductionVal"),
+  fsrReductionBlock: document.getElementById("fsrReductionBlock"),
+  bilinearUpscalerBlock: document.getElementById("bilinearUpscalerBlock"),
   postEffect: document.getElementById("postEffect"),
   deDitherStrength: document.getElementById("deDitherStrength"),
   deDitherStrengthVal: document.getElementById("deDitherStrengthVal"),
@@ -171,6 +182,7 @@ const elements = {
   deDitherDisabledBadge: document.getElementById("deDitherDisabledBadge"),
   vsync: document.getElementById("vsync"),
   presentDither: document.getElementById("presentDither"),
+  windowFps: document.getElementById("windowFps"),
   inputMode: document.getElementById("inputMode"),
   cutsceneSpeed: document.getElementById("cutsceneSpeed"),
   mouseSensitivity: document.getElementById("mouseSensitivity"),
@@ -189,8 +201,9 @@ const elements = {
   drawDistanceScale: document.getElementById("drawDistanceScale"),
   drawDistanceScaleVal: document.getElementById("drawDistanceScaleVal"),
   depthOfField: document.getElementById("depthOfField"),
-  bloom: document.getElementById("bloom"),
-  pauseBlur: document.getElementById("pauseBlur"),
+  bloomIntensity: document.getElementById("bloomIntensity"),
+  bloomIntensityVal: document.getElementById("bloomIntensityVal"),
+  pauseDistortion: document.getElementById("pauseDistortion"),
 
   // Build Tab Elements
   btnBrowseGameData: document.getElementById("btnBrowseGameData"),
@@ -223,10 +236,8 @@ const elements = {
   btnLaunchText: document.getElementById("btnLaunchText"),
   btnPrecompile: document.getElementById("btnPrecompile"),
   btnPrecompileText: document.getElementById("btnPrecompileText"),
-  btnPrecompileInline: document.getElementById("btnPrecompileInline"),
   btnCleanShaders: document.getElementById("btnCleanShaders"),
   precompileStatusIcon: document.getElementById("precompileStatusIcon"),
-  precompileInlineStatusIcon: document.getElementById("precompileInlineStatusIcon"),
 
   // Precompile Modal Elements
   precompileModal: document.getElementById("precompileModal"),
@@ -316,6 +327,20 @@ function updateDeDitherVisibility() {
   }
 }
 
+function updateUpscalerVisibility() {
+  if (!elements.upscaler) return;
+  const up = String(elements.upscaler.value || "bilinear");
+  if (elements.casSharpnessBlock) {
+    elements.casSharpnessBlock.classList.toggle("hidden", up !== "cas");
+  }
+  if (elements.fsrReductionBlock) {
+    elements.fsrReductionBlock.classList.toggle("hidden", up !== "fsr");
+  }
+  if (elements.bilinearUpscalerBlock) {
+    elements.bilinearUpscalerBlock.classList.toggle("hidden", up === "cas" || up === "fsr");
+  }
+}
+
 // ==========================================
 // Settings Management
 // ==========================================
@@ -329,6 +354,21 @@ function populateForm(settings) {
     elements.renderingPath.value = (rp === "Vulkan_FSI") ? "Vulkan" : rp;
   }
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
+  if (elements.casSharpness) {
+    const casVal = Math.min(1.0, Math.max(0.0, safeFloat(settings.CasSharpness, 0.0)));
+    elements.casSharpness.value = casVal.toFixed(2);
+    if (elements.casSharpnessVal) {
+      elements.casSharpnessVal.textContent = casVal.toFixed(2);
+    }
+  }
+  if (elements.fsrReduction) {
+    const fsrVal = Math.min(2.0, Math.max(0.0, safeFloat(settings.FsrReduction, 0.0)));
+    elements.fsrReduction.value = fsrVal.toFixed(2);
+    if (elements.fsrReductionVal) {
+      elements.fsrReductionVal.textContent = fsrVal.toFixed(2) + " stops";
+    }
+  }
+  updateUpscalerVisibility();
   if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
   if (elements.deDitherStrength) {
     const strength = Math.min(1.0, Math.max(0.0, safeFloat(settings.DeDitherStrength, 0.85)));
@@ -340,6 +380,7 @@ function populateForm(settings) {
   updateDeDitherVisibility();
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? false;
   if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
+  if (elements.windowFps) elements.windowFps.checked = settings.WindowFps ?? false;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
   if (elements.mouseSensitivity) {
@@ -373,8 +414,17 @@ function populateForm(settings) {
     }
   }
   if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? false;
-  if (elements.bloom) elements.bloom.checked = settings.Bloom ?? false;
-  if (elements.pauseBlur) elements.pauseBlur.checked = settings.PauseBlur ?? false;
+  if (elements.pauseDistortion) elements.pauseDistortion.checked = settings.PauseDistortion ?? true;
+  if (elements.bloomIntensity) {
+    const bloomVal = settings.BloomIntensity !== undefined
+      ? safeFloat(settings.BloomIntensity, 1.0)
+      : (settings.Bloom ? 1.0 : 0.0);
+    const clamped = Math.min(2.0, Math.max(0.0, bloomVal));
+    elements.bloomIntensity.value = clamped.toFixed(2);
+    if (elements.bloomIntensityVal) {
+      elements.bloomIntensityVal.textContent = clamped <= 0.001 ? "Off" : clamped.toFixed(2);
+    }
+  }
 }
 
 function readForm() {
@@ -386,9 +436,12 @@ function readForm() {
     FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : false,
     PresentDither: elements.presentDither ? elements.presentDither.checked : false,
+    WindowFps: elements.windowFps ? elements.windowFps.checked : false,
     PostEffect: elements.postEffect?.value || "none",
     DeDitherStrength: elements.deDitherStrength ? safeFloat(elements.deDitherStrength.value, 0.85) : safeFloat(currentSettings.DeDitherStrength, 0.85),
     Upscaler: elements.upscaler?.value || "bilinear",
+    CasSharpness: elements.casSharpness ? safeFloat(elements.casSharpness.value, 0.0) : safeFloat(currentSettings.CasSharpness, 0.0),
+    FsrReduction: elements.fsrReduction ? safeFloat(elements.fsrReduction.value, 0.0) : safeFloat(currentSettings.FsrReduction, 0.0),
     SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
     SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
     CutsceneSpeed: safeInt(elements.cutsceneSpeed?.value, 4),
@@ -404,8 +457,9 @@ function readForm() {
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
     DrawDistanceScale: safeFloat(elements.drawDistanceScale?.value, 1.0),
     DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,
-    Bloom: elements.bloom ? elements.bloom.checked : false,
-    PauseBlur: elements.pauseBlur ? elements.pauseBlur.checked : false,
+    PauseDistortion: elements.pauseDistortion ? elements.pauseDistortion.checked : true,
+    Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
+    BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) : safeFloat(currentSettings.BloomIntensity, 1.0),
   };
 }
 
@@ -768,9 +822,6 @@ listen("precompile-error", (event) => {
 if (elements.btnPrecompile) {
   elements.btnPrecompile.addEventListener("click", startPrecompileShaders);
 }
-if (elements.btnPrecompileInline) {
-  elements.btnPrecompileInline.addEventListener("click", startPrecompileShaders);
-}
 if (elements.btnClosePrecompileModal) {
   elements.btnClosePrecompileModal.addEventListener("click", () => {
     if (elements.precompileModal) elements.precompileModal.classList.add("hidden");
@@ -794,20 +845,13 @@ const ICON_CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" xmlns
 
 const ICON_UNCHECK_SVG = `<svg class="w-3.5 h-3.5 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
 
-const ICON_CHECK_INLINE_SVG = `<svg class="w-3 h-3 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
-
-const ICON_UNCHECK_INLINE_SVG = `<svg class="w-3 h-3 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
-
 async function updateShaderCacheInfo() {
   try {
     const info = await invoke("get_shader_cache_info");
     if (info) {
-      // 1. Update status icons on both precompile buttons (green check vs red uncheck)
+      // 1. Update status icon on precompile button (green check vs red uncheck)
       if (elements.precompileStatusIcon) {
         elements.precompileStatusIcon.innerHTML = info.is_precompiled ? ICON_CHECK_SVG : ICON_UNCHECK_SVG;
-      }
-      if (elements.precompileInlineStatusIcon) {
-        elements.precompileInlineStatusIcon.innerHTML = info.is_precompiled ? ICON_CHECK_INLINE_SVG : ICON_UNCHECK_INLINE_SVG;
       }
 
       if (elements.btnPrecompile) {
@@ -989,6 +1033,39 @@ if (elements.deDitherStrength) {
     if (elements.deDitherStrengthVal && !isNaN(val)) {
       elements.deDitherStrengthVal.textContent = val.toFixed(2);
     }
+  });
+}
+
+if (elements.casSharpness) {
+  elements.casSharpness.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.casSharpnessVal && !isNaN(val)) {
+      elements.casSharpnessVal.textContent = val.toFixed(2);
+    }
+  });
+}
+
+if (elements.fsrReduction) {
+  elements.fsrReduction.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.fsrReductionVal && !isNaN(val)) {
+      elements.fsrReductionVal.textContent = val.toFixed(2) + " stops";
+    }
+  });
+}
+
+if (elements.bloomIntensity) {
+  elements.bloomIntensity.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.bloomIntensityVal && !isNaN(val)) {
+      elements.bloomIntensityVal.textContent = val <= 0.001 ? "Off" : val.toFixed(2);
+    }
+  });
+}
+
+if (elements.upscaler) {
+  elements.upscaler.addEventListener("change", () => {
+    updateUpscalerVisibility();
   });
 }
 

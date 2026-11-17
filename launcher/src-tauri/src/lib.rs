@@ -73,6 +73,18 @@ fn default_dedither_strength() -> f64 {
     0.85
 }
 
+fn default_bloom_intensity() -> f64 {
+    1.0
+}
+
+fn default_cas_sharpness() -> f64 {
+    0.0
+}
+
+fn default_fsr_reduction() -> f64 {
+    0.0
+}
+
 fn deserialize_nullable_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -164,12 +176,22 @@ pub struct Settings {
     pub draw_distance_scale: f64,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub pause_blur: bool,
+    #[serde(rename = "PauseDistortion", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub pause_distortion: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub depth_of_field: bool,
-    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub bloom: bool,
+    #[serde(rename = "BloomIntensity", default = "default_bloom_intensity", deserialize_with = "deserialize_nullable_f64")]
+    pub bloom_intensity: f64,
+    #[serde(rename = "CasSharpness", default = "default_cas_sharpness", deserialize_with = "deserialize_nullable_f64")]
+    pub cas_sharpness: f64,
+    #[serde(rename = "FsrReduction", default = "default_fsr_reduction", deserialize_with = "deserialize_nullable_f64")]
+    pub fsr_reduction: f64,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub present_dither: bool,
+    #[serde(rename = "WindowFps", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    pub window_fps: bool,
 }
 
 impl Default for Settings {
@@ -199,9 +221,14 @@ impl Default for Settings {
             fov_scale: 1.0,
             draw_distance_scale: 1.0,
             pause_blur: false,
+            pause_distortion: true,
             depth_of_field: false,
-            bloom: false,
+            bloom: true,
+            bloom_intensity: 1.0,
+            cas_sharpness: 0.0,
+            fsr_reduction: 0.0,
             present_dither: false,
+            window_fps: false,
         }
     }
 }
@@ -987,9 +1014,16 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.fov_scale.to_string(),
         "-DrawDistanceScale".to_string(),
         settings.draw_distance_scale.to_string(),
-        format!("-PauseBlur:${}", settings.pause_blur),
+        format!("-PauseDistortion:${}", settings.pause_distortion),
         format!("-DepthOfField:${}", settings.depth_of_field),
-        format!("-Bloom:${}", settings.bloom),
+        format!("-Bloom:${}", settings.bloom_intensity),
+        "-BloomIntensity".to_string(),
+        settings.bloom_intensity.to_string(),
+        "-CasSharpness".to_string(),
+        settings.cas_sharpness.to_string(),
+        "-FsrReduction".to_string(),
+        settings.fsr_reduction.to_string(),
+        format!("-WindowFps:${}", settings.window_fps),
         format!("-PresentDither:${}", settings.present_dither),
         "-Configuration".to_string(),
         settings.configuration,
@@ -1518,6 +1552,11 @@ mod tests {
         assert_eq!(settings.draw_distance_scale, 1.0);
         assert_eq!(settings.mouse_sensitivity, 1.0);
         assert!(!settings.pause_blur);
+        assert!(settings.pause_distortion);
+        assert_eq!(settings.bloom_intensity, 1.0);
+        assert_eq!(settings.cas_sharpness, 0.0);
+        assert_eq!(settings.fsr_reduction, 0.0);
+        assert!(!settings.window_fps);
     }
 
     #[test]
@@ -1589,8 +1628,13 @@ mod tests {
             "FovScale": 1.2,
             "DrawDistanceScale": 2.25,
             "PauseBlur": false,
+            "PauseDistortion": true,
             "DepthOfField": false,
-            "Bloom": false,
+            "Bloom": true,
+            "BloomIntensity": 1.5,
+            "CasSharpness": 0.35,
+            "FsrReduction": 0.45,
+            "WindowFps": true,
             "PresentDither": true
         }"#;
 
@@ -1611,6 +1655,11 @@ mod tests {
         assert!(!settings.anim_speed_fix);
         assert!(settings.dt_smoothing);
         assert!(!settings.pause_blur);
+        assert!(settings.pause_distortion);
+        assert_eq!(settings.bloom_intensity, 1.5);
+        assert_eq!(settings.cas_sharpness, 0.35);
+        assert_eq!(settings.fsr_reduction, 0.45);
+        assert!(settings.window_fps);
         assert!(settings.present_dither);
     }
 

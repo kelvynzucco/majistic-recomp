@@ -7,7 +7,7 @@
     Whether to create a compressed .zip archive of the release package.
 #>
 param(
-    [string]$Version = "0.1.0",
+    [string]$Version = "0.1.3",
     [switch]$CreateZip = $true
 )
 
@@ -113,12 +113,26 @@ $srcBin = Join-Path $root 'game-data\bin'
 $srcPalExe = Join-Path $root 'prototype\out\build\win-amd64-release\majin.exe'
 $srcUsaExe = Join-Path $root 'prototype-usa\out\build\win-amd64-release\majin.exe'
 
-$exeSource = if (Test-Path (Join-Path $srcBin 'majin.exe')) {
+# Copy edition-specific binaries
+if (Test-Path $srcPalExe) {
+    Copy-Item $srcPalExe (Join-Path $destBin 'majin-pal.exe') -Force
+} elseif (Test-Path (Join-Path $srcBin 'majin-pal.exe')) {
+    Copy-Item (Join-Path $srcBin 'majin-pal.exe') (Join-Path $destBin 'majin-pal.exe') -Force
+}
+
+if (Test-Path $srcUsaExe) {
+    Copy-Item $srcUsaExe (Join-Path $destBin 'majin-usa.exe') -Force
+} elseif (Test-Path (Join-Path $srcBin 'majin-usa.exe')) {
+    Copy-Item (Join-Path $srcBin 'majin-usa.exe') (Join-Path $destBin 'majin-usa.exe') -Force
+}
+
+# Deploy default majin.exe
+$exeSource = if (Test-Path (Join-Path $destBin 'majin-pal.exe')) {
+    Join-Path $destBin 'majin-pal.exe'
+} elseif (Test-Path (Join-Path $destBin 'majin-usa.exe')) {
+    Join-Path $destBin 'majin-usa.exe'
+} elseif (Test-Path (Join-Path $srcBin 'majin.exe')) {
     Join-Path $srcBin 'majin.exe'
-} elseif (Test-Path $srcPalExe) {
-    $srcPalExe
-} elseif (Test-Path $srcUsaExe) {
-    $srcUsaExe
 } else {
     $null
 }
@@ -126,7 +140,7 @@ $exeSource = if (Test-Path (Join-Path $srcBin 'majin.exe')) {
 if ($exeSource) {
     Copy-Item $exeSource (Join-Path $destBin 'majin.exe') -Force
     $exeSize = (Get-Item (Join-Path $destBin 'majin.exe')).Length / 1MB
-    Write-Host ("[6/7] Copied precompiled majin.exe ({0:N1} MB)" -f $exeSize)
+    Write-Host ("[6/7] Copied precompiled majin.exe ({0:N1} MB), majin-pal.exe, and majin-usa.exe" -f $exeSize)
 } else {
     Write-Warning "majin.exe not found! Please build it before packaging."
 }
@@ -163,7 +177,7 @@ Write-Host "[6/7] Initialized game-data/ with precompiled binary and runtime DLL
 # Security & Copyright Verification Gate:
 # Strictly verify that NO original/proprietary game assets exist anywhere in the release folder.
 Write-Host "Verifying release package compliance (zero-asset policy)..."
-$prohibitedPatterns = @('*.iso', '*.xex', '*.cpk', '*.bik', '*.csb', '*.xma', 'loaded-image.bin')
+$prohibitedPatterns = @('*.iso', '*.xex', '*.cpk', '*.bik', '*.csb', '*.xma', 'loaded-image.bin', '*.xsh')
 $violations = Get-ChildItem -Path $releaseDir -Recurse -Include $prohibitedPatterns -File -ErrorAction SilentlyContinue
 if ($violations) {
     Remove-Item -Path $releaseDir -Recurse -Force
@@ -205,7 +219,7 @@ if ($CreateZip) {
             if ($sig) {
                 $latestJson = [ordered]@{
                     version = $Version
-                    notes = "Majistic Recomp v$Version Update:`n- Separate Dev & Release launcher modes (zero local logs and no dev tools in release)`n- Resolved WebView2 console window popup and lock collision errors on startup`n- Default rendering path set to Vulkan FBO and VSync disabled by default`n- Mouse Sensitivity slider in Gameplay & Controls (0.1x to 10.0x)`n- Post-processing effects disabled by default with descriptive labels`n- Launcher window size increased to 980x710 (resizable)"
+                    notes = "Majistic Recomp v$Version Update:`n- Universal multi-edition support: seamless auto-detection and precompiled binaries for both USA (NTSC-U) and Europe (PAL) game ISOs`n- Dedicated Graphics and Controls navigation tabs with streamlined layout`n- Interactive FOV, Draw Distance, De-Dither, and Upscaler Sharpening sliders with dynamic conditional visibility`n- Conditional Mouse Sensitivity slider for Keyboard & Mouse controls`n- Support / Buy Me a Coffee button opening in native system browser`n- Optimized default profile: Vulkan, 30fps native, De-Dither + FXAA Fast, Draw Distance 3.0x, VSync enabled, dt_smooth enabled`n- Clean-room zero-logging in release mode (diagnostic logs isolated strictly to dev mode)"
                     pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                     platforms = @{
                         "windows-x86_64" = @{

@@ -72,3 +72,35 @@ if (Test-Path $privDirPal) {
 $unpackedImagePath = Join-Path $unpackedDir 'loaded-image.bin'
 [System.IO.File]::WriteAllBytes($unpackedImagePath, $image)
 Write-Host "Saved unpacked linear PE image ($($image.Length) bytes) to $imagePathUsa and $unpackedImagePath"
+
+# Detect edition from default.xex (USA = 76FDB642, PAL = 67BD87EF) and configure matching executable
+$isPal = $false
+$maxScan = [Math]::Min($bytes.Length, 16384)
+for ($i = 0; $i -lt ($maxScan - 4); $i++) {
+    if ($bytes[$i] -eq 0x67 -and $bytes[$i+1] -eq 0xBD -and $bytes[$i+2] -eq 0x87 -and $bytes[$i+3] -eq 0xEF) {
+        $isPal = $true
+        break
+    }
+}
+$editionName = if ($isPal) { 'Europe / PAL (0.0.0.3)' } else { 'USA / NTSC-U (0.0.0.2)' }
+$editionSuffix = if ($isPal) { 'pal' } else { 'usa' }
+Write-Host "Detected game edition: $editionName"
+
+$binDir = Join-Path $GameDataRoot 'bin'
+New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+$targetExe = Join-Path $binDir 'majin.exe'
+$precompiledEdition = Join-Path $binDir "majin-$editionSuffix.exe"
+$buildEdition = if ($isPal) {
+    Join-Path $root 'prototype\out\build\win-amd64-release\majin.exe'
+} else {
+    Join-Path $root 'prototype-usa\out\build\win-amd64-release\majin.exe'
+}
+
+if (Test-Path $precompiledEdition) {
+    Copy-Item -LiteralPath $precompiledEdition -Destination $targetExe -Force
+    Write-Host "Deployed precompiled game binary for $editionName (majin-$editionSuffix.exe -> majin.exe)"
+} elseif (Test-Path $buildEdition) {
+    Copy-Item -LiteralPath $buildEdition -Destination $targetExe -Force
+    Write-Host "Deployed built game binary for $editionName ($buildEdition -> majin.exe)"
+}
+

@@ -972,7 +972,7 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         None
     };
 
-    let args = [
+    let mut args = vec![
         "-NoLogo".to_string(),
         "-NoProfile".to_string(),
         "-ExecutionPolicy".to_string(),
@@ -1028,6 +1028,10 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         "-Configuration".to_string(),
         settings.configuration,
     ];
+
+    if !is_dev {
+        args.push("-DisableLogging".to_string());
+    }
 
     let mut cmd = Command::new("powershell.exe");
     cmd.args(&args).current_dir(&root);
@@ -1379,24 +1383,26 @@ pub fn run() {
                 if let Some(main_window) = app.get_webview_window("main") {
                     write_debug_log("Main WebviewWindow found. Initializing telemetry and listeners...");
 
-                    // Watchdog thread: checks window state periodically
-                    let window_for_watchdog = main_window.clone();
-                    std::thread::spawn(move || {
-                        let mut tick: u64 = 0;
-                        loop {
-                            std::thread::sleep(std::time::Duration::from_secs(3));
-                            tick += 1;
-                            let is_visible = window_for_watchdog.is_visible().unwrap_or(false);
-                            let is_minimized = window_for_watchdog.is_minimized().unwrap_or(false);
-                            let is_focused = window_for_watchdog.is_focused().unwrap_or(false);
-                            if tick % 4 == 0 || !is_visible || is_minimized {
-                                write_debug_log(&format!(
-                                    "[Watchdog Heartbeat #{} ({}s)] window: visible={} minimized={} focused={}",
-                                    tick, tick * 3, is_visible, is_minimized, is_focused
-                                ));
+                    // Watchdog thread: checks window state periodically (dev-mode only)
+                    if is_dev_or_debug() {
+                        let window_for_watchdog = main_window.clone();
+                        std::thread::spawn(move || {
+                            let mut tick: u64 = 0;
+                            loop {
+                                std::thread::sleep(std::time::Duration::from_secs(3));
+                                tick += 1;
+                                let is_visible = window_for_watchdog.is_visible().unwrap_or(false);
+                                let is_minimized = window_for_watchdog.is_minimized().unwrap_or(false);
+                                let is_focused = window_for_watchdog.is_focused().unwrap_or(false);
+                                if tick % 4 == 0 || !is_visible || is_minimized {
+                                    write_debug_log(&format!(
+                                        "[Watchdog Heartbeat #{} ({}s)] window: visible={} minimized={} focused={}",
+                                        tick, tick * 3, is_visible, is_minimized, is_focused
+                                    ));
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     let _ = main_window.with_webview(move |webview| {
                         unsafe {
@@ -1438,11 +1444,13 @@ pub fn run() {
                                             kind.0, kind_str, exit_code, desc_str
                                         ));
                                         // Issue #6: capture the Windows Application event log
-                                        // (faulting module / WER data) for this crash.
-                                        std::thread::spawn(|| {
-                                            std::thread::sleep(std::time::Duration::from_secs(3));
-                                            collect_crash_events();
-                                        });
+                                        // (faulting module / WER data) for this crash in dev mode.
+                                        if is_dev_or_debug() {
+                                            std::thread::spawn(|| {
+                                                std::thread::sleep(std::time::Duration::from_secs(3));
+                                                collect_crash_events();
+                                            });
+                                        }
                                         // Browser process died (kind 0): the WebView is unrecoverable.
                                         if kind.0 == 0 {
                                             std::thread::spawn(handle_browser_process_exit);

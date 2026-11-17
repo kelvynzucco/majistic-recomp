@@ -3,7 +3,22 @@ import { listen } from "@tauri-apps/api/event";
 import { check } from "@tauri-apps/plugin-updater";
 import { initCustomSelects } from "./customSelect.js";
 
+let isDevModeCached = false;
+
+// Determine dev mode immediately to avoid unwanted telemetry IPC in production release
+invoke("is_dev_mode")
+  .then((dev) => {
+    isDevModeCached = !!dev;
+    if (isDevModeCached) {
+      logToBackend(
+        `JS Init: innerSize=${window.innerWidth}x${window.innerHeight}, screen=${screen.width}x${screen.height}, dpr=${window.devicePixelRatio}, ua=${navigator.userAgent}`
+      );
+    }
+  })
+  .catch(() => {});
+
 function logToBackend(msg) {
+  if (!isDevModeCached) return;
   invoke("log_message", { msg: String(msg) }).catch(() => {});
 }
 
@@ -18,11 +33,6 @@ window.addEventListener("unhandledrejection", (e) => {
   }
   logToBackend(`UNHANDLED_REJECTION: ${reasonStr}`);
 });
-
-// Diagnostic telemetry on startup
-logToBackend(
-  `JS Init: innerSize=${window.innerWidth}x${window.innerHeight}, screen=${screen.width}x${screen.height}, dpr=${window.devicePixelRatio}, ua=${navigator.userAgent}`
-);
 
 // Compositor Keep-Alive: keeps WebView2 swapchain active on idle to prevent DWM/MPO blank screen.
 // A canvas 2D draw guarantees that Chromium's cc/Viz damage tracker registers dirty rects every second.
@@ -51,7 +61,7 @@ setInterval(() => {
     keepAliveCtx.fillStyle = heartbeatTick ? "#0f172a" : "#0f172b";
     keepAliveCtx.fillRect(0, 0, 1, 1);
   }
-  if (heartbeatCounter % 3 === 0) {
+  if (isDevModeCached && heartbeatCounter % 3 === 0) {
     logToBackend(
       `JS Heartbeat #${heartbeatCounter} (${heartbeatCounter}s): visibility=${document.visibilityState}, active=<${document.activeElement?.tagName || "none"}>`
     );
@@ -60,17 +70,23 @@ setInterval(() => {
 
 // Watchdog: manual reload keyboard shortcut (F5 or Ctrl+R)
 window.addEventListener("keydown", (e) => {
-  logToBackend(`JS KeyDown: key='${e.key}' code='${e.code}' ctrl=${e.ctrlKey} alt=${e.altKey}`);
+  if (isDevModeCached) {
+    logToBackend(`JS KeyDown: key='${e.key}' code='${e.code}' ctrl=${e.ctrlKey} alt=${e.altKey}`);
+  }
   if (e.key === "F5" || (e.ctrlKey && e.key.toLowerCase() === "r")) {
     e.preventDefault();
-    logToBackend("Manual reload triggered via keyboard shortcut");
+    if (isDevModeCached) {
+      logToBackend("Manual reload triggered via keyboard shortcut");
+    }
     window.location.reload();
   }
 });
 
 // User Click Diagnostic Logging
 window.addEventListener("click", (e) => {
-  logToBackend(`User Click at (${e.clientX}, ${e.clientY}) on <${e.target?.tagName || "unknown"}> id='${e.target?.id || ""}'`);
+  if (isDevModeCached) {
+    logToBackend(`User Click at (${e.clientX}, ${e.clientY}) on <${e.target?.tagName || "unknown"}> id='${e.target?.id || ""}'`);
+  }
 });
 
 // Header double-click emergency recovery
@@ -78,7 +94,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const header = document.getElementById("appHeader");
   if (header) {
     header.addEventListener("dblclick", () => {
-      logToBackend("Header double-click emergency recovery: reload()");
+      if (isDevModeCached) {
+        logToBackend("Header double-click emergency recovery: reload()");
+      }
       window.location.reload();
     });
   }

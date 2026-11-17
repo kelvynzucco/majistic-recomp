@@ -25,7 +25,7 @@
         <span
           id="appVersionBadge"
           class="h-6 inline-flex items-center px-2 rounded bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
-          >v0.1.2</span
+          >v0.1.3</span
         >
 
         <button
@@ -1253,8 +1253,8 @@
               <span>EXTRACT &amp; BUILD GAME FROM .ISO</span>
             </button>
 
-            <!-- Step 3: Vulkan Shader Precompilation -->
-            <div class="pt-1 space-y-2">
+            <!-- Step 3: Vulkan Shader Precompilation (Dev Mode Only) -->
+            <div data-dev-only class="pt-1 space-y-2">
               <div class="flex items-center gap-2">
                 <button
                   id="btnPrecompile"
@@ -1586,8 +1586,9 @@
       </button>
     </footer>
 
-    <!-- Shader Precompilation Modal -->
+    <!-- Shader Precompilation Modal (Dev Mode Only) -->
     <div
+      data-dev-only
       id="precompileModal"
       class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
     >

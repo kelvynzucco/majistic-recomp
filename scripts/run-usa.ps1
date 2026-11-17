@@ -34,6 +34,7 @@ param(
     $PresentDither = $false,
     [string]$GameDataRoot = 'game-data',
     [switch]$ShaderPrebuildOnly,
+    [switch]$DisableLogging,
     [switch]$Preview
 )
 $ErrorActionPreference = 'Stop'
@@ -49,7 +50,9 @@ $isVSync = ConvertTo-Bool $VSync
 $isRecordPerf = ConvertTo-Bool $RecordPerformance
 
 $projectRoot = Split-Path $PSScriptRoot -Parent
-New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
+if (-not $DisableLogging) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
+}
 
 if (-not [System.IO.Path]::IsPathRooted($GameDataRoot)) {
     $candidate = Join-Path $projectRoot $GameDataRoot
@@ -63,15 +66,49 @@ if (-not (Test-Path (Join-Path $GameDataRoot 'default.xex'))) {
     throw "default.xex not found in $GameDataRoot"
 }
 
-$unifiedExe = Join-Path $GameDataRoot 'bin\majin.exe'
-$buildUsa = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
-$buildPal = Join-Path $projectRoot ('prototype\out\build\win-amd64-' + $Configuration.ToLower())
-$prototypeExe = if (Test-Path (Join-Path $buildPal 'majin.exe')) { Join-Path $buildPal 'majin.exe' } else { Join-Path $buildUsa 'majin.exe' }
-$build = if (Test-Path $buildPal) { $buildPal } else { $buildUsa }
+# Detect target edition from default.xex (PAL: 67BD87EF, USA: 76FDB642)
+$xexPath = Join-Path $GameDataRoot 'default.xex'
+$isPal = $false
+$editionSuffix = 'usa'
+$editionName = 'USA / NTSC-U (0.0.0.2)'
+if (Test-Path $xexPath) {
+    try {
+        $xexBytes = [System.IO.File]::ReadAllBytes($xexPath)
+        $maxScan = [Math]::Min($xexBytes.Length, 16384)
+        for ($i = 0; $i -lt ($maxScan - 4); $i++) {
+            if ($xexBytes[$i] -eq 0x67 -and $xexBytes[$i+1] -eq 0xBD -and $xexBytes[$i+2] -eq 0x87 -and $xexBytes[$i+3] -eq 0xEF) {
+                $isPal = $true
+                $editionSuffix = 'pal'
+                $editionName = 'Europe / PAL (0.0.0.3)'
+                break
+            }
+        }
+    } catch {
+        Write-Warning "Could not inspect default.xex for edition identification: $_"
+    }
+}
+Write-Output "Detected target game edition: $editionName ($editionSuffix)"
 
-$exe = if (Test-Path $unifiedExe) { $unifiedExe } elseif (Test-Path $prototypeExe) { $prototypeExe } else { $unifiedExe }
-if (-not (Test-Path $exe)) {
-    throw "Build majin.exe before running ($exe)."
+$binDir = Join-Path $GameDataRoot 'bin'
+$targetExe = Join-Path $binDir 'majin.exe'
+$editionExe = Join-Path $binDir "majin-$editionSuffix.exe"
+$buildPal = Join-Path $projectRoot ('prototype\out\build\win-amd64-' + $Configuration.ToLower())
+$buildUsa = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Configuration.ToLower())
+$buildEdition = if ($isPal) { Join-Path $buildPal 'majin.exe' } else { Join-Path $buildUsa 'majin.exe' }
+$build = if ($isPal) { $buildPal } else { $buildUsa }
+
+if (Test-Path $editionExe) {
+    if (-not (Test-Path $targetExe) -or ((Get-Item $targetExe).Length -ne (Get-Item $editionExe).Length)) {
+        Copy-Item -LiteralPath $editionExe -Destination $targetExe -Force
+        Write-Output "Deployed precompiled game binary for $editionName (majin-$editionSuffix.exe -> majin.exe)"
+    }
+    $exe = $targetExe
+} elseif (Test-Path $buildEdition) {
+    $exe = $buildEdition
+} elseif (Test-Path $targetExe) {
+    $exe = $targetExe
+} else {
+    throw "Game executable not found ($targetExe). Please build or unpack game first."
 }
 
 $sessionRoot = Join-Path $GameDataRoot 'runtime'
@@ -90,9 +127,12 @@ New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRo
 $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { 'rtv' }
 $vulkanTargetPath = 'fbo'
 $allowInvalid = 'true'
-$logDir = Join-Path $sessionRoot 'logs'
-New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-$logPath = Join-Path $logDir ('runtime-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+$logPath = $null
+if (-not $DisableLogging) {
+    $logDir = Join-Path $sessionRoot 'logs'
+    New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    $logPath = Join-Path $logDir ('runtime-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+}
 
 $dimensions = $WindowSize.Split('x')
 $launchArgs = @(
@@ -101,8 +141,14 @@ $launchArgs = @(
     '--game_data_root', $GameDataRoot,
     '--user_data_root', "$sessionRoot/user",
     '--cache_root', $cacheRoot,
-    '--metadata_root', $metadataRoot,
-    '--log_file', $logPath,
+    '--metadata_root', $metadataRoot
+)
+if ($logPath) {
+    $launchArgs += @('--log_file', $logPath)
+} else {
+    $launchArgs += @('--log_file=', '--flush_log=false')
+}
+$launchArgs += @(
     "--window_width=$($dimensions[0])",
     "--window_height=$($dimensions[1])",
     "--fullscreen=$($isFullscreen.ToString().ToLowerInvariant())",
@@ -158,8 +204,11 @@ if ($InputMode -eq 'KeyboardMouse') {
 
 $isWindowFps = if ($null -ne $WindowFps) { ConvertTo-Bool $WindowFps } else { (-not $isFullscreen) }
 $launchArgs += "--majin_window_fps=$($isWindowFps.ToString().ToLowerInvariant())"
-$launchArgs += "--majin_record_performance=$($isRecordPerf.ToString().ToLowerInvariant())"
-if ($isRecordPerf) { $launchArgs += "--perf_log_csv=$logPath.performance.csv" }
+if ($isRecordPerf -and -not $DisableLogging -and $logPath) {
+    $launchArgs += @('--majin_record_performance=true', "--perf_log_csv=$logPath.performance.csv")
+} else {
+    $launchArgs += '--majin_record_performance=false'
+}
 $is60fps = ($FrameRateMode -eq '60' -or $FrameRateMode -eq 'Uncapped')
 $launchArgs += "--majin_60fps=$($is60fps.ToString().ToLowerInvariant())"
 $isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
@@ -224,7 +273,9 @@ if ($Preview) {
     return
 }
 
-Write-Output "Runtime log: $logPath"
+if ($logPath) {
+    Write-Output "Runtime log: $logPath"
+}
 $quotedArgs = @($launchArgs | ForEach-Object {
     '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
 })

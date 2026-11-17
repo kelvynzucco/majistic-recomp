@@ -91,15 +91,15 @@ const defaultSettings = {
   RenderScale: 1,
   RenderingPath: "Vulkan",
   FrameRateMode: "30",
-  VSync: false,
+  VSync: true,
   PresentDither: false,
-  PostEffect: "none",
+  PostEffect: "dedither_fxaa",
   DeDitherStrength: 0.85,
   Upscaler: "bilinear",
   CasSharpness: 0.0,
   FsrReduction: 0.0,
-  SkipIntroLogos: true,
-  SkipCutscenes: true,
+  SkipIntroLogos: false,
+  SkipCutscenes: false,
   CutsceneSpeed: 4,
   InputMode: "Controller",
   MouseSensitivity: 1.0,
@@ -109,9 +109,9 @@ const defaultSettings = {
   Language: "English",
   StepFix: false,
   AnimSpeedFix: false,
-  DtSmoothing: false,
+  DtSmoothing: true,
   FovScale: 1.0,
-  DrawDistanceScale: 1.0,
+  DrawDistanceScale: 3.0,
   DepthOfField: false,
   Bloom: true,
   BloomIntensity: 1.0,
@@ -130,10 +130,14 @@ let gameStatus = {
 // DOM Elements
 const elements = {
   // Navigation Tabs
-  tabBtnSettings: document.getElementById("tabBtnSettings"),
+  tabBtnGraphics: document.getElementById("tabBtnGraphics"),
+  tabBtnControls: document.getElementById("tabBtnControls"),
+  tabBtnSettings: document.getElementById("tabBtnGraphics"),
   tabBtnFixes: document.getElementById("tabBtnFixes"),
   tabBtnBuild: document.getElementById("tabBtnBuild"),
-  tabSettings: document.getElementById("tabSettings"),
+  tabGraphics: document.getElementById("tabGraphics"),
+  tabControls: document.getElementById("tabControls"),
+  tabSettings: document.getElementById("tabGraphics"),
   tabFixes: document.getElementById("tabFixes"),
   tabBuild: document.getElementById("tabBuild"),
   tabBuildIndicator: document.getElementById("tabBuildIndicator"),
@@ -142,6 +146,7 @@ const elements = {
   appVersionBadge: document.getElementById("appVersionBadge"),
   btnCheckUpdates: document.getElementById("btnCheckUpdates"),
   btnCheckUpdatesText: document.getElementById("btnCheckUpdatesText"),
+  btnBuyMeCoffee: document.getElementById("btnBuyMeCoffee"),
   updateBtnIcon: document.getElementById("updateBtnIcon"),
   gameStatusBadge: document.getElementById("gameStatusBadge"),
   gameStatusBadgeText: document.getElementById("gameStatusBadgeText"),
@@ -168,23 +173,25 @@ const elements = {
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
+  upscalerSharpeningContainer: document.getElementById("upscalerSharpeningContainer"),
   casSharpness: document.getElementById("casSharpness"),
   casSharpnessVal: document.getElementById("casSharpnessVal"),
   casSharpnessBlock: document.getElementById("casSharpnessBlock"),
   fsrReduction: document.getElementById("fsrReduction"),
   fsrReductionVal: document.getElementById("fsrReductionVal"),
   fsrReductionBlock: document.getElementById("fsrReductionBlock"),
-  bilinearUpscalerBlock: document.getElementById("bilinearUpscalerBlock"),
   postEffect: document.getElementById("postEffect"),
   deDitherStrength: document.getElementById("deDitherStrength"),
   deDitherStrengthVal: document.getElementById("deDitherStrengthVal"),
   deDitherStrengthContainer: document.getElementById("deDitherStrengthContainer"),
+  postProcessingSlidersRow: document.getElementById("postProcessingSlidersRow"),
   deDitherDisabledBadge: document.getElementById("deDitherDisabledBadge"),
   vsync: document.getElementById("vsync"),
   presentDither: document.getElementById("presentDither"),
   windowFps: document.getElementById("windowFps"),
   inputMode: document.getElementById("inputMode"),
   cutsceneSpeed: document.getElementById("cutsceneSpeed"),
+  mouseSensitivityContainer: document.getElementById("mouseSensitivityContainer"),
   mouseSensitivity: document.getElementById("mouseSensitivity"),
   mouseSensitivityVal: document.getElementById("mouseSensitivityVal"),
   skipCutscenes: document.getElementById("skipCutscenes"),
@@ -269,38 +276,36 @@ function switchTab(tab) {
   const inactiveClass =
     "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
 
-  if (tab === "settings") {
-    elements.tabSettings.classList.remove("hidden");
-    if (elements.tabFixes) elements.tabFixes.classList.add("hidden");
-    elements.tabBuild.classList.add("hidden");
+  const target = tab === "settings" ? "graphics" : tab;
 
-    elements.tabBtnSettings.className = activeClass;
-    if (elements.tabBtnFixes) elements.tabBtnFixes.className = inactiveClass;
-    elements.tabBtnBuild.className = inactiveClass;
-  } else if (tab === "fixes") {
-    elements.tabSettings.classList.add("hidden");
-    if (elements.tabFixes) elements.tabFixes.classList.remove("hidden");
-    elements.tabBuild.classList.add("hidden");
+  const tabList = [
+    { key: "graphics", el: elements.tabGraphics, btn: elements.tabBtnGraphics },
+    { key: "controls", el: elements.tabControls, btn: elements.tabBtnControls },
+    { key: "fixes", el: elements.tabFixes, btn: elements.tabBtnFixes },
+    { key: "build", el: elements.tabBuild, btn: elements.tabBtnBuild },
+  ];
 
-    elements.tabBtnSettings.className = inactiveClass;
-    if (elements.tabBtnFixes) elements.tabBtnFixes.className = activeClass;
-    elements.tabBtnBuild.className = inactiveClass;
-  } else {
-    elements.tabSettings.classList.add("hidden");
-    if (elements.tabFixes) elements.tabFixes.classList.add("hidden");
-    elements.tabBuild.classList.remove("hidden");
+  tabList.forEach(({ key, el, btn }) => {
+    if (!el || !btn) return;
+    if (key === target) {
+      el.classList.remove("hidden");
+      btn.className = activeClass;
+    } else {
+      el.classList.add("hidden");
+      btn.className = inactiveClass;
+    }
+  });
 
-    elements.tabBtnSettings.className = inactiveClass;
-    if (elements.tabBtnFixes) elements.tabBtnFixes.className = inactiveClass;
-    elements.tabBtnBuild.className = activeClass;
+  if (target === "build") {
     updateShaderCacheInfo();
   }
 }
 
-elements.tabBtnSettings.addEventListener("click", () => switchTab("settings"));
+if (elements.tabBtnGraphics) elements.tabBtnGraphics.addEventListener("click", () => switchTab("graphics"));
+if (elements.tabBtnControls) elements.tabBtnControls.addEventListener("click", () => switchTab("controls"));
 if (elements.tabBtnFixes) elements.tabBtnFixes.addEventListener("click", () => switchTab("fixes"));
-elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
-elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
+if (elements.tabBtnBuild) elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
+if (elements.btnGoToSetup) elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
 
 function safeFloat(val, fallback) {
   const num = typeof val === "number" ? val : parseFloat(val);
@@ -312,33 +317,54 @@ function safeInt(val, fallback) {
   return Number.isFinite(num) ? num : fallback;
 }
 
-function updateDeDitherVisibility() {
-  if (!elements.deDitherStrengthContainer || !elements.postEffect) return;
-  const val = String(elements.postEffect.value || "");
-  const isDeDither = val.startsWith("dedither");
-  if (isDeDither) {
-    elements.deDitherStrengthContainer.classList.remove("opacity-50", "pointer-events-none");
-    if (elements.deDitherDisabledBadge) elements.deDitherDisabledBadge.classList.add("hidden");
-    if (elements.deDitherStrength) elements.deDitherStrength.disabled = false;
-  } else {
-    elements.deDitherStrengthContainer.classList.add("opacity-50", "pointer-events-none");
-    if (elements.deDitherDisabledBadge) elements.deDitherDisabledBadge.classList.remove("hidden");
-    if (elements.deDitherStrength) elements.deDitherStrength.disabled = true;
+function updatePostProcessingVisibility() {
+  if (!elements.postEffect || !elements.upscaler) return;
+
+  const postVal = String(elements.postEffect.value || "none");
+  const isDeDither = postVal.startsWith("dedither");
+
+  const upVal = String(elements.upscaler.value || "bilinear");
+  const hasSharpening = upVal === "cas" || upVal === "fsr";
+
+  // De-Dither intensity slider visibility
+  if (elements.deDitherStrengthContainer) {
+    elements.deDitherStrengthContainer.classList.toggle("hidden", !isDeDither);
+    if (elements.deDitherStrength) {
+      elements.deDitherStrength.disabled = !isDeDither;
+    }
+  }
+
+  // Upscaler sharpening slider visibility
+  if (elements.upscalerSharpeningContainer) {
+    elements.upscalerSharpeningContainer.classList.toggle("hidden", !hasSharpening);
+  }
+
+  // Sub-blocks for CAS / FSR
+  if (elements.casSharpnessBlock) {
+    elements.casSharpnessBlock.classList.toggle("hidden", upVal !== "cas");
+  }
+  if (elements.fsrReductionBlock) {
+    elements.fsrReductionBlock.classList.toggle("hidden", upVal !== "fsr");
+  }
+
+  // Entire row visibility
+  if (elements.postProcessingSlidersRow) {
+    elements.postProcessingSlidersRow.classList.toggle("hidden", !isDeDither && !hasSharpening);
   }
 }
 
+function updateDeDitherVisibility() {
+  updatePostProcessingVisibility();
+}
+
 function updateUpscalerVisibility() {
-  if (!elements.upscaler) return;
-  const up = String(elements.upscaler.value || "bilinear");
-  if (elements.casSharpnessBlock) {
-    elements.casSharpnessBlock.classList.toggle("hidden", up !== "cas");
-  }
-  if (elements.fsrReductionBlock) {
-    elements.fsrReductionBlock.classList.toggle("hidden", up !== "fsr");
-  }
-  if (elements.bilinearUpscalerBlock) {
-    elements.bilinearUpscalerBlock.classList.toggle("hidden", up === "cas" || up === "fsr");
-  }
+  updatePostProcessingVisibility();
+}
+
+function updateInputModeVisibility() {
+  if (!elements.inputMode || !elements.mouseSensitivityContainer) return;
+  const isKbm = elements.inputMode.value === "KeyboardMouse";
+  elements.mouseSensitivityContainer.classList.toggle("hidden", !isKbm);
 }
 
 // ==========================================
@@ -369,7 +395,7 @@ function populateForm(settings) {
     }
   }
   updateUpscalerVisibility();
-  if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "none";
+  if (elements.postEffect) elements.postEffect.value = settings.PostEffect || "dedither_fxaa";
   if (elements.deDitherStrength) {
     const strength = Math.min(1.0, Math.max(0.0, safeFloat(settings.DeDitherStrength, 0.85)));
     elements.deDitherStrength.value = strength.toFixed(2);
@@ -378,10 +404,11 @@ function populateForm(settings) {
     }
   }
   updateDeDitherVisibility();
-  if (elements.vsync) elements.vsync.checked = settings.VSync ?? false;
+  if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;
   if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
   if (elements.windowFps) elements.windowFps.checked = settings.WindowFps ?? false;
   if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
+  updateInputModeVisibility();
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
   if (elements.mouseSensitivity) {
     const sens = safeFloat(settings.MouseSensitivity, 1.0);
@@ -390,15 +417,15 @@ function populateForm(settings) {
       elements.mouseSensitivityVal.textContent = sens.toFixed(1) + "x";
     }
   }
-  if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? true;
-  if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? true;
+  if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? false;
+  if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? false;
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data";
   if (elements.language) elements.language.value = settings.Language || "English";
 
   // Visuals, Camera & Fixes form
   if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
   if (elements.animSpeedFix) elements.animSpeedFix.checked = settings.AnimSpeedFix ?? false;
-  if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? false;
+  if (elements.dtSmoothing) elements.dtSmoothing.checked = settings.DtSmoothing ?? true;
   if (elements.fovScale) {
     const targetFov = Math.min(1.50, Math.max(0.80, safeFloat(settings.FovScale, 1.0)));
     elements.fovScale.value = targetFov.toFixed(2);
@@ -407,7 +434,7 @@ function populateForm(settings) {
     }
   }
   if (elements.drawDistanceScale) {
-    const targetDist = Math.min(3.0, Math.max(0.5, safeFloat(settings.DrawDistanceScale, 1.0)));
+    const targetDist = Math.min(3.0, Math.max(0.5, safeFloat(settings.DrawDistanceScale, 3.0)));
     elements.drawDistanceScale.value = targetDist.toFixed(2);
     if (elements.drawDistanceScaleVal) {
       elements.drawDistanceScaleVal.textContent = targetDist.toFixed(2) + "x";
@@ -434,16 +461,16 @@ function readForm() {
     RenderScale: safeInt(elements.renderScale?.value, 1),
     RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
-    VSync: elements.vsync ? elements.vsync.checked : false,
+    VSync: elements.vsync ? elements.vsync.checked : true,
     PresentDither: elements.presentDither ? elements.presentDither.checked : false,
     WindowFps: elements.windowFps ? elements.windowFps.checked : false,
-    PostEffect: elements.postEffect?.value || "none",
+    PostEffect: elements.postEffect?.value || "dedither_fxaa",
     DeDitherStrength: elements.deDitherStrength ? safeFloat(elements.deDitherStrength.value, 0.85) : safeFloat(currentSettings.DeDitherStrength, 0.85),
     Upscaler: elements.upscaler?.value || "bilinear",
     CasSharpness: elements.casSharpness ? safeFloat(elements.casSharpness.value, 0.0) : safeFloat(currentSettings.CasSharpness, 0.0),
     FsrReduction: elements.fsrReduction ? safeFloat(elements.fsrReduction.value, 0.0) : safeFloat(currentSettings.FsrReduction, 0.0),
-    SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : true,
-    SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : true,
+    SkipIntroLogos: elements.skipIntroLogos ? elements.skipIntroLogos.checked : false,
+    SkipCutscenes: elements.skipCutscenes ? elements.skipCutscenes.checked : false,
     CutsceneSpeed: safeInt(elements.cutsceneSpeed?.value, 4),
     InputMode: elements.inputMode?.value || "Controller",
     MouseSensitivity: elements.mouseSensitivity ? safeFloat(elements.mouseSensitivity.value, 1.0) : safeFloat(currentSettings.MouseSensitivity, 1.0),
@@ -453,9 +480,9 @@ function readForm() {
     Language: elements.language?.value || currentSettings.Language || "English",
     StepFix: elements.stepFix ? elements.stepFix.checked : false,
     AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : false,
-    DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : false,
+    DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : true,
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
-    DrawDistanceScale: safeFloat(elements.drawDistanceScale?.value, 1.0),
+    DrawDistanceScale: safeFloat(elements.drawDistanceScale?.value, 3.0),
     DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,
     PauseDistortion: elements.pauseDistortion ? elements.pauseDistortion.checked : true,
     Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
@@ -989,6 +1016,18 @@ if (elements.btnWindowMinimize) {
   });
 }
 
+if (elements.btnBuyMeCoffee) {
+  elements.btnBuyMeCoffee.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try {
+      await invoke("open_external_url", { url: "https://buymeacoffee.com/majistic" });
+    } catch (err) {
+      console.warn("Failed to open external url via tauri command:", err);
+      window.open("https://buymeacoffee.com/majistic", "_blank");
+    }
+  });
+}
+
 if (elements.btnWindowMaximize) {
   elements.btnWindowMaximize.addEventListener("click", async () => {
     try {
@@ -1075,6 +1114,12 @@ if (elements.postEffect) {
   });
 }
 
+if (elements.inputMode) {
+  elements.inputMode.addEventListener("change", () => {
+    updateInputModeVisibility();
+  });
+}
+
 if (elements.btnWindowClose) {
   elements.btnWindowClose.addEventListener("click", async () => {
     try {
@@ -1091,7 +1136,14 @@ window.addEventListener("resize", () => {
 
 // Auto-save settings on change
 document.addEventListener("change", async (e) => {
-  if (e.target && (e.target.closest("#tabSettings") || e.target.closest("#tabFixes") || e.target.closest("#tabBuild"))) {
+  if (
+    e.target &&
+    (e.target.closest("#tabGraphics") ||
+      e.target.closest("#tabControls") ||
+      e.target.closest("#tabSettings") ||
+      e.target.closest("#tabFixes") ||
+      e.target.closest("#tabBuild"))
+  ) {
     const settings = readForm();
     try {
       await invoke("save_settings", { settings });

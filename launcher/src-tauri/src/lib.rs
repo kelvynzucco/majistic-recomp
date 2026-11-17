@@ -22,7 +22,7 @@ fn default_frame_rate_mode() -> String {
 }
 
 fn default_post_effect() -> String {
-    "none".into()
+    "dedither_fxaa".into()
 }
 
 fn default_upscaler() -> String {
@@ -66,7 +66,7 @@ fn default_fov_scale() -> f64 {
 }
 
 fn default_draw_distance_scale() -> f64 {
-    1.0
+    3.0
 }
 
 fn default_dedither_strength() -> f64 {
@@ -138,7 +138,7 @@ pub struct Settings {
     pub rendering_path: String,
     #[serde(default = "default_frame_rate_mode")]
     pub frame_rate_mode: String,
-    #[serde(rename = "VSync", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    #[serde(rename = "VSync", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub vsync: bool,
     #[serde(default = "default_post_effect")]
     pub post_effect: String,
@@ -146,9 +146,9 @@ pub struct Settings {
     pub dedither_strength: f64,
     #[serde(default = "default_upscaler")]
     pub upscaler: String,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub skip_intro_logos: bool,
-    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub skip_cutscenes: bool,
     #[serde(default = "default_cutscene_speed", deserialize_with = "deserialize_nullable_u32_cutscene")]
     pub cutscene_speed: u32,
@@ -168,7 +168,7 @@ pub struct Settings {
     pub step_fix: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub anim_speed_fix: bool,
-    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub dt_smoothing: bool,
     #[serde(default = "default_fov_scale", deserialize_with = "deserialize_nullable_f64")]
     pub fov_scale: f64,
@@ -202,12 +202,12 @@ impl Default for Settings {
             render_scale: 1,
             rendering_path: "Vulkan".into(),
             frame_rate_mode: "30".into(),
-            vsync: false,
-            post_effect: "none".into(),
+            vsync: true,
+            post_effect: "dedither_fxaa".into(),
             dedither_strength: 0.85,
             upscaler: "bilinear".into(),
-            skip_intro_logos: true,
-            skip_cutscenes: true,
+            skip_intro_logos: false,
+            skip_cutscenes: false,
             cutscene_speed: 4,
             input_mode: "Controller".into(),
             mouse_sensitivity: 1.0,
@@ -217,9 +217,9 @@ impl Default for Settings {
             language: "English".into(),
             step_fix: false,
             anim_speed_fix: false,
-            dt_smoothing: false,
+            dt_smoothing: true,
             fov_scale: 1.0,
-            draw_distance_scale: 1.0,
+            draw_distance_scale: 3.0,
             pause_blur: false,
             pause_distortion: true,
             depth_of_field: false,
@@ -1333,6 +1333,31 @@ fn exit_app() {
     std::process::exit(0);
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("Invalid URL protocol".to_string());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1505,7 +1530,8 @@ pub fn run() {
             start_drag_window,
             log_message,
             is_dev_mode,
-            exit_app
+            exit_app,
+            open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1573,7 +1599,7 @@ mod tests {
         assert!(settings.fullscreen);
         assert_eq!(settings.render_scale, 1);
         assert_eq!(settings.fov_scale, 1.0);
-        assert_eq!(settings.draw_distance_scale, 1.0);
+        assert_eq!(settings.draw_distance_scale, 3.0);
         assert_eq!(settings.cutscene_speed, 4);
         assert_eq!(settings.language, "English");
         assert!(!settings.step_fix);

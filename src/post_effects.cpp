@@ -14,7 +14,15 @@
 #include <rex/cvar.h>
 #include <rex/ppc/context.h>
 
-REXCVAR_DEFINE_BOOL(majin_pause_blur, true, "Majin", "Blur the game behind the pause menu");
+#include <cstring>
+
+#ifndef REXCVAR_DEFINE_FLOAT
+#define REXCVAR_DEFINE_FLOAT REXCVAR_DEFINE_DOUBLE
+#endif
+
+REXCVAR_DEFINE_FLOAT(majin_pause_blur, 1.0f, "Majin",
+                     "Atmospheric light glow intensity")
+    .range(0.0, 2.0);
 REXCVAR_DEFINE_BOOL(majin_dof, true, "Majin", "Depth of field (background blur)");
 REXCVAR_DEFINE_BOOL(majin_bloom, true, "Majin", "Glare and bloom around bright light");
 REXCVAR_DEFINE_BOOL(majin_force_pause_blur, false, "Majin",
@@ -23,8 +31,12 @@ REXCVAR_DEFINE_BOOL(majin_pause_distortion, true, "Graphics",
                     "Screen wave distortion effect behind pause and map menus");
 
 void Majin_PauseBlurEnabled(PPCRegister& r11) {
-  if (!REXCVAR_GET(majin_pause_blur)) r11.u64 = 0;
-  else if (REXCVAR_GET(majin_force_pause_blur)) r11.u64 = 1;
+  const double intensity = REXCVAR_GET(majin_pause_blur);
+  if (intensity <= 0.0) {
+    r11.u64 = 0;
+  } else if (REXCVAR_GET(majin_force_pause_blur)) {
+    r11.u64 = 1;
+  }
 }
 
 void Majin_DofEnabled(PPCRegister& r11) {
@@ -43,6 +55,46 @@ void Majin_PauseDistortionEnabled(PPCRegister& f0) {
   if (!REXCVAR_GET(majin_pause_distortion)) {
     f0.f64 = 0.0;
   }
+}
+
+// Intercepts SysKemumaki atmospheric light diffusion / pause blur pass (sub_821A1530).
+// - When majin_pause_blur <= 0.0f, skips execution completely.
+// - When majin_pause_blur > 0.0f, scales the blur intensity parameters at
+//   1096(r3) and 1108(r3) in SysKemumaki by majin_pause_blur for this pass
+//   and cleanly restores them afterwards.
+REX_EXTERN(__imp__sub_821A1530);
+REX_EXTERN(sub_821A1530) {
+  const float intensity = static_cast<float>(REXCVAR_GET(majin_pause_blur));
+  if (intensity <= 0.0f) {
+    return;
+  }
+  if (ctx.r3.u32 >= 0x10000) {
+    const uint32_t orig_1096_u32 = REX_LOAD_U32(ctx.r3.u32 + 1096);
+    const uint32_t orig_1108_u32 = REX_LOAD_U32(ctx.r3.u32 + 1108);
+
+    float val_1096 = 0.0f;
+    float val_1108 = 0.0f;
+    std::memcpy(&val_1096, &orig_1096_u32, sizeof(float));
+    std::memcpy(&val_1108, &orig_1108_u32, sizeof(float));
+
+    float scaled_1096 = val_1096 * intensity;
+    float scaled_1108 = val_1108 * intensity;
+
+    uint32_t scaled_1096_u32 = 0;
+    uint32_t scaled_1108_u32 = 0;
+    std::memcpy(&scaled_1096_u32, &scaled_1096, sizeof(float));
+    std::memcpy(&scaled_1108_u32, &scaled_1108, sizeof(float));
+
+    REX_STORE_U32(ctx.r3.u32 + 1096, scaled_1096_u32);
+    REX_STORE_U32(ctx.r3.u32 + 1108, scaled_1108_u32);
+
+    __imp__sub_821A1530(ctx, base);
+
+    REX_STORE_U32(ctx.r3.u32 + 1096, orig_1096_u32);
+    REX_STORE_U32(ctx.r3.u32 + 1108, orig_1108_u32);
+    return;
+  }
+  __imp__sub_821A1530(ctx, base);
 }
 
 // Intercepts SysKemumaki TKemumakiPause pass (sub_821A5F98, 0x821A5F98 in both USA and PAL).

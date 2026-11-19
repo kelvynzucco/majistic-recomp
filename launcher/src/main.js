@@ -816,6 +816,14 @@ elements.btnStartBuild.addEventListener("click", async () => {
   elements.btnStartBuild.disabled = true;
   elements.btnStartBuild.classList.add("opacity-50");
   elements.btnBrowseIso.disabled = true;
+  if (elements.btnLaunch) {
+    elements.btnLaunch.disabled = true;
+    elements.btnLaunch.classList.add("opacity-50");
+    if (elements.btnLaunchText) elements.btnLaunchText.textContent = "SETTING UP...";
+  }
+  if (elements.btnPrecompile) {
+    elements.btnPrecompile.disabled = true;
+  }
   elements.buildProgressSection.classList.remove("hidden");
   elements.buildConsole.innerHTML = "";
   elements.buildProgressBar.style.width = "5%";
@@ -838,8 +846,10 @@ elements.btnStartBuild.addEventListener("click", async () => {
     elements.btnStartBuild.disabled = false;
     elements.btnStartBuild.classList.remove("opacity-50");
     elements.btnBrowseIso.disabled = false;
+    if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
     elements.buildSpinner.classList.add("hidden");
     setTerminalLogOpen(true);
+    await updateGameStatus();
   }
 });
 
@@ -859,13 +869,15 @@ listen("build-log", (event) => {
 listen("build-complete", async () => {
   elements.buildProgressBar.style.width = "100%";
   elements.buildPercentText.textContent = "100%";
-  elements.buildStageText.textContent = "Build Pipeline Completed Successfully!";
+  elements.buildStageText.textContent = "Setup & Shader Precompilation Completed Successfully!";
   elements.buildSpinner.classList.add("hidden");
   elements.btnStartBuild.disabled = false;
   elements.btnStartBuild.classList.remove("opacity-50");
   elements.btnBrowseIso.disabled = false;
+  if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
 
   await updateGameStatus();
+  await updateShaderCacheInfo();
 });
 
 listen("build-error", async (event) => {
@@ -875,9 +887,11 @@ listen("build-error", async (event) => {
   elements.btnStartBuild.disabled = false;
   elements.btnStartBuild.classList.remove("opacity-50");
   elements.btnBrowseIso.disabled = false;
+  if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
 
   setTerminalLogOpen(true);
   await updateGameStatus();
+  await updateShaderCacheInfo();
 });
 
 // ==========================================

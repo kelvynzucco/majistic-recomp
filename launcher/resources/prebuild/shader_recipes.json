@@ -1,0 +1,3702 @@
+{
+  "format_version": 1,
+  "title_id": "4E4D0816",
+  "xsh_version": "0x20201219",
+  "shader_count": 257,
+  "total_source_xsh_shaders": 269,
+  "pipeline_list_file": "4E4D0816.fbo.vk.xpl",
+  "sources": [
+    "system/HexaEngineXbox.knl",
+    "KB/package/start.pak",
+    "KB/package/eff.pak",
+    "KB/package/static.pak",
+    "loaded-image.bin"
+  ],
+  "recipes": [
+    {
+      "hash": "001B4811C61818FB",
+      "shader_type": "ps",
+      "dword_count": 570,
+      "byte_length": 2280,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1557344,
+      "zlib_compressed_size": 8953,
+      "uncompressed_offset": 28836
+    },
+    {
+      "hash": "01625531992906F1",
+      "shader_type": "ps",
+      "dword_count": 318,
+      "byte_length": 1272,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1589380,
+      "zlib_compressed_size": 8086,
+      "uncompressed_offset": 28504
+    },
+    {
+      "hash": "029E7D7099709F89",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1509136,
+      "zlib_compressed_size": 7164,
+      "uncompressed_offset": 23104,
+      "patches": [
+        {
+          "offset": 48,
+          "hex": "2d"
+        },
+        {
+          "offset": 53,
+          "hex": "393a"
+        },
+        {
+          "offset": 59,
+          "hex": "06"
+        },
+        {
+          "offset": 62,
+          "hex": "30"
+        },
+        {
+          "offset": 64,
+          "hex": "4006060a"
+        },
+        {
+          "offset": 70,
+          "hex": "0306"
+        },
+        {
+          "offset": 74,
+          "hex": "40"
+        },
+        {
+          "offset": 76,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 82,
+          "hex": "0406"
+        },
+        {
+          "offset": 86,
+          "hex": "00"
+        },
+        {
+          "offset": 88,
+          "hex": "40062fc7"
+        },
+        {
+          "offset": 94,
+          "hex": "050603"
+        },
+        {
+          "offset": 98,
+          "hex": "20"
+        },
+        {
+          "offset": 101,
+          "hex": "101e88"
+        },
+        {
+          "offset": 107,
+          "hex": "04"
+        },
+        {
+          "offset": 291,
+          "hex": "05"
+        },
+        {
+          "offset": 315,
+          "hex": "07"
+        },
+        {
+          "offset": 325,
+          "hex": "000000000000"
+        },
+        {
+          "offset": 332,
+          "hex": "020000"
+        },
+        {
+          "offset": 339,
+          "hex": "06"
+        },
+        {
+          "offset": 351,
+          "hex": "07"
+        },
+        {
+          "offset": 363,
+          "hex": "03"
+        },
+        {
+          "offset": 375,
+          "hex": "04"
+        }
+      ]
+    },
+    {
+      "hash": "03347401696E88CE",
+      "shader_type": "vs",
+      "dword_count": 198,
+      "byte_length": 792,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1522848,
+      "zlib_compressed_size": 9729,
+      "uncompressed_offset": 12800,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f890004006060a0000030605f8a000401f3fc10000040605f8000040062fc70000050613f8400000101e880000000403f8300040101e880000010403f8200040101e8800000204"
+    },
+    {
+      "hash": "03AAD1649A8F738B",
+      "shader_type": "ps",
+      "dword_count": 54,
+      "byte_length": 216,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 2052
+    },
+    {
+      "hash": "066CA1CA522AC0D0",
+      "shader_type": "ps",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1516312,
+      "zlib_compressed_size": 6522,
+      "uncompressed_offset": 23116
+    },
+    {
+      "hash": "067AB767E8C1DE9C",
+      "shader_type": "vs",
+      "dword_count": 186,
+      "byte_length": 744,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1817760,
+      "zlib_compressed_size": 7721,
+      "uncompressed_offset": 12724,
+      "patch_offset": 144,
+      "vfetch_patch_hex": "25f8202000393a880000000605f8602040060a0a0000030605f87020401f3fc10000040613f8002000101e880000000403f8502040101e880000010403f8402040101e8800000204"
+    },
+    {
+      "hash": "06AC86FBC8E1A920",
+      "shader_type": "vs",
+      "dword_count": 171,
+      "byte_length": 684,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1947408,
+      "zlib_compressed_size": 4682,
+      "uncompressed_offset": 12572,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "2df8200000393a880000000605f890004006060a0000030605f84000401f307f0000040605f8000040062fc70000050613f8500000101e880000000403f8600040101e880000010403f8300040101e8800000204"
+    },
+    {
+      "hash": "06D57A73C159D46D",
+      "shader_type": "ps",
+      "dword_count": 210,
+      "byte_length": 840,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1739656,
+      "zlib_compressed_size": 7643,
+      "uncompressed_offset": 14368
+    },
+    {
+      "hash": "06E41B82B04D479F",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1501520,
+      "zlib_compressed_size": 7604,
+      "uncompressed_offset": 24240,
+      "patches": [
+        {
+          "offset": 48,
+          "hex": "2d"
+        },
+        {
+          "offset": 53,
+          "hex": "393a"
+        },
+        {
+          "offset": 59,
+          "hex": "06"
+        },
+        {
+          "offset": 62,
+          "hex": "30"
+        },
+        {
+          "offset": 64,
+          "hex": "4006060a"
+        },
+        {
+          "offset": 70,
+          "hex": "0306"
+        },
+        {
+          "offset": 74,
+          "hex": "40"
+        },
+        {
+          "offset": 76,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 82,
+          "hex": "0406"
+        },
+        {
+          "offset": 86,
+          "hex": "00"
+        },
+        {
+          "offset": 88,
+          "hex": "40062fc7"
+        },
+        {
+          "offset": 94,
+          "hex": "050603"
+        },
+        {
+          "offset": 98,
+          "hex": "20"
+        },
+        {
+          "offset": 101,
+          "hex": "101e88"
+        },
+        {
+          "offset": 107,
+          "hex": "04"
+        },
+        {
+          "offset": 303,
+          "hex": "07"
+        },
+        {
+          "offset": 313,
+          "hex": "000000000000"
+        },
+        {
+          "offset": 320,
+          "hex": "020000"
+        },
+        {
+          "offset": 327,
+          "hex": "06"
+        },
+        {
+          "offset": 339,
+          "hex": "07"
+        },
+        {
+          "offset": 351,
+          "hex": "03"
+        },
+        {
+          "offset": 363,
+          "hex": "04"
+        },
+        {
+          "offset": 375,
+          "hex": "05"
+        }
+      ]
+    },
+    {
+      "hash": "078B553F0D70E428",
+      "shader_type": "ps",
+      "dword_count": 99,
+      "byte_length": 396,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 382488
+    },
+    {
+      "hash": "096726B809420709",
+      "shader_type": "ps",
+      "dword_count": 156,
+      "byte_length": 624,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2056468,
+      "zlib_compressed_size": 4327,
+      "uncompressed_offset": 10808
+    },
+    {
+      "hash": "0A15AB907D41B94F",
+      "shader_type": "vs",
+      "dword_count": 255,
+      "byte_length": 1020,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 14576,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8600000101e880000000403f8300040101e880000010403f8500040101e88000002042df8100000393a880000000605f8a0004006060a0000030605f82000401f3fc10000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "0A2525D29C6E1744",
+      "shader_type": "ps",
+      "dword_count": 396,
+      "byte_length": 1584,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1952104,
+      "zlib_compressed_size": 4363,
+      "uncompressed_offset": 13628
+    },
+    {
+      "hash": "0A7A33BE8DC9E166",
+      "shader_type": "ps",
+      "dword_count": 405,
+      "byte_length": 1620,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 9524
+    },
+    {
+      "hash": "0A7E55F8CB5E0D4C",
+      "shader_type": "vs",
+      "dword_count": 30,
+      "byte_length": 120,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 10324,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "0B4BDA3E14F46A6A",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2056468,
+      "zlib_compressed_size": 4327,
+      "uncompressed_offset": 13672,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "2df8400000393a880000000605f830004006060a0000030605f80000401f3e0f0000040605f80000400621ff00000506"
+    },
+    {
+      "hash": "0B8ACBBC9ABF574A",
+      "shader_type": "ps",
+      "dword_count": 663,
+      "byte_length": 2652,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1747312,
+      "zlib_compressed_size": 15394,
+      "uncompressed_offset": 57548
+    },
+    {
+      "hash": "0C19F38F30B995BA",
+      "shader_type": "ps",
+      "dword_count": 57,
+      "byte_length": 228,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 397836
+    },
+    {
+      "hash": "0DC7E6A866289403",
+      "shader_type": "vs",
+      "dword_count": 147,
+      "byte_length": 588,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 9380,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "25f8300000393a0a0000000c05f81000400600d10000040c03f8400000253b080000080c"
+    },
+    {
+      "hash": "0FE87B0D34979E9E",
+      "shader_type": "ps",
+      "dword_count": 435,
+      "byte_length": 1740,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1775964,
+      "zlib_compressed_size": 12155,
+      "uncompressed_offset": 22112
+    },
+    {
+      "hash": "1026A0F9AF3437FC",
+      "shader_type": "ps",
+      "dword_count": 606,
+      "byte_length": 2424,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 23616
+    },
+    {
+      "hash": "102A0A62C5A4A08F",
+      "shader_type": "ps",
+      "dword_count": 63,
+      "byte_length": 252,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 405324
+    },
+    {
+      "hash": "109036D96F595972",
+      "shader_type": "vs",
+      "dword_count": 177,
+      "byte_length": 708,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1706972,
+      "zlib_compressed_size": 7162,
+      "uncompressed_offset": 13048,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f860004006060a0000030605f87000401f3fc10000040605f8000040062fc70000050613f8100000101e880000000403f8500040101e880000010403f8400040101e8800000204"
+    },
+    {
+      "hash": "118EEF7AE66F4981",
+      "shader_type": "vs",
+      "dword_count": 1395,
+      "byte_length": 5580,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 164416,
+      "patch_offset": 696,
+      "vfetch_patch_hex": "05f850000020321a0000050721f81000002034c10000000701f8300040203ec10000020701f87000400600d100000407"
+    },
+    {
+      "hash": "11CABBEDD4396900",
+      "shader_type": "vs",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 23824,
+      "patches": [
+        {
+          "offset": 72,
+          "hex": "35"
+        },
+        {
+          "offset": 77,
+          "hex": "393a"
+        },
+        {
+          "offset": 83,
+          "hex": "07"
+        },
+        {
+          "offset": 88,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 94,
+          "hex": "0407"
+        },
+        {
+          "offset": 100,
+          "hex": "4006"
+        },
+        {
+          "offset": 106,
+          "hex": "0607"
+        },
+        {
+          "offset": 112,
+          "hex": "400626"
+        },
+        {
+          "offset": 118,
+          "hex": "0507"
+        },
+        {
+          "offset": 372,
+          "hex": "c800000000"
+        },
+        {
+          "offset": 379,
+          "hex": "0002"
+        },
+        {
+          "offset": 383,
+          "hex": "00c800000000"
+        },
+        {
+          "offset": 391,
+          "hex": "0002"
+        },
+        {
+          "offset": 395,
+          "hex": "00"
+        },
+        {
+          "offset": 397,
+          "hex": "0000"
+        },
+        {
+          "offset": 401,
+          "hex": "0000"
+        },
+        {
+          "offset": 404,
+          "hex": "020000"
+        },
+        {
+          "offset": 409,
+          "hex": "000000"
+        },
+        {
+          "offset": 413,
+          "hex": "0000"
+        },
+        {
+          "offset": 416,
+          "hex": "020000"
+        }
+      ]
+    },
+    {
+      "hash": "120F024CB55F16D4",
+      "shader_type": "vs",
+      "dword_count": 63,
+      "byte_length": 252,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2010280,
+      "zlib_compressed_size": 2949,
+      "uncompressed_offset": 3352,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "1335CEB786558DC0",
+      "shader_type": "ps",
+      "dword_count": 366,
+      "byte_length": 1464,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1574696,
+      "zlib_compressed_size": 7596,
+      "uncompressed_offset": 9336
+    },
+    {
+      "hash": "134FFC53CEB8DC12",
+      "shader_type": "ps",
+      "dword_count": 72,
+      "byte_length": 288,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 399336
+    },
+    {
+      "hash": "1484B1218E8B151E",
+      "shader_type": "vs",
+      "dword_count": 57,
+      "byte_length": 228,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 32296,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "15814282168BF61E",
+      "shader_type": "ps",
+      "dword_count": 30,
+      "byte_length": 120,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 372728
+    },
+    {
+      "hash": "1765CF2C7EEE0EEF",
+      "shader_type": "vs",
+      "dword_count": 222,
+      "byte_length": 888,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1924408,
+      "zlib_compressed_size": 4449,
+      "uncompressed_offset": 15860,
+      "patch_offset": 156,
+      "vfetch_patch_hex": "25f8400000393a880000000605f82000400600530000030605f81000401f307f0000040603f8300000101e8800000004"
+    },
+    {
+      "hash": "176D5258637DD1CF",
+      "shader_type": "ps",
+      "dword_count": 438,
+      "byte_length": 1752,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1605000,
+      "zlib_compressed_size": 6932,
+      "uncompressed_offset": 19924
+    },
+    {
+      "hash": "1884D8D4D01F47F3",
+      "shader_type": "vs",
+      "dword_count": 1602,
+      "byte_length": 6408,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 113488,
+      "patch_offset": 804,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f88000400600d100000406"
+    },
+    {
+      "hash": "18E9AF19F3291A33",
+      "shader_type": "vs",
+      "dword_count": 81,
+      "byte_length": 324,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 10832,
+      "patches": [
+        {
+          "offset": 120,
+          "hex": "25"
+        },
+        {
+          "offset": 125,
+          "hex": "393a"
+        },
+        {
+          "offset": 131,
+          "hex": "06"
+        },
+        {
+          "offset": 136,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 142,
+          "hex": "0406"
+        },
+        {
+          "offset": 264,
+          "hex": "c800000000"
+        },
+        {
+          "offset": 271,
+          "hex": "0002"
+        },
+        {
+          "offset": 275,
+          "hex": "00c800000000"
+        },
+        {
+          "offset": 283,
+          "hex": "0002"
+        },
+        {
+          "offset": 287,
+          "hex": "00"
+        },
+        {
+          "offset": 289,
+          "hex": "0000"
+        },
+        {
+          "offset": 293,
+          "hex": "0000"
+        },
+        {
+          "offset": 296,
+          "hex": "020000"
+        },
+        {
+          "offset": 301,
+          "hex": "000000"
+        },
+        {
+          "offset": 305,
+          "hex": "0000"
+        },
+        {
+          "offset": 308,
+          "hex": "02"
+        }
+      ]
+    },
+    {
+      "hash": "1A5F80ABA4984774",
+      "shader_type": "ps",
+      "dword_count": 78,
+      "byte_length": 312,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2001524,
+      "zlib_compressed_size": 7726,
+      "uncompressed_offset": 14264
+    },
+    {
+      "hash": "1C6634E46FF8F51A",
+      "shader_type": "ps",
+      "dword_count": 36,
+      "byte_length": 144,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 17316
+    },
+    {
+      "hash": "1C6CEB80B7789501",
+      "shader_type": "vs",
+      "dword_count": 87,
+      "byte_length": 348,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 11164,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "03f8400000101e88000000042df8500000393a880000000605f810004006060a0000030605f83000401f3fc10000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "1E6883FCCDE1F688",
+      "shader_type": "vs",
+      "dword_count": 27,
+      "byte_length": 108,
+      "mode": "raw_exact",
+      "source_file": "loaded-image.bin",
+      "raw_offset": 3744
+    },
+    {
+      "hash": "20C67683A2E4F168",
+      "shader_type": "ps",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 408656
+    },
+    {
+      "hash": "21835F97BF07CA7C",
+      "shader_type": "vs",
+      "dword_count": 39,
+      "byte_length": 156,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 15844,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc100000308"
+    },
+    {
+      "hash": "22409427E234FCE5",
+      "shader_type": "vs",
+      "dword_count": 189,
+      "byte_length": 756,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1532592,
+      "zlib_compressed_size": 8880,
+      "uncompressed_offset": 12656,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f880004006060a0000030605f89000401f3fc10000040605f8000040062fc70000050613f8400000101e880000000403f8300040101e880000010403f8200040101e8800000204"
+    },
+    {
+      "hash": "228766705B3A329C",
+      "shader_type": "ps",
+      "dword_count": 141,
+      "byte_length": 564,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1509136,
+      "zlib_compressed_size": 7164,
+      "uncompressed_offset": 24352
+    },
+    {
+      "hash": "22E2D80085719B22",
+      "shader_type": "vs",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 2436,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "24525BE9AA720212",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1516312,
+      "zlib_compressed_size": 6522,
+      "uncompressed_offset": 21936,
+      "patches": [
+        {
+          "offset": 48,
+          "hex": "2d"
+        },
+        {
+          "offset": 53,
+          "hex": "393a"
+        },
+        {
+          "offset": 59,
+          "hex": "06"
+        },
+        {
+          "offset": 62,
+          "hex": "30"
+        },
+        {
+          "offset": 64,
+          "hex": "4006060a"
+        },
+        {
+          "offset": 70,
+          "hex": "0306"
+        },
+        {
+          "offset": 74,
+          "hex": "40"
+        },
+        {
+          "offset": 76,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 82,
+          "hex": "0406"
+        },
+        {
+          "offset": 86,
+          "hex": "00"
+        },
+        {
+          "offset": 88,
+          "hex": "40062fc7"
+        },
+        {
+          "offset": 94,
+          "hex": "050603"
+        },
+        {
+          "offset": 98,
+          "hex": "20"
+        },
+        {
+          "offset": 101,
+          "hex": "101e88"
+        },
+        {
+          "offset": 107,
+          "hex": "04"
+        },
+        {
+          "offset": 291,
+          "hex": "04"
+        },
+        {
+          "offset": 303,
+          "hex": "05"
+        },
+        {
+          "offset": 327,
+          "hex": "07"
+        },
+        {
+          "offset": 337,
+          "hex": "000000000000"
+        },
+        {
+          "offset": 344,
+          "hex": "020000"
+        },
+        {
+          "offset": 351,
+          "hex": "06"
+        },
+        {
+          "offset": 363,
+          "hex": "07"
+        },
+        {
+          "offset": 375,
+          "hex": "03"
+        }
+      ]
+    },
+    {
+      "hash": "24A7BA15B8861F6E",
+      "shader_type": "ps",
+      "dword_count": 93,
+      "byte_length": 372,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 380732
+    },
+    {
+      "hash": "2548BA6CD0D09D70",
+      "shader_type": "vs",
+      "dword_count": 189,
+      "byte_length": 756,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1690732,
+      "zlib_compressed_size": 8374,
+      "uncompressed_offset": 14640,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f880004006060a0000030605f89000401f3fc10000040605f8000040062fc70000050613f8200000101e880000000403f8300040101e880000010403f8400040101e8800000204"
+    },
+    {
+      "hash": "27AF8AA1D04F6ED3",
+      "shader_type": "ps",
+      "dword_count": 84,
+      "byte_length": 336,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2001524,
+      "zlib_compressed_size": 7726,
+      "uncompressed_offset": 20904
+    },
+    {
+      "hash": "28ABAB5AA26876E5",
+      "shader_type": "ps",
+      "dword_count": 141,
+      "byte_length": 564,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 338484
+    },
+    {
+      "hash": "28D65A955BC2DE0E",
+      "shader_type": "ps",
+      "dword_count": 393,
+      "byte_length": 1572,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 21260
+    },
+    {
+      "hash": "29FA6D8140B8CFBD",
+      "shader_type": "ps",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1928872,
+      "zlib_compressed_size": 4353,
+      "uncompressed_offset": 8388
+    },
+    {
+      "hash": "2AA82CFBAD37E838",
+      "shader_type": "ps",
+      "dword_count": 528,
+      "byte_length": 2112,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1597480,
+      "zlib_compressed_size": 7506,
+      "uncompressed_offset": 20808
+    },
+    {
+      "hash": "2CC992FECA3B44D8",
+      "shader_type": "ps",
+      "dword_count": 282,
+      "byte_length": 1128,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1788132,
+      "zlib_compressed_size": 10872,
+      "uncompressed_offset": 59136
+    },
+    {
+      "hash": "2D6FABC0D1654D3C",
+      "shader_type": "vs",
+      "dword_count": 141,
+      "byte_length": 564,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 8156,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "25f8300000393a0a0000000c05f81000400600d10000040c03f8400000253b080000080c"
+    },
+    {
+      "hash": "2DB51409F6B3741E",
+      "shader_type": "vs",
+      "dword_count": 150,
+      "byte_length": 600,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 33740,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "35f8500000393a880000000705f820004006060a0000030705f84000401f3fc10000040705f83000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "2E02CDDF3EC76CAB",
+      "shader_type": "vs",
+      "dword_count": 180,
+      "byte_length": 720,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1699120,
+      "zlib_compressed_size": 7837,
+      "uncompressed_offset": 13860,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f870004006060a0000030605f88000401f3fc10000040605f8000040062fc70000050613f8200000101e880000000403f8300040101e880000010403f8500040101e8800000204"
+    },
+    {
+      "hash": "2E2DA4246791D74D",
+      "shader_type": "vs",
+      "dword_count": 159,
+      "byte_length": 636,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1952104,
+      "zlib_compressed_size": 4363,
+      "uncompressed_offset": 11944,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "2df8200000393a880000000605f880004006060a0000030605f83000401f307f0000040605f8000040062fc70000050613f8600000101e880000000403f8500040101e880000010403f8400040101e8800000204"
+    },
+    {
+      "hash": "2FAAD93BA2148C2F",
+      "shader_type": "ps",
+      "dword_count": 78,
+      "byte_length": 312,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 406952
+    },
+    {
+      "hash": "3125F6296186C1B3",
+      "shader_type": "ps",
+      "dword_count": 36,
+      "byte_length": 144,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 373244
+    },
+    {
+      "hash": "32EFB1E862103780",
+      "shader_type": "ps",
+      "dword_count": 267,
+      "byte_length": 1068,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1605000,
+      "zlib_compressed_size": 6932,
+      "uncompressed_offset": 25828
+    },
+    {
+      "hash": "3350ABF2F1C7C30A",
+      "shader_type": "vs",
+      "dword_count": 192,
+      "byte_length": 768,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1928872,
+      "zlib_compressed_size": 4353,
+      "uncompressed_offset": 15520,
+      "patch_offset": 144,
+      "vfetch_patch_hex": "25f8300000393a880000000605f870004006060a0000030605f81000401f307f0000040603f8200000101e8800000004"
+    },
+    {
+      "hash": "346F2F53AFA73F6C",
+      "shader_type": "vs",
+      "dword_count": 75,
+      "byte_length": 300,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 5016,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "05f8100000203ec100000006"
+    },
+    {
+      "hash": "355E97EFD91523B8",
+      "shader_type": "vs",
+      "dword_count": 1428,
+      "byte_length": 5712,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 28384,
+      "patch_offset": 708,
+      "vfetch_patch_hex": "05f86000001f32250000050621f81000002034c10000000601f800004020360f0000020601f83000400600530000040625e84000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "35694957771998CF",
+      "shader_type": "ps",
+      "dword_count": 267,
+      "byte_length": 1068,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1582304,
+      "zlib_compressed_size": 7062,
+      "uncompressed_offset": 9268
+    },
+    {
+      "hash": "357B0A2CE6B9FEF0",
+      "shader_type": "vs",
+      "dword_count": 1392,
+      "byte_length": 5568,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 21688,
+      "patch_offset": 696,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f87000400600d100000406"
+    },
+    {
+      "hash": "38CD90BA6C9AD4DB",
+      "shader_type": "vs",
+      "dword_count": 255,
+      "byte_length": 1020,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 11744,
+      "patch_offset": 120,
+      "vfetch_patch_hex": "2df85000003935480000000c05f82000400606880000040c05f84000401f3b010000050c03f8300000393e0a0000080c"
+    },
+    {
+      "hash": "3A92D78FE55C7B83",
+      "shader_type": "ps",
+      "dword_count": 9,
+      "byte_length": 36,
+      "mode": "raw_descriptor_patches",
+      "source_file": "loaded-image.bin",
+      "raw_offset": 2448,
+      "patches": [
+        {
+          "offset": 20,
+          "hex": "8b"
+        },
+        {
+          "offset": 22,
+          "hex": "0203"
+        }
+      ]
+    },
+    {
+      "hash": "3C6B21B2961D3ECD",
+      "shader_type": "vs",
+      "dword_count": 246,
+      "byte_length": 984,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1549700,
+      "zlib_compressed_size": 7631,
+      "uncompressed_offset": 30072,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8a00040101e880000010403f8900040101e880000020435f8400000393a880000000705f830004006005a0000030705f8b000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "3D46D4B843BC1698",
+      "shader_type": "vs",
+      "dword_count": 66,
+      "byte_length": 264,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2010280,
+      "zlib_compressed_size": 2949,
+      "uncompressed_offset": 5504,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253e7800000308"
+    },
+    {
+      "hash": "3E59FDF384F8882C",
+      "shader_type": "vs",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 29504,
+      "patch_offset": 60,
+      "vfetch_patch_hex": "2df8100000393a880000000605f820004006060a0000030605f83000401f3fc10000040605f8000040062fc700000506"
+    },
+    {
+      "hash": "3F460A8C73C09103",
+      "shader_type": "vs",
+      "dword_count": 126,
+      "byte_length": 504,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 16764,
+      "patch_offset": 132,
+      "vfetch_patch_hex": "25f8100000393a880000000605f8200040060a0a0000030605f83000401f3fc100000406"
+    },
+    {
+      "hash": "402A4E80BD5CDEA9",
+      "shader_type": "ps",
+      "dword_count": 87,
+      "byte_length": 348,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 375072
+    },
+    {
+      "hash": "423F8B4895400D83",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 32244,
+      "patches": [
+        {
+          "offset": 60,
+          "hex": "35"
+        },
+        {
+          "offset": 65,
+          "hex": "393a"
+        },
+        {
+          "offset": 71,
+          "hex": "07"
+        },
+        {
+          "offset": 76,
+          "hex": "4006005a"
+        },
+        {
+          "offset": 82,
+          "hex": "0307"
+        },
+        {
+          "offset": 88,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 94,
+          "hex": "0407"
+        },
+        {
+          "offset": 100,
+          "hex": "4006"
+        },
+        {
+          "offset": 106,
+          "hex": "0607"
+        },
+        {
+          "offset": 112,
+          "hex": "400626"
+        },
+        {
+          "offset": 118,
+          "hex": "0507"
+        },
+        {
+          "offset": 373,
+          "hex": "000000000000"
+        },
+        {
+          "offset": 380,
+          "hex": "020000"
+        },
+        {
+          "offset": 399,
+          "hex": "02"
+        }
+      ]
+    },
+    {
+      "hash": "43B90B2C8C2002C7",
+      "shader_type": "ps",
+      "dword_count": 15,
+      "byte_length": 60,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 8664
+    },
+    {
+      "hash": "44F8E2210EB59437",
+      "shader_type": "vs",
+      "dword_count": 198,
+      "byte_length": 792,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1835776,
+      "zlib_compressed_size": 9474,
+      "uncompressed_offset": 13704,
+      "patch_offset": 144,
+      "vfetch_patch_hex": "65f8100000393a880000000645f8800040060a0a0000030645f89000401f3fc10000040653f80000001014780000000443f8200040101e880000010443f8300040101e8800000204"
+    },
+    {
+      "hash": "457794EAD054D95E",
+      "shader_type": "ps",
+      "dword_count": 693,
+      "byte_length": 2772,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1956480,
+      "zlib_compressed_size": 11169,
+      "uncompressed_offset": 17492
+    },
+    {
+      "hash": "462CF7CB4C1D37DE",
+      "shader_type": "ps",
+      "dword_count": 258,
+      "byte_length": 1032,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1582304,
+      "zlib_compressed_size": 7062,
+      "uncompressed_offset": 19876
+    },
+    {
+      "hash": "468B73FDA12E0979",
+      "shader_type": "vs",
+      "dword_count": 261,
+      "byte_length": 1044,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1956480,
+      "zlib_compressed_size": 11169,
+      "uncompressed_offset": 15104,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8600000101e880000000403f8300040101e880000010403f8500040101e88000002042df8100000393a880000000605f8b0004006060a0000030605f82000401f3fc10000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "47BAFA65F46FA24F",
+      "shader_type": "ps",
+      "dword_count": 18,
+      "byte_length": 72,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 15224
+    },
+    {
+      "hash": "4ACB84C090F10F94",
+      "shader_type": "ps",
+      "dword_count": 495,
+      "byte_length": 1980,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 16284
+    },
+    {
+      "hash": "5257E23DA33893F2",
+      "shader_type": "vs",
+      "dword_count": 201,
+      "byte_length": 804,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1557344,
+      "zlib_compressed_size": 8953,
+      "uncompressed_offset": 26952,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f870004006060a0000030605f89000401f3fc10000040605f8000040062fc70000050613f8400000101e880000000403f8500040101e880000010403f8300040101e8800000204"
+    },
+    {
+      "hash": "52F5349DDE42A454",
+      "shader_type": "ps",
+      "dword_count": 261,
+      "byte_length": 1044,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1731520,
+      "zlib_compressed_size": 8122,
+      "uncompressed_offset": 14892
+    },
+    {
+      "hash": "54AAA6882BF85C23",
+      "shader_type": "ps",
+      "dword_count": 9,
+      "byte_length": 36,
+      "mode": "raw_descriptor_patches",
+      "source_file": "loaded-image.bin",
+      "raw_offset": 2448,
+      "patches": [
+        {
+          "offset": 20,
+          "hex": "22"
+        }
+      ]
+    },
+    {
+      "hash": "5AD5A0C192AEB5FF",
+      "shader_type": "vs",
+      "dword_count": 198,
+      "byte_length": 792,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1681928,
+      "zlib_compressed_size": 8789,
+      "uncompressed_offset": 15416,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f890004006060a0000030605f8a000401f3fc10000040605f8000040062fc70000050613f8200000101e880000000403f8300040101e880000010403f8400040101e8800000204"
+    },
+    {
+      "hash": "5B161CE1EFC1998C",
+      "shader_type": "vs",
+      "dword_count": 1605,
+      "byte_length": 6420,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 256600,
+      "patch_offset": 804,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f88000400600d100000406"
+    },
+    {
+      "hash": "5B41622F8BEECE00",
+      "shader_type": "vs",
+      "dword_count": 264,
+      "byte_length": 1056,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 42668,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f86000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "5D8622770BE50840",
+      "shader_type": "vs",
+      "dword_count": 1395,
+      "byte_length": 5580,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 164416,
+      "patch_offset": 696,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f87000400600d100000406"
+    },
+    {
+      "hash": "5EEBF2571FFC07AA",
+      "shader_type": "ps",
+      "dword_count": 33,
+      "byte_length": 132,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 25056
+    },
+    {
+      "hash": "5FA3742B3CDF9D2F",
+      "shader_type": "ps",
+      "dword_count": 171,
+      "byte_length": 684,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1493064,
+      "zlib_compressed_size": 8444,
+      "uncompressed_offset": 26764
+    },
+    {
+      "hash": "5FF5A337719B296E",
+      "shader_type": "ps",
+      "dword_count": 21,
+      "byte_length": 84,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 9864
+    },
+    {
+      "hash": "606B9B7057CD6909",
+      "shader_type": "ps",
+      "dword_count": 456,
+      "byte_length": 1824,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1574696,
+      "zlib_compressed_size": 7596,
+      "uncompressed_offset": 14988
+    },
+    {
+      "hash": "6179E8B11F875934",
+      "shader_type": "ps",
+      "dword_count": 180,
+      "byte_length": 720,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1541484,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 9336
+    },
+    {
+      "hash": "61F2B7C97FC3AC34",
+      "shader_type": "ps",
+      "dword_count": 285,
+      "byte_length": 1140,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1574696,
+      "zlib_compressed_size": 7596,
+      "uncompressed_offset": 21000
+    },
+    {
+      "hash": "6274FF01BC966C63",
+      "shader_type": "ps",
+      "dword_count": 339,
+      "byte_length": 1356,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1611944,
+      "zlib_compressed_size": 6316,
+      "uncompressed_offset": 19184
+    },
+    {
+      "hash": "62F2F461F0C692A1",
+      "shader_type": "ps",
+      "dword_count": 150,
+      "byte_length": 600,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 14232
+    },
+    {
+      "hash": "6319D531241E72D3",
+      "shader_type": "vs",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 2436,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "2df81000002636880000000805f8000040253fc800000408"
+    },
+    {
+      "hash": "637A52574BEBB164",
+      "shader_type": "vs",
+      "dword_count": 330,
+      "byte_length": 1320,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 49824,
+      "patch_offset": 132,
+      "vfetch_patch_hex": "35f8600000393a880000000705f830004006005a0000030705f8d000401f3fc10000040705f84000400626880000050705f85000400606880000060713f8e00000101e880000000403f8900040101e880000010403f8800040101e8800000204"
+    },
+    {
+      "hash": "64C7C0F1446624B1",
+      "shader_type": "ps",
+      "dword_count": 201,
+      "byte_length": 804,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 8840
+    },
+    {
+      "hash": "655B77AC8CA72C64",
+      "shader_type": "vs",
+      "dword_count": 141,
+      "byte_length": 564,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 8156,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "25f8300000393a0a0000000c05f81000400600d10000040c05f84000002636880000080c"
+    },
+    {
+      "hash": "659D0B52B669263A",
+      "shader_type": "ps",
+      "dword_count": 588,
+      "byte_length": 2352,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 16876
+    },
+    {
+      "hash": "66859E6C0EE73A3E",
+      "shader_type": "ps",
+      "dword_count": 291,
+      "byte_length": 1164,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1952104,
+      "zlib_compressed_size": 4363,
+      "uncompressed_offset": 8512
+    },
+    {
+      "hash": "67ACDD16C1BBE1FC",
+      "shader_type": "ps",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 308888
+    },
+    {
+      "hash": "67B4AA0885628EE0",
+      "shader_type": "vs",
+      "dword_count": 102,
+      "byte_length": 408,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 10496,
+      "patch_offset": 60,
+      "vfetch_patch_hex": "2df8100000393a420000000805f82000400606880000040805f83000401f3b0100000508"
+    },
+    {
+      "hash": "6A8E66EC7167891E",
+      "shader_type": "ps",
+      "dword_count": 627,
+      "byte_length": 2508,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1747312,
+      "zlib_compressed_size": 15394,
+      "uncompressed_offset": 71048
+    },
+    {
+      "hash": "6B89DA3860723524",
+      "shader_type": "ps",
+      "dword_count": 78,
+      "byte_length": 312,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2038688,
+      "zlib_compressed_size": 3160,
+      "uncompressed_offset": 12744
+    },
+    {
+      "hash": "6BCA22AA29C1AD1A",
+      "shader_type": "vs",
+      "dword_count": 183,
+      "byte_length": 732,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1574696,
+      "zlib_compressed_size": 7596,
+      "uncompressed_offset": 24516,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f850004006060a0000030605f87000401f3fc10000040605f8000040062fc70000050613f8600000101e880000000403f8400040101e880000010403f8300040101e8800000204"
+    },
+    {
+      "hash": "6BF515DDF0AFBD6E",
+      "shader_type": "vs",
+      "dword_count": 255,
+      "byte_length": 1020,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1541484,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 31340,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f86000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "6CEC45F4B83A683D",
+      "shader_type": "ps",
+      "dword_count": 153,
+      "byte_length": 612,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1501520,
+      "zlib_compressed_size": 7604,
+      "uncompressed_offset": 25552
+    },
+    {
+      "hash": "6D3B3B0FD6536D47",
+      "shader_type": "ps",
+      "dword_count": 39,
+      "byte_length": 156,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 384248
+    },
+    {
+      "hash": "6D8316AD39000DFB",
+      "shader_type": "ps",
+      "dword_count": 219,
+      "byte_length": 876,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1522848,
+      "zlib_compressed_size": 9729,
+      "uncompressed_offset": 9468
+    },
+    {
+      "hash": "6E57A6E305D5D69B",
+      "shader_type": "ps",
+      "dword_count": 15,
+      "byte_length": 60,
+      "mode": "zlib_exact",
+      "source_file": "system/HexaEngineXbox.knl",
+      "zlib_offset": 7036,
+      "zlib_compressed_size": 1693,
+      "uncompressed_offset": 3460
+    },
+    {
+      "hash": "6F7516FE5204759F",
+      "shader_type": "ps",
+      "dword_count": 285,
+      "byte_length": 1140,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1582304,
+      "zlib_compressed_size": 7062,
+      "uncompressed_offset": 24832
+    },
+    {
+      "hash": "6FF66B911AA2C07E",
+      "shader_type": "vs",
+      "dword_count": 1641,
+      "byte_length": 6564,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 264580,
+      "patch_offset": 816,
+      "vfetch_patch_hex": "05f86000001f32250000050621f81000002034c10000000601f800004020360f0000020601f84000400600530000040625e83000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "70B864977D34783C",
+      "shader_type": "vs",
+      "dword_count": 30,
+      "byte_length": 120,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2056468,
+      "zlib_compressed_size": 4327,
+      "uncompressed_offset": 19704,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "71210E9E36B2DD38",
+      "shader_type": "ps",
+      "dword_count": 519,
+      "byte_length": 2076,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1762720,
+      "zlib_compressed_size": 13231,
+      "uncompressed_offset": 22816
+    },
+    {
+      "hash": "71230DC5E2EED16E",
+      "shader_type": "vs",
+      "dword_count": 123,
+      "byte_length": 492,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 7040,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "2df81000003934450000000c05f84000400600d10000040c05f8000040243fc70000050c03f83000002636880000080c"
+    },
+    {
+      "hash": "71F25153D124A993",
+      "shader_type": "vs",
+      "dword_count": 1542,
+      "byte_length": 6168,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 42644,
+      "patch_offset": 756,
+      "vfetch_patch_hex": "05f84000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f87000400600d100000406"
+    },
+    {
+      "hash": "7280E65571114A8F",
+      "shader_type": "ps",
+      "dword_count": 495,
+      "byte_length": 1980,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1942400,
+      "zlib_compressed_size": 4993,
+      "uncompressed_offset": 8684
+    },
+    {
+      "hash": "7376B67C25F9F3E1",
+      "shader_type": "ps",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 388760
+    },
+    {
+      "hash": "73FC6DBD720E448A",
+      "shader_type": "ps",
+      "dword_count": 525,
+      "byte_length": 2100,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 9592
+    },
+    {
+      "hash": "767AF3248B147585",
+      "shader_type": "ps",
+      "dword_count": 723,
+      "byte_length": 2892,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1956480,
+      "zlib_compressed_size": 11169,
+      "uncompressed_offset": 9724
+    },
+    {
+      "hash": "7A843DD1379C7290",
+      "shader_type": "vs",
+      "dword_count": 180,
+      "byte_length": 720,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1933240,
+      "zlib_compressed_size": 3776,
+      "uncompressed_offset": 15260,
+      "patch_offset": 144,
+      "vfetch_patch_hex": "25f8300000393a880000000605f840004006060a0000030605f85000401f3fc10000040603f8200000101e8800000004"
+    },
+    {
+      "hash": "7D46B9D5B66AF2C4",
+      "shader_type": "ps",
+      "dword_count": 492,
+      "byte_length": 1968,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1762720,
+      "zlib_compressed_size": 13231,
+      "uncompressed_offset": 66576
+    },
+    {
+      "hash": "7E017BDC46D743A0",
+      "shader_type": "vs",
+      "dword_count": 177,
+      "byte_length": 708,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1582304,
+      "zlib_compressed_size": 7062,
+      "uncompressed_offset": 23244,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f840004006060a0000030605f85000401f3fc10000040605f8000040062fc70000050613f8700000101e880000000403f8300040101e880000010403f8100040101e8800000204"
+    },
+    {
+      "hash": "7E0A2E943AFF4815",
+      "shader_type": "ps",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 393784
+    },
+    {
+      "hash": "7FEB7F4EB44FB369",
+      "shader_type": "ps",
+      "dword_count": 126,
+      "byte_length": 504,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 410800
+    },
+    {
+      "hash": "84099D3784571424",
+      "shader_type": "ps",
+      "dword_count": 459,
+      "byte_length": 1836,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1566312,
+      "zlib_compressed_size": 8369,
+      "uncompressed_offset": 9400
+    },
+    {
+      "hash": "858E7ECCF9490937",
+      "shader_type": "ps",
+      "dword_count": 114,
+      "byte_length": 456,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1924408,
+      "zlib_compressed_size": 4449,
+      "uncompressed_offset": 8420
+    },
+    {
+      "hash": "85D410EA05122E3F",
+      "shader_type": "vs",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 5940,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "2df81000003934450000000805f83000400600d10000040805f8000040243ff800000508"
+    },
+    {
+      "hash": "86A493A16AD457AA",
+      "shader_type": "ps",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 14372
+    },
+    {
+      "hash": "872347F6A0AAA9B5",
+      "shader_type": "ps",
+      "dword_count": 141,
+      "byte_length": 564,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 12300
+    },
+    {
+      "hash": "88FF04BF7B1595C1",
+      "shader_type": "ps",
+      "dword_count": 102,
+      "byte_length": 408,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 16212
+    },
+    {
+      "hash": "896004EF20997918",
+      "shader_type": "vs",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 25280,
+      "patch_offset": 60,
+      "vfetch_patch_hex": "2df8200000393a880000000605f830004006060a0000030605f80000401f307f0000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "896883868840A85E",
+      "shader_type": "vs",
+      "dword_count": 1392,
+      "byte_length": 5568,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 21688,
+      "patch_offset": 696,
+      "vfetch_patch_hex": "05f850000020321a0000050721f81000002034c10000000701f8300040203ec10000020701f87000400600d100000407"
+    },
+    {
+      "hash": "8A899D3EA17D2399",
+      "shader_type": "vs",
+      "dword_count": 1752,
+      "byte_length": 7008,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 138156,
+      "patch_offset": 864,
+      "vfetch_patch_hex": "05f84000001f39480000050621f82000002034c10000000601f8800040203e580000020601f81000400600d100000406"
+    },
+    {
+      "hash": "8AFC6E5D622D726D",
+      "shader_type": "ps",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 29600
+    },
+    {
+      "hash": "8D70747B5C1A5381",
+      "shader_type": "ps",
+      "dword_count": 156,
+      "byte_length": 624,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 17864
+    },
+    {
+      "hash": "8F8448520B6DEAEB",
+      "shader_type": "ps",
+      "dword_count": 369,
+      "byte_length": 1476,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1574696,
+      "zlib_compressed_size": 7596,
+      "uncompressed_offset": 26196
+    },
+    {
+      "hash": "900A5B2D6A508B19",
+      "shader_type": "ps",
+      "dword_count": 21,
+      "byte_length": 84,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2010280,
+      "zlib_compressed_size": 2949,
+      "uncompressed_offset": 13660
+    },
+    {
+      "hash": "9067573E020AD84F",
+      "shader_type": "ps",
+      "dword_count": 75,
+      "byte_length": 300,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2038688,
+      "zlib_compressed_size": 3160,
+      "uncompressed_offset": 9364
+    },
+    {
+      "hash": "9219227958DE88CE",
+      "shader_type": "vs",
+      "dword_count": 318,
+      "byte_length": 1272,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 46696,
+      "patch_offset": 132,
+      "vfetch_patch_hex": "35f8700000393a880000000705f830004006005a0000030705f8d000401f3fc10000040705f84000400626880000050705f85000400606880000060713f8e00000101e880000000403f8a00040101e880000010403f8900040101e8800000204"
+    },
+    {
+      "hash": "930A9D841280E6DE",
+      "shader_type": "ps",
+      "dword_count": 546,
+      "byte_length": 2184,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1566312,
+      "zlib_compressed_size": 8369,
+      "uncompressed_offset": 15552
+    },
+    {
+      "hash": "945F2866BD11F32C",
+      "shader_type": "ps",
+      "dword_count": 78,
+      "byte_length": 312,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 407812
+    },
+    {
+      "hash": "948C0BD36EC7C53C",
+      "shader_type": "ps",
+      "dword_count": 96,
+      "byte_length": 384,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2035504,
+      "zlib_compressed_size": 3170,
+      "uncompressed_offset": 11988
+    },
+    {
+      "hash": "9601DABFFE9213C4",
+      "shader_type": "ps",
+      "dword_count": 48,
+      "byte_length": 192,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 384856
+    },
+    {
+      "hash": "960728215EAFFFC8",
+      "shader_type": "ps",
+      "dword_count": 624,
+      "byte_length": 2496,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1589380,
+      "zlib_compressed_size": 8086,
+      "uncompressed_offset": 21584
+    },
+    {
+      "hash": "96564508F4C026C8",
+      "shader_type": "ps",
+      "dword_count": 99,
+      "byte_length": 396,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 386876
+    },
+    {
+      "hash": "9799F0B3EE5E0ABE",
+      "shader_type": "vs",
+      "dword_count": 258,
+      "byte_length": 1032,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 17064,
+      "patch_offset": 120,
+      "vfetch_patch_hex": "2df85000003935480000000c05f82000400606880000040c05f84000401f3b010000050c03f8300000393e0a0000080c"
+    },
+    {
+      "hash": "995B87B148449A31",
+      "shader_type": "ps",
+      "dword_count": 657,
+      "byte_length": 2628,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1747312,
+      "zlib_compressed_size": 15394,
+      "uncompressed_offset": 23820
+    },
+    {
+      "hash": "999FFF461D408134",
+      "shader_type": "vs",
+      "dword_count": 63,
+      "byte_length": 252,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2038688,
+      "zlib_compressed_size": 3160,
+      "uncompressed_offset": 12144,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc800000308"
+    },
+    {
+      "hash": "99DCCE02025E03D3",
+      "shader_type": "vs",
+      "dword_count": 309,
+      "byte_length": 1236,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 43176,
+      "patch_offset": 120,
+      "vfetch_patch_hex": "13f8e00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f8d000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "9BAF9818A465562B",
+      "shader_type": "vs",
+      "dword_count": 72,
+      "byte_length": 288,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2001524,
+      "zlib_compressed_size": 7726,
+      "uncompressed_offset": 16760,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "2df8300000393a880000000605f82000401f3fc10000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "9BC90BE1B63298FE",
+      "shader_type": "vs",
+      "dword_count": 243,
+      "byte_length": 972,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 14100,
+      "patch_offset": 96,
+      "vfetch_patch_hex": "13f80000001014470000000403f8200040101e880000010403f8500040101e88000002042df8300000393a880000000605f890004006060a0000030605f81000401f3fc10000040605f8000040062ff800000506"
+    },
+    {
+      "hash": "9C4FBB683007182D",
+      "shader_type": "vs",
+      "dword_count": 69,
+      "byte_length": 276,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 4268,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "2df8100000393e810000000805f8000040060fc70000040805f80000401f307f00000508"
+    },
+    {
+      "hash": "9C8FC9E9E3F4CD1A",
+      "shader_type": "ps",
+      "dword_count": 303,
+      "byte_length": 1212,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1566312,
+      "zlib_compressed_size": 8369,
+      "uncompressed_offset": 22052
+    },
+    {
+      "hash": "9CE1CAE7C766355C",
+      "shader_type": "ps",
+      "dword_count": 45,
+      "byte_length": 180,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 373820
+    },
+    {
+      "hash": "9CF0DE0D475E0798",
+      "shader_type": "ps",
+      "dword_count": 69,
+      "byte_length": 276,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 17948
+    },
+    {
+      "hash": "9E44A40801D82C6E",
+      "shader_type": "ps",
+      "dword_count": 618,
+      "byte_length": 2472,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1967664,
+      "zlib_compressed_size": 10344,
+      "uncompressed_offset": 9656
+    },
+    {
+      "hash": "9E5B7635BC9B910C",
+      "shader_type": "vs",
+      "dword_count": 1581,
+      "byte_length": 6324,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 193156,
+      "patch_offset": 768,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f800004020360f0000020601f83000400600530000040625e84000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "9F3AE45764C02266",
+      "shader_type": "ps",
+      "dword_count": 18,
+      "byte_length": 72,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 21600
+    },
+    {
+      "hash": "9FCCE77D972688BC",
+      "shader_type": "ps",
+      "dword_count": 138,
+      "byte_length": 552,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1714148,
+      "zlib_compressed_size": 8912,
+      "uncompressed_offset": 21280
+    },
+    {
+      "hash": "A0487A0A76E0C240",
+      "shader_type": "vs",
+      "dword_count": 66,
+      "byte_length": 264,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 18840,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "2df8200000393a880000000605f81000401f3fc10000040605f8000040062fc700000506"
+    },
+    {
+      "hash": "A0DD0CD5E545D2F1",
+      "shader_type": "ps",
+      "dword_count": 369,
+      "byte_length": 1476,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1845264,
+      "zlib_compressed_size": 8736,
+      "uncompressed_offset": 9376
+    },
+    {
+      "hash": "A13863E884C84893",
+      "shader_type": "vs",
+      "dword_count": 1704,
+      "byte_length": 6816,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 209140,
+      "patch_offset": 828,
+      "vfetch_patch_hex": "05f83000001f39480000050621f81000002034c10000000601f8600040203e580000020601f84000400600d100000406"
+    },
+    {
+      "hash": "A1735D0CB04F6FC6",
+      "shader_type": "vs",
+      "dword_count": 132,
+      "byte_length": 528,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 28328,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "03f8800000101e880000000435f8500000393a880000000705f840004006060a0000030705f86000401f3fc10000040705f83000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "A2351CD471FB90B3",
+      "shader_type": "ps",
+      "dword_count": 375,
+      "byte_length": 1500,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 15632
+    },
+    {
+      "hash": "A30D51C80944286A",
+      "shader_type": "ps",
+      "dword_count": 93,
+      "byte_length": 372,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 11728
+    },
+    {
+      "hash": "A345B470BD0B2C81",
+      "shader_type": "ps",
+      "dword_count": 552,
+      "byte_length": 2208,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1557344,
+      "zlib_compressed_size": 8953,
+      "uncompressed_offset": 9468
+    },
+    {
+      "hash": "A4A965C189287B99",
+      "shader_type": "ps",
+      "dword_count": 9,
+      "byte_length": 36,
+      "mode": "raw_exact",
+      "source_file": "loaded-image.bin",
+      "raw_offset": 2448
+    },
+    {
+      "hash": "A674570ABC87E940",
+      "shader_type": "vs",
+      "dword_count": 255,
+      "byte_length": 1020,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 40080,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f86000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "A699BDA154186B88",
+      "shader_type": "ps",
+      "dword_count": 9,
+      "byte_length": 36,
+      "mode": "zlib_exact",
+      "source_file": "system/HexaEngineXbox.knl",
+      "zlib_offset": 10412,
+      "zlib_compressed_size": 1494,
+      "uncompressed_offset": 5212
+    },
+    {
+      "hash": "A7179FD3F3918CDC",
+      "shader_type": "ps",
+      "dword_count": 96,
+      "byte_length": 384,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2035504,
+      "zlib_compressed_size": 3170,
+      "uncompressed_offset": 10748
+    },
+    {
+      "hash": "A7B2B265EA9751E5",
+      "shader_type": "ps",
+      "dword_count": 312,
+      "byte_length": 1248,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1788132,
+      "zlib_compressed_size": 10872,
+      "uncompressed_offset": 21132
+    },
+    {
+      "hash": "A9F6223679A40A66",
+      "shader_type": "ps",
+      "dword_count": 129,
+      "byte_length": 516,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 33028
+    },
+    {
+      "hash": "AC65F0562F16FF1C",
+      "shader_type": "ps",
+      "dword_count": 477,
+      "byte_length": 1908,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1835776,
+      "zlib_compressed_size": 9474,
+      "uncompressed_offset": 9440
+    },
+    {
+      "hash": "AE398B719E14A274",
+      "shader_type": "ps",
+      "dword_count": 507,
+      "byte_length": 2028,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1978020,
+      "zlib_compressed_size": 9619,
+      "uncompressed_offset": 22520
+    },
+    {
+      "hash": "AEE9DD776412A602",
+      "shader_type": "ps",
+      "dword_count": 33,
+      "byte_length": 132,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 378256
+    },
+    {
+      "hash": "B0321055A0FE8495",
+      "shader_type": "vs",
+      "dword_count": 189,
+      "byte_length": 756,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1845264,
+      "zlib_compressed_size": 8736,
+      "uncompressed_offset": 13168,
+      "patch_offset": 144,
+      "vfetch_patch_hex": "65f8100000393a880000000645f8700040060a0a0000030645f88000401f3fc10000040653f80000001014780000000443f8200040101e880000010443f8300040101e8800000204"
+    },
+    {
+      "hash": "B038BBB42254E650",
+      "shader_type": "ps",
+      "dword_count": 162,
+      "byte_length": 648,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 13644
+    },
+    {
+      "hash": "B068A0194996FB63",
+      "shader_type": "ps",
+      "dword_count": 285,
+      "byte_length": 1140,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1597480,
+      "zlib_compressed_size": 7506,
+      "uncompressed_offset": 27200
+    },
+    {
+      "hash": "B225A4F5E6834730",
+      "shader_type": "ps",
+      "dword_count": 465,
+      "byte_length": 1860,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1775964,
+      "zlib_compressed_size": 12155,
+      "uncompressed_offset": 51552
+    },
+    {
+      "hash": "B3A6D3DE3CF55562",
+      "shader_type": "ps",
+      "dword_count": 219,
+      "byte_length": 876,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1775964,
+      "zlib_compressed_size": 12155,
+      "uncompressed_offset": 69328
+    },
+    {
+      "hash": "B3D1D89CF51B9C4D",
+      "shader_type": "ps",
+      "dword_count": 69,
+      "byte_length": 276,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 26628
+    },
+    {
+      "hash": "B4A2B6D4CAD72287",
+      "shader_type": "ps",
+      "dword_count": 393,
+      "byte_length": 1572,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 11872
+    },
+    {
+      "hash": "B4DBFEC7BE5A1F29",
+      "shader_type": "ps",
+      "dword_count": 294,
+      "byte_length": 1176,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1723072,
+      "zlib_compressed_size": 8435,
+      "uncompressed_offset": 15548
+    },
+    {
+      "hash": "B501FD6960C1D289",
+      "shader_type": "vs",
+      "dword_count": 1743,
+      "byte_length": 6972,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 217568,
+      "patch_offset": 852,
+      "vfetch_patch_hex": "05f84000001f39480000050621f81000002034c10000000601f800004020360f0000020601f83000400600530000040625e85000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "B555201E8E7920CA",
+      "shader_type": "ps",
+      "dword_count": 15,
+      "byte_length": 60,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2038688,
+      "zlib_compressed_size": 3160,
+      "uncompressed_offset": 14024
+    },
+    {
+      "hash": "B6C9863F710683EC",
+      "shader_type": "vs",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "raw_exact",
+      "source_file": "loaded-image.bin",
+      "raw_offset": 2352
+    },
+    {
+      "hash": "B8B89012D1D3A484",
+      "shader_type": "ps",
+      "dword_count": 324,
+      "byte_length": 1296,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1714148,
+      "zlib_compressed_size": 8912,
+      "uncompressed_offset": 16044
+    },
+    {
+      "hash": "BC1838CEA56892A3",
+      "shader_type": "ps",
+      "dword_count": 237,
+      "byte_length": 948,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1611944,
+      "zlib_compressed_size": 6316,
+      "uncompressed_offset": 24560
+    },
+    {
+      "hash": "BCD4F840DEAA9DDF",
+      "shader_type": "ps",
+      "dword_count": 210,
+      "byte_length": 840,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1532592,
+      "zlib_compressed_size": 8880,
+      "uncompressed_offset": 9400
+    },
+    {
+      "hash": "BE1F8F41807066F8",
+      "shader_type": "ps",
+      "dword_count": 165,
+      "byte_length": 660,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2056468,
+      "zlib_compressed_size": 4327,
+      "uncompressed_offset": 14916
+    },
+    {
+      "hash": "BE90567B1E72EEA6",
+      "shader_type": "ps",
+      "dword_count": 57,
+      "byte_length": 228,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2056468,
+      "zlib_compressed_size": 4327,
+      "uncompressed_offset": 19200
+    },
+    {
+      "hash": "BEB93050EA7F44CF",
+      "shader_type": "vs",
+      "dword_count": 1545,
+      "byte_length": 6180,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 185564,
+      "patch_offset": 756,
+      "vfetch_patch_hex": "05f84000001f32250000050621f81000002034c10000000601f8300040203ec10000020601f87000400600d100000406"
+    },
+    {
+      "hash": "BF93DD49CA93B852",
+      "shader_type": "ps",
+      "dword_count": 12,
+      "byte_length": 48,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 18636
+    },
+    {
+      "hash": "C0CD02397BAB5B0C",
+      "shader_type": "vs",
+      "dword_count": 1638,
+      "byte_length": 6552,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 121468,
+      "patch_offset": 816,
+      "vfetch_patch_hex": "05f86000001f32250000050621f81000002034c10000000601f800004020360f0000020601f84000400600530000040625e83000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "C16A271AFE5277B8",
+      "shader_type": "ps",
+      "dword_count": 237,
+      "byte_length": 948,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1747312,
+      "zlib_compressed_size": 15394,
+      "uncompressed_offset": 78168
+    },
+    {
+      "hash": "C4675F9686D7D8CC",
+      "shader_type": "vs",
+      "dword_count": 42,
+      "byte_length": 168,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 17456,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000805f8000040253fc100000308"
+    },
+    {
+      "hash": "C4949DFAA8593DF7",
+      "shader_type": "vs",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 23824,
+      "patch_offset": 72,
+      "vfetch_patch_hex": "35f8400000393a880000000705f83000401f3fc10000040705f82000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "C502E2D7EBED73D5",
+      "shader_type": "ps",
+      "dword_count": 504,
+      "byte_length": 2016,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1947408,
+      "zlib_compressed_size": 4682,
+      "uncompressed_offset": 14340
+    },
+    {
+      "hash": "C74C6C9F63A10463",
+      "shader_type": "vs",
+      "dword_count": 1701,
+      "byte_length": 6804,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 66156,
+      "patch_offset": 828,
+      "vfetch_patch_hex": "05f83000001f39480000050621f81000002034c10000000601f8600040203e580000020601f84000400600d100000406"
+    },
+    {
+      "hash": "C79F3E04C9D430BF",
+      "shader_type": "vs",
+      "dword_count": 30,
+      "byte_length": 120,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "system/HexaEngineXbox.knl",
+      "zlib_offset": 10412,
+      "zlib_compressed_size": 1494,
+      "uncompressed_offset": 3052,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8200000393a880000000505f810004006060a0000030505f80000401f3fc100000405"
+    },
+    {
+      "hash": "C86B48401431300C",
+      "shader_type": "vs",
+      "dword_count": 1578,
+      "byte_length": 6312,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 50236,
+      "patch_offset": 768,
+      "vfetch_patch_hex": "05f85000001f32250000050621f81000002034c10000000601f800004020360f0000020601f83000400600530000040625e84000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "C9D58B17AD7B73A5",
+      "shader_type": "ps",
+      "dword_count": 45,
+      "byte_length": 180,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 379416
+    },
+    {
+      "hash": "CA78E20BF1920C1C",
+      "shader_type": "ps",
+      "dword_count": 402,
+      "byte_length": 1608,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1947408,
+      "zlib_compressed_size": 4682,
+      "uncompressed_offset": 8648
+    },
+    {
+      "hash": "CAB609B625739573",
+      "shader_type": "vs",
+      "dword_count": 1545,
+      "byte_length": 6180,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 185564,
+      "patch_offset": 756,
+      "vfetch_patch_hex": "05f840000020321a0000050721f81000002034c10000000701f8300040203ec10000020701f87000400600d100000407"
+    },
+    {
+      "hash": "CB6296CF0BFC629F",
+      "shader_type": "vs",
+      "dword_count": 246,
+      "byte_length": 984,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 37156,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8a00040101e880000010403f8900040101e880000020435f8400000393a880000000705f830004006005a0000030705f8b000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "CCEECE1B1CCD4A1B",
+      "shader_type": "ps",
+      "dword_count": 48,
+      "byte_length": 192,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 8860
+    },
+    {
+      "hash": "D0B7DEA5FC28D33A",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 15816,
+      "patch_offset": 60,
+      "vfetch_patch_hex": "2df8100000393a420000000805f82000400606880000040805f83000401f3b0100000508"
+    },
+    {
+      "hash": "D38BF1DAAD0BC255",
+      "shader_type": "ps",
+      "dword_count": 357,
+      "byte_length": 1428,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1582304,
+      "zlib_compressed_size": 7062,
+      "uncompressed_offset": 14392
+    },
+    {
+      "hash": "D38F77E23A573755",
+      "shader_type": "ps",
+      "dword_count": 222,
+      "byte_length": 888,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2010280,
+      "zlib_compressed_size": 2949,
+      "uncompressed_offset": 4220
+    },
+    {
+      "hash": "D3B2F72E09022A5E",
+      "shader_type": "ps",
+      "dword_count": 18,
+      "byte_length": 72,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 35288
+    },
+    {
+      "hash": "D42C66B7491ED9BF",
+      "shader_type": "ps",
+      "dword_count": 33,
+      "byte_length": 132,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 372344
+    },
+    {
+      "hash": "D4D70B6E12142F5D",
+      "shader_type": "vs",
+      "dword_count": 66,
+      "byte_length": 264,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 18840,
+      "patches": [
+        {
+          "offset": 36,
+          "hex": "2d"
+        },
+        {
+          "offset": 41,
+          "hex": "393a"
+        },
+        {
+          "offset": 47,
+          "hex": "06"
+        },
+        {
+          "offset": 52,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 58,
+          "hex": "0406"
+        },
+        {
+          "offset": 64,
+          "hex": "40062f"
+        },
+        {
+          "offset": 70,
+          "hex": "0506"
+        },
+        {
+          "offset": 204,
+          "hex": "c800000000"
+        },
+        {
+          "offset": 211,
+          "hex": "0002"
+        },
+        {
+          "offset": 215,
+          "hex": "00c800000000"
+        },
+        {
+          "offset": 223,
+          "hex": "0002"
+        },
+        {
+          "offset": 227,
+          "hex": "00"
+        },
+        {
+          "offset": 229,
+          "hex": "0000"
+        },
+        {
+          "offset": 233,
+          "hex": "0000"
+        },
+        {
+          "offset": 236,
+          "hex": "020000"
+        },
+        {
+          "offset": 241,
+          "hex": "000000"
+        },
+        {
+          "offset": 245,
+          "hex": "0000"
+        },
+        {
+          "offset": 248,
+          "hex": "02"
+        }
+      ]
+    },
+    {
+      "hash": "D5E12A97B3A84881",
+      "shader_type": "vs",
+      "dword_count": 24,
+      "byte_length": 96,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 2436,
+      "patch_offset": 36,
+      "vfetch_patch_hex": "25f8100000393a880000000505f8000040253fc800000305"
+    },
+    {
+      "hash": "D6C8A42EB561928A",
+      "shader_type": "ps",
+      "dword_count": 192,
+      "byte_length": 768,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1788132,
+      "zlib_compressed_size": 10872,
+      "uncompressed_offset": 64436
+    },
+    {
+      "hash": "D839EA640B72D1B0",
+      "shader_type": "ps",
+      "dword_count": 222,
+      "byte_length": 888,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2010280,
+      "zlib_compressed_size": 2949,
+      "uncompressed_offset": 2068
+    },
+    {
+      "hash": "D83E5454969B2EB1",
+      "shader_type": "ps",
+      "dword_count": 108,
+      "byte_length": 432,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1933240,
+      "zlib_compressed_size": 3776,
+      "uncompressed_offset": 8352
+    },
+    {
+      "hash": "D89092896A20F6FE",
+      "shader_type": "ps",
+      "dword_count": 399,
+      "byte_length": 1596,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1775964,
+      "zlib_compressed_size": 12155,
+      "uncompressed_offset": 63416
+    },
+    {
+      "hash": "D8918D7855BAF30F",
+      "shader_type": "ps",
+      "dword_count": 117,
+      "byte_length": 468,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1919832,
+      "zlib_compressed_size": 4561,
+      "uncompressed_offset": 8452
+    },
+    {
+      "hash": "D8BF8423CCA1B3CE",
+      "shader_type": "vs",
+      "dword_count": 231,
+      "byte_length": 924,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1919832,
+      "zlib_compressed_size": 4561,
+      "uncompressed_offset": 16192,
+      "patch_offset": 156,
+      "vfetch_patch_hex": "25f8500000393a880000000605f890004006060a0000030605f8a000401f3fc10000040603f840000010144700000004"
+    },
+    {
+      "hash": "D8D998844476870F",
+      "shader_type": "vs",
+      "dword_count": 1794,
+      "byte_length": 7176,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 290016,
+      "patch_offset": 888,
+      "vfetch_patch_hex": "05f85000001f39480000050621f82000002034c10000000601f800004020360f0000020601f84000400600530000040625e86000002034c10000000605e8300040203ec10000020605e810004006005300000406"
+    },
+    {
+      "hash": "D9DEBB3563C9178A",
+      "shader_type": "ps",
+      "dword_count": 33,
+      "byte_length": 132,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 371956
+    },
+    {
+      "hash": "DC58F4FAA479A677",
+      "shader_type": "ps",
+      "dword_count": 222,
+      "byte_length": 888,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1762720,
+      "zlib_compressed_size": 13231,
+      "uncompressed_offset": 73000
+    },
+    {
+      "hash": "DC7CC880278FBFFF",
+      "shader_type": "vs",
+      "dword_count": 126,
+      "byte_length": 504,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2013244,
+      "zlib_compressed_size": 3076,
+      "uncompressed_offset": 15976,
+      "patch_offset": 132,
+      "vfetch_patch_hex": "25f8300000393a880000000605f80000400607ff0000030605f81000401f3fc100000406"
+    },
+    {
+      "hash": "DCB54394C41D9CB4",
+      "shader_type": "vs",
+      "dword_count": 183,
+      "byte_length": 732,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1541484,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 12432,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8100000393a880000000605f870004006060a0000030605f88000401f3fc10000040605f8000040062fc70000050613f8500000101e880000000403f8300040101e880000010403f8200040101e8800000204"
+    },
+    {
+      "hash": "DD7811A99C232635",
+      "shader_type": "vs",
+      "dword_count": 276,
+      "byte_length": 1104,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1522848,
+      "zlib_compressed_size": 9729,
+      "uncompressed_offset": 33876,
+      "patch_offset": 120,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f86000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "E04E927FF110B76D",
+      "shader_type": "vs",
+      "dword_count": 1701,
+      "byte_length": 6804,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 66156,
+      "patch_offset": 828,
+      "vfetch_patch_hex": "05f83000002036880000050721f81000002034c10000000701f8600040203e580000020701f84000400600d100000407"
+    },
+    {
+      "hash": "E13D5BA7468A7E98",
+      "shader_type": "ps",
+      "dword_count": 162,
+      "byte_length": 648,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1549700,
+      "zlib_compressed_size": 7631,
+      "uncompressed_offset": 9268
+    },
+    {
+      "hash": "E25A2A1F5B4CDE28",
+      "shader_type": "vs",
+      "dword_count": 192,
+      "byte_length": 768,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1470836,
+      "zlib_compressed_size": 5094,
+      "uncompressed_offset": 12244,
+      "patch_offset": 156,
+      "vfetch_patch_hex": "25f8300000393a880000000605f850004006060a0000030605f81000401f31f900000406"
+    },
+    {
+      "hash": "E303912155BCEE2E",
+      "shader_type": "ps",
+      "dword_count": 477,
+      "byte_length": 1908,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1566312,
+      "zlib_compressed_size": 8369,
+      "uncompressed_offset": 27460
+    },
+    {
+      "hash": "E3EB420FD2C8E637",
+      "shader_type": "vs",
+      "dword_count": 210,
+      "byte_length": 840,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1825496,
+      "zlib_compressed_size": 10267,
+      "uncompressed_offset": 14180,
+      "patch_offset": 156,
+      "vfetch_patch_hex": "65f8100000393a880000000645f8900040060a0a0000030645f8a000401f3fc10000040653f80000001014780000000443f8200040101e880000010443f8300040101e8800000204"
+    },
+    {
+      "hash": "E416B660DC092EB6",
+      "shader_type": "vs",
+      "dword_count": 1431,
+      "byte_length": 5724,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 171176,
+      "patch_offset": 708,
+      "vfetch_patch_hex": "05f86000001f32250000050621f81000002034c10000000601f800004020360f0000020601f83000400600530000040625e84000002034c10000000605e8200040203ec10000020605e880004006005300000406"
+    },
+    {
+      "hash": "E46FE383460596BA",
+      "shader_type": "vs",
+      "dword_count": 339,
+      "byte_length": 1356,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1956480,
+      "zlib_compressed_size": 11169,
+      "uncompressed_offset": 53032,
+      "patch_offset": 132,
+      "vfetch_patch_hex": "35f8800000393a880000000705f830004006005a0000030705f8d000401f3fc10000040705f84000400626880000050705f85000400606880000060713f8e00000101e880000000403f8900040101e880000010403f8c00040101e8800000204"
+    },
+    {
+      "hash": "E6D837EFBE74C333",
+      "shader_type": "ps",
+      "dword_count": 54,
+      "byte_length": 216,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 390640
+    },
+    {
+      "hash": "E7C0B5391CAB01A0",
+      "shader_type": "vs",
+      "dword_count": 390,
+      "byte_length": 1560,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 13696,
+      "patch_offset": 180,
+      "vfetch_patch_hex": "2df86000003935480000001005f83000400606880000041005f87000401f3b010000051003f8400000393e880000081001f82000001f3b010000061001f8800000393e5000000c10"
+    },
+    {
+      "hash": "E9A4DE9D90724CED",
+      "shader_type": "ps",
+      "dword_count": 333,
+      "byte_length": 1332,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1557344,
+      "zlib_compressed_size": 8953,
+      "uncompressed_offset": 23164
+    },
+    {
+      "hash": "EA04D35BBFE4A5F0",
+      "shader_type": "ps",
+      "dword_count": 42,
+      "byte_length": 168,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 378840
+    },
+    {
+      "hash": "EA24ACCDF1948E60",
+      "shader_type": "ps",
+      "dword_count": 348,
+      "byte_length": 1392,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1788132,
+      "zlib_compressed_size": 10872,
+      "uncompressed_offset": 48128
+    },
+    {
+      "hash": "EA7E15294F97616C",
+      "shader_type": "vs",
+      "dword_count": 105,
+      "byte_length": 420,
+      "mode": "zlib_vfetch_reg_patches",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1493064,
+      "zlib_compressed_size": 8444,
+      "uncompressed_offset": 25384,
+      "patches": [
+        {
+          "offset": 48,
+          "hex": "2d"
+        },
+        {
+          "offset": 53,
+          "hex": "393a"
+        },
+        {
+          "offset": 59,
+          "hex": "06"
+        },
+        {
+          "offset": 62,
+          "hex": "30"
+        },
+        {
+          "offset": 64,
+          "hex": "4006060a"
+        },
+        {
+          "offset": 70,
+          "hex": "0306"
+        },
+        {
+          "offset": 74,
+          "hex": "40"
+        },
+        {
+          "offset": 76,
+          "hex": "401f3fc1"
+        },
+        {
+          "offset": 82,
+          "hex": "0406"
+        },
+        {
+          "offset": 86,
+          "hex": "00"
+        },
+        {
+          "offset": 88,
+          "hex": "40062fc7"
+        },
+        {
+          "offset": 94,
+          "hex": "050603"
+        },
+        {
+          "offset": 98,
+          "hex": "10"
+        },
+        {
+          "offset": 101,
+          "hex": "101e88"
+        },
+        {
+          "offset": 107,
+          "hex": "04"
+        },
+        {
+          "offset": 303,
+          "hex": "07"
+        },
+        {
+          "offset": 313,
+          "hex": "000000000000"
+        },
+        {
+          "offset": 320,
+          "hex": "020000"
+        },
+        {
+          "offset": 327,
+          "hex": "07"
+        },
+        {
+          "offset": 339,
+          "hex": "03"
+        },
+        {
+          "offset": 363,
+          "hex": "04"
+        },
+        {
+          "offset": 375,
+          "hex": "05"
+        },
+        {
+          "offset": 387,
+          "hex": "06"
+        }
+      ]
+    },
+    {
+      "hash": "EA9096684E2D40EB",
+      "shader_type": "ps",
+      "dword_count": 84,
+      "byte_length": 336,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2038688,
+      "zlib_compressed_size": 3160,
+      "uncompressed_offset": 11408
+    },
+    {
+      "hash": "ECC77A74225744FC",
+      "shader_type": "ps",
+      "dword_count": 18,
+      "byte_length": 72,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 3928
+    },
+    {
+      "hash": "EF3932CC53CF799A",
+      "shader_type": "ps",
+      "dword_count": 540,
+      "byte_length": 2160,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1762720,
+      "zlib_compressed_size": 13231,
+      "uncompressed_offset": 54028
+    },
+    {
+      "hash": "F03968086A11363C",
+      "shader_type": "vs",
+      "dword_count": 192,
+      "byte_length": 768,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1566312,
+      "zlib_compressed_size": 8369,
+      "uncompressed_offset": 25680,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f860004006060a0000030605f88000401f3fc10000040605f8000040062fc70000050613f8400000101e880000000403f8500040101e880000010403f8300040101e8800000204"
+    },
+    {
+      "hash": "F25511FB63050CAE",
+      "shader_type": "vs",
+      "dword_count": 177,
+      "byte_length": 708,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1549700,
+      "zlib_compressed_size": 7631,
+      "uncompressed_offset": 12252,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f870004006060a0000030605f83000401f307f0000040605f8000040062fc70000050613f8600000101e880000000403f8400040101e880000010403f8500040101e8800000204"
+    },
+    {
+      "hash": "F353DE727038224E",
+      "shader_type": "ps",
+      "dword_count": 129,
+      "byte_length": 516,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 31380
+    },
+    {
+      "hash": "F37822B474791E7C",
+      "shader_type": "vs",
+      "dword_count": 180,
+      "byte_length": 720,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1942400,
+      "zlib_compressed_size": 4993,
+      "uncompressed_offset": 13028,
+      "patch_offset": 84,
+      "vfetch_patch_hex": "2df8200000393a880000000605f8a0004006060a0000030605f87000401f3fc10000040605f8000040062fc70000050613f8100000101e880000000403f8400040101e880000010403f8300040101e8800000204"
+    },
+    {
+      "hash": "F501E1597D16786F",
+      "shader_type": "ps",
+      "dword_count": 642,
+      "byte_length": 2568,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1557344,
+      "zlib_compressed_size": 8953,
+      "uncompressed_offset": 16136
+    },
+    {
+      "hash": "F63FC265B8EF46CE",
+      "shader_type": "ps",
+      "dword_count": 144,
+      "byte_length": 576,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 16608
+    },
+    {
+      "hash": "F6F763D35A96980E",
+      "shader_type": "ps",
+      "dword_count": 39,
+      "byte_length": 156,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2044592,
+      "zlib_compressed_size": 4492,
+      "uncompressed_offset": 15424
+    },
+    {
+      "hash": "F7E33882AE5E9E78",
+      "shader_type": "vs",
+      "dword_count": 66,
+      "byte_length": 264,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2016332,
+      "zlib_compressed_size": 7521,
+      "uncompressed_offset": 33944,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "25f8200000393a880000000805f8100040253e7800000308"
+    },
+    {
+      "hash": "F8B14813401D8349",
+      "shader_type": "ps",
+      "dword_count": 30,
+      "byte_length": 120,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 2027048,
+      "zlib_compressed_size": 3477,
+      "uncompressed_offset": 10808
+    },
+    {
+      "hash": "F97FAA07A668CFDE",
+      "shader_type": "vs",
+      "dword_count": 1542,
+      "byte_length": 6168,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 2716,
+      "zlib_compressed_size": 75058,
+      "uncompressed_offset": 42644,
+      "patch_offset": 756,
+      "vfetch_patch_hex": "05f840000020321a0000050721f81000002034c10000000701f8300040203ec10000020701f87000400600d100000407"
+    },
+    {
+      "hash": "F9A987268D8FBE04",
+      "shader_type": "vs",
+      "dword_count": 90,
+      "byte_length": 360,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1650660,
+      "zlib_compressed_size": 8201,
+      "uncompressed_offset": 15036,
+      "patch_offset": 48,
+      "vfetch_patch_hex": "2df8100000393a880000000605f830004006060a0000030605f84000401f3fc10000040605f8000040062fc70000050603f8200000101e8800000004"
+    },
+    {
+      "hash": "FE222B4FEB1515E5",
+      "shader_type": "ps",
+      "dword_count": 123,
+      "byte_length": 492,
+      "mode": "zlib_exact",
+      "source_file": "KB/package/eff.pak",
+      "zlib_offset": 1340,
+      "zlib_compressed_size": 1362,
+      "uncompressed_offset": 2904
+    },
+    {
+      "hash": "FEE2B62C1D26E357",
+      "shader_type": "vs",
+      "dword_count": 264,
+      "byte_length": 1056,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1532592,
+      "zlib_compressed_size": 8880,
+      "uncompressed_offset": 32644,
+      "patch_offset": 108,
+      "vfetch_patch_hex": "13f8d00000101e880000000403f8900040101e880000010403f8800040101e880000020435f8400000393a880000000705f830004006005a0000030705f86000401f3fc10000040705f85000400606880000060705f800004006268800000507"
+    },
+    {
+      "hash": "FF2349AD77E9F381",
+      "shader_type": "vs",
+      "dword_count": 243,
+      "byte_length": 972,
+      "mode": "zlib_vfetch_patch",
+      "source_file": "KB/package/static.pak",
+      "zlib_offset": 1987652,
+      "zlib_compressed_size": 8774,
+      "uncompressed_offset": 13512,
+      "patch_offset": 96,
+      "vfetch_patch_hex": "13f80000001014470000000403f8500040101e880000010403f8300040101e88000002042df8400000393a880000000605f880004006060a0000030605f81000401f3fc10000040605f8000040062ff800000506"
+    }
+  ]
+}

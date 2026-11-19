@@ -163,6 +163,56 @@ int main(int argc, char** argv) {
   fs::path out_xsh = "game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.xsh";
   fs::path out_xpso = "game-data/runtime/cache/vulkan-vulkan/release/shaders/shareable/4E4D0816.fbo.vk.xpso";
 
+  auto parse_val = [](const std::string& arg, const std::string& prefix) -> std::string {
+    if (arg.rfind(prefix, 0) == 0) {
+      std::string val = arg.substr(prefix.size());
+      if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') || (val.front() == '\'' && val.back() == '\''))) {
+        val = val.substr(1, val.size() - 2);
+      }
+      return val;
+    }
+    return "";
+  };
+
+  if (argc == 7 && argv[1][0] != '-') {
+    rel_xsh = argv[1];
+    rel_xpso = argv[2];
+    exp_xsh = argv[3];
+    exp_xpso = argv[4];
+    out_xsh = argv[5];
+    out_xpso = argv[6];
+  } else {
+    for (int i = 1; i < argc; ++i) {
+      std::string arg = argv[i];
+      if (arg.rfind("--base-xsh=", 0) == 0) {
+        rel_xsh = parse_val(arg, "--base-xsh=");
+      } else if (arg.rfind("--base-xpso=", 0) == 0) {
+        rel_xpso = parse_val(arg, "--base-xpso=");
+      } else if (arg.rfind("--new-xsh=", 0) == 0) {
+        exp_xsh = parse_val(arg, "--new-xsh=");
+      } else if (arg.rfind("--new-xpso=", 0) == 0) {
+        exp_xpso = parse_val(arg, "--new-xpso=");
+      } else if (arg.rfind("--out-xsh=", 0) == 0) {
+        out_xsh = parse_val(arg, "--out-xsh=");
+      } else if (arg.rfind("--out-xpso=", 0) == 0) {
+        out_xpso = parse_val(arg, "--out-xpso=");
+      } else if (arg == "--help" || arg == "-h") {
+        std::cout << "Usage:\n";
+        std::cout << "  merge_shaders.exe <base_xsh> <base_xpso> <new_xsh> <new_xpso> <out_xsh> <out_xpso>\n";
+        std::cout << "Or:\n";
+        std::cout << "  merge_shaders.exe --base-xsh=<path> --base-xpso=<path> --new-xsh=<path> --new-xpso=<path> --out-xsh=<path> --out-xpso=<path>\n";
+        return 0;
+      }
+    }
+  }
+
+  std::cout << "Base XSH:  " << rel_xsh << "\n";
+  std::cout << "Base XPSO: " << rel_xpso << "\n";
+  std::cout << "New XSH:   " << exp_xsh << "\n";
+  std::cout << "New XPSO:  " << exp_xpso << "\n";
+  std::cout << "Out XSH:   " << out_xsh << "\n";
+  std::cout << "Out XPSO:  " << out_xpso << "\n\n";
+
   // 1. Load and merge .xsh files
   std::map<uint64_t, GuestShaderRecord> merged_shaders;
 
@@ -198,37 +248,36 @@ int main(int argc, char** argv) {
     std::cout << "[" << label << "] Loaded " << count << " shaders from " << p.filename() << "\n";
   };
 
-  load_xsh(rel_xsh, "Release XSH");
-  load_xsh(exp_xsh, "Cold Exp XSH");
+    load_xsh(rel_xsh, "Base XSH");
+  load_xsh(exp_xsh, "New XSH");
   std::cout << "[Merged XSH] Total unique guest shaders: " << merged_shaders.size() << "\n\n";
 
   // 2. Load and merge .xpso files
   std::map<std::string, PipelineStoredDescription> merged_pipelines;
 
-  // Load Release XPSO (already EDS 0x20260301)
+  // Load Base XPSO (normalize with EDS to ensure consistency)
   {
     std::ifstream f(rel_xpso, std::ios::binary);
     if (f) {
       f.seekg(20, std::ios::beg);
       size_t count = 0;
-      size_t verified = 0;
       while (f) {
         PipelineStoredDescription rec;
         f.read(reinterpret_cast<char*>(&rec), sizeof(rec));
         if (!f) break;
-        uint64_t computed = rec.description.GetHash();
-        if (computed == rec.description_hash) {
-          verified++;
-        }
-        std::string desc_key(reinterpret_cast<const char*>(&rec.description), sizeof(rec.description));
-        merged_pipelines[desc_key] = rec;
+        PipelineDescription norm = NormalizeEDS(rec.description);
+        PipelineStoredDescription stored;
+        stored.description = norm;
+        stored.description_hash = norm.GetHash();
+        std::string desc_key(reinterpret_cast<const char*>(&stored.description), sizeof(stored.description));
+        merged_pipelines[desc_key] = stored;
         count++;
       }
-      std::cout << "[Release XPSO] Loaded " << count << " pipelines (Verified: " << verified << ")\n";
+      std::cout << "[Base XPSO] Loaded " << count << " pipelines\n";
     }
   }
 
-  // Load Cold Exp XPSO (pre-EDS 0x20260228 -> normalize with EDS)
+  // Load New XPSO (normalize with EDS and merge)
   {
     std::ifstream f(exp_xpso, std::ios::binary);
     if (f) {
@@ -255,7 +304,7 @@ int main(int argc, char** argv) {
           matched_count++;
         }
       }
-      std::cout << "[Cold Exp XPSO] Loaded " << raw_count << " raw pipelines -> Matched existing: " << matched_count << ", Added new: " << added_count << "\n";
+      std::cout << "[New XPSO] Loaded " << raw_count << " raw pipelines -> Matched existing: " << matched_count << ", Added new: " << added_count << "\n";
     }
   }
 
@@ -263,6 +312,9 @@ int main(int argc, char** argv) {
 
   // 3. Write merged .xsh
   {
+    if (!out_xsh.parent_path().empty()) {
+      fs::create_directories(out_xsh.parent_path());
+    }
     std::ofstream out(out_xsh, std::ios::binary | std::ios::trunc);
     if (!out) {
       std::cerr << "FATAL: Could not open " << out_xsh << " for writing\n";
@@ -280,11 +332,15 @@ int main(int argc, char** argv) {
       out.write(reinterpret_cast<const char*>(&r), sizeof(r));
       out.write(reinterpret_cast<const char*>(s.ucode.data()), s.ucode.size() * sizeof(uint32_t));
     }
+    out.flush();
     std::cout << "[Output] Written merged XSH: " << out_xsh << " (" << fs::file_size(out_xsh) << " bytes)\n";
   }
 
   // 4. Write merged .xpso
   {
+    if (!out_xpso.parent_path().empty()) {
+      fs::create_directories(out_xpso.parent_path());
+    }
     std::ofstream out(out_xpso, std::ios::binary | std::ios::trunc);
     if (!out) {
       std::cerr << "FATAL: Could not open " << out_xpso << " for writing\n";
@@ -308,6 +364,7 @@ int main(int argc, char** argv) {
     for (const auto& [desc_key, rec] : merged_pipelines) {
       out.write(reinterpret_cast<const char*>(&rec), sizeof(rec));
     }
+    out.flush();
     std::cout << "[Output] Written merged XPSO: " << out_xpso << " (" << fs::file_size(out_xpso) << " bytes)\n";
   }
 

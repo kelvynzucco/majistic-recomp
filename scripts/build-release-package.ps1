@@ -7,7 +7,7 @@
     Whether to create a compressed .zip archive of the release package.
 #>
 param(
-    [string]$Version = "0.1.3",
+    [string]$Version = "0.1.4",
     [switch]$CreateZip = $true
 )
 
@@ -103,6 +103,19 @@ Copy-Item (Join-Path $root 'LICENSE') (Join-Path $releaseDir 'LICENSE') -Force
 Copy-Item (Join-Path $root 'README.md') (Join-Path $releaseDir 'README.md') -Force
 Write-Host "[5/7] Copied branding, LICENSE, and README.md"
 
+# 5b. Copy Clean-Room shader prebuild manifest (.xpl + shader_recipes.json)
+$srcPrebuild = Join-Path $root 'launcher\resources\prebuild'
+$xplManifest = Join-Path $srcPrebuild '4E4D0816.fbo.vk.xpl'
+$recipesManifest = Join-Path $srcPrebuild 'shader_recipes.json'
+if (-not (Test-Path $xplManifest) -or -not (Test-Path $recipesManifest)) {
+    throw "Clean-Room prebuild manifest files (4E4D0816.fbo.vk.xpl / shader_recipes.json) not found in $srcPrebuild."
+}
+$destPrebuild = Join-Path $releaseDir 'launcher\resources\prebuild'
+New-Item -ItemType Directory -Path $destPrebuild -Force | Out-Null
+Copy-Item $xplManifest (Join-Path $destPrebuild '4E4D0816.fbo.vk.xpl') -Force
+Copy-Item $recipesManifest (Join-Path $destPrebuild 'shader_recipes.json') -Force
+Write-Host "[5b/7] Copied Clean-Room shader prebuild manifest (4E4D0816.fbo.vk.xpl + shader_recipes.json)"
+
 # 6. Deploy precompiled game binary, runtime DLLs, and game-data template
 $destGameData = Join-Path $releaseDir 'game-data'
 $destBin = Join-Path $destGameData 'bin'
@@ -177,7 +190,7 @@ Write-Host "[6/7] Initialized game-data/ with precompiled binary and runtime DLL
 # Security & Copyright Verification Gate:
 # Strictly verify that NO original/proprietary game assets exist anywhere in the release folder.
 Write-Host "Verifying release package compliance (zero-asset policy)..."
-$prohibitedPatterns = @('*.iso', '*.xex', '*.cpk', '*.bik', '*.csb', '*.xma', 'loaded-image.bin', '*.xsh')
+$prohibitedPatterns = @('*.iso', '*.xex', '*.cpk', '*.bik', '*.csb', '*.xma', 'loaded-image.bin', '*.xsh', '*.vkpc')
 $violations = Get-ChildItem -Path $releaseDir -Recurse -Include $prohibitedPatterns -File -ErrorAction SilentlyContinue
 if ($violations) {
     Remove-Item -Path $releaseDir -Recurse -Force
@@ -219,7 +232,7 @@ if ($CreateZip) {
             if ($sig) {
                 $latestJson = [ordered]@{
                     version = $Version
-                    notes = "Majistic Recomp v$Version Update:`n- Universal multi-edition support: seamless auto-detection and precompiled binaries for both USA (NTSC-U) and Europe (PAL) game ISOs`n- Dedicated Graphics and Controls navigation tabs with streamlined layout`n- Interactive FOV, Draw Distance, De-Dither, and Upscaler Sharpening sliders with dynamic conditional visibility`n- Conditional Mouse Sensitivity slider for Keyboard & Mouse controls`n- Support / Buy Me a Coffee button opening in native system browser`n- Optimized default profile: Vulkan, 30fps native, De-Dither + FXAA Fast, Draw Distance 3.0x, VSync enabled, dt_smooth enabled`n- Clean-room zero-logging in release mode (diagnostic logs isolated strictly to dev mode)"
+                    notes = "Majistic Recomp v$Version Update:`n- Initial rollout of Clean-Room Vulkan Shader Precompilation (Work in Progress): local reconstruction of game shaders directly from your extracted ISO assets and upfront Vulkan pipeline warm-up during ISO Setup or via the Precompile Shaders button`n- Enabled asynchronous background shader compilation by default as a fallback for uncataloged pipelines to reduce in-game traversal hitching`n- Launcher UI & visual improvements: added Precompile Shaders status indicator, live compilation progress modal, quick cache purge action, and refined layout polish"
                     pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                     platforms = @{
                         "windows-x86_64" = @{

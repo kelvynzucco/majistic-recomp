@@ -31,10 +31,27 @@
 #include <timeapi.h>
 #endif
 
+REXCVAR_DEFINE_BOOL(majin_harvest_demos, false, "Harvest",
+    "Automated cutscene demo playback for shader harvesting");
+
+REXCVAR_DEFINE_DOUBLE(majin_harvest_speed, 5.0, "Harvest",
+    "Playback speed multiplier during automated cutscene demo harvest");
+
+REXCVAR_DEFINE_INT32(majin_harvest_start, 0, "Harvest",
+    "Starting index in cutscene queue (0-based)");
+
+REXCVAR_DEFINE_INT32(majin_harvest_count, 0, "Harvest",
+    "Number of cutscenes to run in this session (0 = all)");
+
+namespace majin {
+extern rex::ui::WindowedAppContext* g_app_context;
+}
+
 class MajinApp : public rex::ReXApp {
  public:
   using rex::ReXApp::ReXApp;
   ~MajinApp() override {
+    majin::g_app_context = nullptr;
 #if defined(_WIN32)
     StopTitleTimer();
     timeEndPeriod(1);
@@ -43,6 +60,7 @@ class MajinApp : public rex::ReXApp {
 
   static std::unique_ptr<rex::ui::WindowedApp> Create(
       rex::ui::WindowedAppContext& ctx) {
+    majin::g_app_context = &ctx;
 #if defined(_WIN32)
     // Process-local policy: omit the working directory and PATH from DLL lookup.
     if (!SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
@@ -181,6 +199,12 @@ class MajinApp : public rex::ReXApp {
       // targets + transfer render passes) and FSI (fragment shader interlock
       // subpass dependencies) use Xenia's native VkRenderPass pipeline path.
       rex::cvar::SetFlagByName("vulkan_dynamic_rendering", "false");
+      if (rex::cvar::GetFlagSource("async_shader_compilation") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("async_shader_compilation", "true");
+      }
+      if (rex::cvar::GetFlagSource("vulkan_async_skip_incomplete_frames") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("vulkan_async_skip_incomplete_frames", "false");
+      }
       if (rex::cvar::GetFlagSource("gamma_render_target_as_unorm16") == rex::cvar::Source::kDefault) {
         rex::cvar::SetFlagByName("gamma_render_target_as_unorm16", "false");
       }
@@ -205,6 +229,11 @@ class MajinApp : public rex::ReXApp {
       if (rex::cvar::GetFlagSource("readback_memexport") == rex::cvar::Source::kDefault) {
         rex::cvar::SetFlagByName("readback_memexport", "false");
       }
+    }
+    if (REXCVAR_GET(majin_harvest_demos)) {
+      rex::cvar::SetFlagByName("vsync", "false");
+      rex::cvar::SetFlagByName("async_shader_compilation", "false");
+      REXLOG_INFO("[HARVEST] majin_harvest_demos active: vsync forced to false, async_shader_compilation=false");
     }
     const bool vsync = rex::cvar::Query<bool>("vsync");
     if (vsync) {

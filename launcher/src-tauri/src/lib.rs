@@ -5,6 +5,8 @@ use std::process::{Command, Stdio};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
+mod prebuild;
+
 fn default_window_size() -> String {
     "1280x720".into()
 }
@@ -435,7 +437,7 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
             let _ = app.emit("build-stage", StagePayload { stage, total, description: desc });
         };
 
-        let total_stages = if compile_binary { 3 } else { 2 };
+        let total_stages = if compile_binary { 4 } else { 3 };
 
         let run_ps_script = |script_name: &str, extra_args: &[&str]| -> Result<(), String> {
             let script_path = root.join("scripts").join(script_name);
@@ -537,7 +539,7 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
             return;
         }
 
-        // Stage 3: Compile Binary (if requested)
+        // Stage 3 (optional): Compile Binary
         if compile_binary {
             emit_stage(3, total_stages, "Compiling native game executable (majin.exe)...");
             emit_log(&format!("=== STAGE 3/{}: COMPILING GAME ===", total_stages));
@@ -548,6 +550,30 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
             }
         }
 
+        // Final Stage: Reconstruct Clean-Room .xsh + .xpl & Precompile Vulkan Shaders
+        let final_stage = total_stages;
+        emit_stage(
+            final_stage,
+            total_stages,
+            "Rebuilding Clean-Room shaders & precompiling Vulkan pipelines...",
+        );
+        emit_log(&format!(
+            "=== STAGE {}/{}: REBUILDING SHADERS & PRECOMPILING VULKAN PIPELINES ===",
+            final_stage, total_stages
+        ));
+        if let Err(e) = run_vulkan_shader_precompile_pipeline(
+            &root,
+            &settings,
+            &|msg| emit_log(msg),
+            &|_curr, _total, status| {
+                emit_stage(final_stage, total_stages, status);
+            },
+        ) {
+            emit_log(&format!("ERROR in Stage {}: {}", final_stage, e));
+            let _ = app.emit("build-error", format!("Shader precompilation failed: {}", e));
+            return;
+        }
+
         emit_log("=== BUILD PIPELINE FINISHED SUCCESSFULLY! ===");
         let _ = app.emit("build-complete", true);
     });
@@ -555,95 +581,93 @@ fn start_game_build(app: tauri::AppHandle, iso_path: String, compile_binary: boo
     Ok(())
 }
 
-#[tauri::command]
-fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
-    save_settings(settings.clone())?;
-
-    let root = get_project_root();
+fn run_vulkan_shader_precompile_pipeline(
+    root: &Path,
+    settings: &Settings,
+    emit_log: &(dyn Fn(&str) + Send + Sync),
+    emit_progress: &(dyn Fn(u32, u32, &str) + Send + Sync),
+) -> Result<(), String> {
     let script = root.join("scripts/run-usa.ps1");
     if !script.exists() {
         return Err(format!("Runner script not found at: {}", script.display()));
     }
 
-    let game_data_rel = if Path::new(&settings.game_data_root).is_absolute() {
-        if let Ok(rel) = PathBuf::from(&settings.game_data_root).strip_prefix(&root) {
-            rel.to_string_lossy().to_string()
-        } else {
-            settings.game_data_root.clone()
-        }
-    } else if settings.game_data_root.trim().is_empty() {
+    let folder_name = if settings.game_data_root.trim().is_empty() {
         "game-data".to_string()
     } else {
         settings.game_data_root.trim().to_string()
     };
-
-    std::thread::spawn(move || {
-        let emit_log = |msg: &str| {
-            let _ = app.emit("precompile-log", msg.to_string());
-        };
-        let emit_progress = |current: u32, total: u32, status: &str| {
-            #[derive(Serialize, Clone)]
-            struct ProgressPayload<'a> {
-                current: u32,
-                total: u32,
-                status: &'a str,
-            }
-            let _ = app.emit("precompile-progress", ProgressPayload { current, total, status });
-        };
-
-        emit_log("=== STARTING VULKAN SHADER PRECOMPILATION ===");
-        emit_progress(0, 100, "Starting Vulkan shader precompiler...");
-
-        let cmd_args = [
-            "-NoLogo",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            script.to_str().unwrap_or_default(),
-            "-RenderingPath",
-            "Vulkan",
-            "-GameDataRoot",
-            &game_data_rel,
-            "-Configuration",
-            &settings.configuration,
-            "-ShaderPrebuildOnly",
-        ];
-
-        let mut cmd = Command::new("powershell.exe");
-        cmd.args(&cmd_args)
-            .current_dir(&root)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let game_data_dir = if Path::new(&folder_name).is_absolute() {
+        PathBuf::from(&folder_name)
+    } else {
+        root.join(&folder_name)
+    };
+    let game_data_rel = if Path::new(&folder_name).is_absolute() {
+        if let Ok(rel) = PathBuf::from(&folder_name).strip_prefix(root) {
+            rel.to_string_lossy().to_string()
+        } else {
+            folder_name.clone()
         }
+    } else {
+        folder_name.clone()
+    };
 
-        let mut child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) => {
-                let err_msg = format!("Failed to spawn precompile process: {}", e);
-                emit_log(&err_msg);
-                let _ = app.emit("precompile-error", err_msg);
-                return;
-            }
-        };
+    // 1. Reconstruct Clean-Room .xsh + .xpl from shader_recipes.json and player's extracted ISO files
+    emit_progress(2, 100, "Rebuilding Clean-Room Xenos shader cache from local game files...");
+    prebuild::rebuild_prebuild_shader_cache(
+        root,
+        &game_data_dir,
+        &settings.configuration,
+        &|msg| emit_log(msg),
+    )?;
 
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
+    // 2. Run Vulkan precompiler (--shader_prebuild_only=true)
+    emit_progress(5, 100, "Starting Vulkan shader precompiler...");
 
-        let log_path_sync = std::sync::Arc::new(std::sync::Mutex::new(None::<PathBuf>));
-        let log_path_writer = std::sync::Arc::clone(&log_path_sync);
+    let cmd_args = [
+        "-NoLogo",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script.to_str().unwrap_or_default(),
+        "-RenderingPath",
+        "Vulkan",
+        "-GameDataRoot",
+        &game_data_rel,
+        "-Configuration",
+        &settings.configuration,
+        "-ShaderPrebuildOnly",
+    ];
 
-        let app_out = app.clone();
-        let stdout_thread = std::thread::spawn(move || {
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args(&cmd_args)
+        .current_dir(root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn precompile process: {}", e))?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let log_path_sync = std::sync::Arc::new(std::sync::Mutex::new(None::<PathBuf>));
+    let log_path_writer = std::sync::Arc::clone(&log_path_sync);
+
+    std::thread::scope(|s| {
+        s.spawn(|| {
             if let Some(out) = stdout {
                 let reader = BufReader::new(out);
                 for line in reader.lines().flatten() {
-                    let _ = app_out.emit("precompile-log", line.clone());
+                    emit_log(&line);
                     if line.starts_with("Runtime log: ") {
                         let path_str = line.trim_start_matches("Runtime log: ").trim();
                         if let Ok(mut lock) = log_path_writer.lock() {
@@ -654,12 +678,11 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
             }
         });
 
-        let app_err = app.clone();
-        let stderr_thread = std::thread::spawn(move || {
+        s.spawn(|| {
             if let Some(err) = stderr {
                 let reader = BufReader::new(err);
                 for line in reader.lines().flatten() {
-                    let _ = app_err.emit("precompile-log", format!("[stderr] {}", line));
+                    emit_log(&format!("[stderr] {}", line));
                 }
             }
         });
@@ -667,9 +690,8 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
         let is_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
         let is_running_tail = std::sync::Arc::clone(&is_running);
         let log_path_reader = std::sync::Arc::clone(&log_path_sync);
-        let app_tail = app.clone();
 
-        let tail_thread = std::thread::spawn(move || {
+        let tail_handle = s.spawn(move || {
             let mut resolved_path = None::<PathBuf>;
             let mut file_offset = 0u64;
 
@@ -692,39 +714,28 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
                             let reader = BufReader::new(file);
                             for line in reader.lines().flatten() {
                                 file_offset += (line.len() + 2) as u64;
-                                let _ = app_tail.emit("precompile-log", line.clone());
+                                emit_log(&line);
 
                                 if let Some(idx) = line.find("SHADER_WARMUP: Vulkan progress ") {
                                     let rest = &line[idx + "SHADER_WARMUP: Vulkan progress ".len()..];
                                     let parts: Vec<&str> = rest.split('/').collect();
                                     if parts.len() == 2 {
                                         let curr = parts[0].trim().parse::<u32>().unwrap_or(0);
-                                        let total = parts[1].trim().parse::<u32>().unwrap_or(171);
-                                        let status_text = format!("Compiling Vulkan pipelines ({}/{})...", curr, total);
-                                        #[derive(Serialize, Clone)]
-                                        struct ProgressPayload<'a> {
-                                            current: u32,
-                                            total: u32,
-                                            status: &'a str,
-                                        }
-                                        let _ = app_tail.emit("precompile-progress", ProgressPayload {
-                                            current: curr,
-                                            total,
-                                            status: &status_text,
-                                        });
+                                        let total = parts[1].trim().parse::<u32>().unwrap_or(288);
+                                        let status_text = format!(
+                                            "Compiling Vulkan pipelines ({}/{})...",
+                                            curr, total
+                                        );
+                                        emit_progress(curr, total, &status_text);
                                     }
-                                } else if line.contains("Vulkan monolithic driver pipeline cache: saved") {
-                                    #[derive(Serialize, Clone)]
-                                    struct ProgressPayload<'a> {
-                                        current: u32,
-                                        total: u32,
-                                        status: &'a str,
-                                    }
-                                    let _ = app_tail.emit("precompile-progress", ProgressPayload {
-                                        current: 100,
-                                        total: 100,
-                                        status: "Monolithic driver cache saved to disk",
-                                    });
+                                } else if line.contains("Vulkan monolithic driver pipeline cache: saved")
+                                    || line.contains("SHADER_PREBUILD: complete")
+                                {
+                                    emit_progress(
+                                        100,
+                                        100,
+                                        "Monolithic driver cache saved to disk",
+                                    );
                                 }
                             }
                         }
@@ -735,24 +746,60 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
             }
         });
 
-        let _ = stdout_thread.join();
-        let _ = stderr_thread.join();
+        let wait_res = child.wait();
         is_running.store(false, std::sync::atomic::Ordering::Relaxed);
-        let _ = tail_thread.join();
+        let _ = tail_handle.join();
 
-        match child.wait() {
-            Ok(status) if status.success() => {
+        match wait_res {
+            Ok(status) if status.success() => Ok(()),
+            Ok(status) => Err(format!("Precompile exited with error status: {}", status)),
+            Err(e) => Err(format!("Failed to wait on precompile process: {}", e)),
+        }
+    })
+}
+
+#[tauri::command]
+fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), String> {
+    save_settings(settings.clone())?;
+
+    let root = get_project_root();
+    let script = root.join("scripts/run-usa.ps1");
+    if !script.exists() {
+        return Err(format!("Runner script not found at: {}", script.display()));
+    }
+
+    std::thread::spawn(move || {
+        let app_log = app.clone();
+        let emit_log = move |msg: &str| {
+            let _ = app_log.emit("precompile-log", msg.to_string());
+        };
+        let app_prog = app.clone();
+        let emit_progress = move |current: u32, total: u32, status: &str| {
+            #[derive(Serialize, Clone)]
+            struct ProgressPayload<'a> {
+                current: u32,
+                total: u32,
+                status: &'a str,
+            }
+            let _ = app_prog.emit(
+                "precompile-progress",
+                ProgressPayload {
+                    current,
+                    total,
+                    status,
+                },
+            );
+        };
+
+        emit_log("=== STARTING VULKAN SHADER PRECOMPILATION ===");
+
+        match run_vulkan_shader_precompile_pipeline(&root, &settings, &emit_log, &emit_progress) {
+            Ok(()) => {
                 emit_progress(100, 100, "Vulkan pipeline cache successfully created!");
                 emit_log("=== VULKAN SHADERS PRECOMPILED SUCCESSFULLY ===");
                 let _ = app.emit("precompile-complete", true);
             }
-            Ok(status) => {
-                let err_msg = format!("Precompile exited with error status: {}", status);
-                emit_log(&err_msg);
-                let _ = app.emit("precompile-error", err_msg);
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to wait on precompile process: {}", e);
+            Err(err_msg) => {
                 emit_log(&err_msg);
                 let _ = app.emit("precompile-error", err_msg);
             }
@@ -811,10 +858,13 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
 
     let shaders_dir = game_data_dir.join("runtime/cache/vulkan-vulkan/release/shaders");
     let shareable_dir = shaders_dir.join("shareable");
+    let prebuild_dir = shaders_dir.join("prebuild");
     let local_dir = shaders_dir.join("local");
 
     let xsh_path = shareable_dir.join("4E4D0816.xsh");
     let xpso_path = shareable_dir.join("4E4D0816.fbo.vk.xpso");
+    let prebuild_xsh_path = prebuild_dir.join("4E4D0816.xsh");
+    let prebuild_xpl_path = prebuild_dir.join("4E4D0816.fbo.vk.xpl");
 
     let mut xsh_bytes = 0u64;
     let mut xpso_bytes = 0u64;
@@ -828,6 +878,16 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
             latest_time = Some(mod_time);
         }
     }
+    if xsh_bytes <= 8 {
+        if let Ok(meta) = fs::metadata(&prebuild_xsh_path) {
+            xsh_bytes = meta.len();
+            if let Ok(mod_time) = meta.modified() {
+                if latest_time.is_none() || mod_time > latest_time.unwrap() {
+                    latest_time = Some(mod_time);
+                }
+            }
+        }
+    }
 
     if let Ok(meta) = fs::metadata(&xpso_path) {
         xpso_bytes = meta.len();
@@ -837,6 +897,19 @@ fn get_shader_cache_info() -> Result<ShaderCacheInfo, String> {
         if let Ok(mod_time) = meta.modified() {
             if latest_time.is_none() || mod_time > latest_time.unwrap() {
                 latest_time = Some(mod_time);
+            }
+        }
+    }
+    if pipeline_count == 0 {
+        if let Ok(meta) = fs::metadata(&prebuild_xpl_path) {
+            xpso_bytes = meta.len();
+            if xpso_bytes >= 40 {
+                pipeline_count = ((xpso_bytes - 40) / 96) as usize;
+            }
+            if let Ok(mod_time) = meta.modified() {
+                if latest_time.is_none() || mod_time > latest_time.unwrap() {
+                    latest_time = Some(mod_time);
+                }
             }
         }
     }

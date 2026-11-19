@@ -6,6 +6,7 @@
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
+#include <algorithm>
 #include <bit>
 #include <cmath>
 
@@ -14,6 +15,9 @@ REXCVAR_DEFINE_BOOL(majin_60fps, false, "Graphics",
 
 REXCVAR_DEFINE_BOOL(majin_skip_intro_logos, false, "Gameplay",
     "Skip startup publisher and developer logos and jump directly to the title screen");
+
+REXCVAR_DECLARE(bool, majin_harvest_demos);
+REXCVAR_DECLARE(double, majin_harvest_speed);
 
 namespace {
 thread_local uint32_t main_object = 0;
@@ -31,6 +35,7 @@ float ReadFloat(uint8_t* base, uint32_t address) {
 }  // namespace
 
 extern float UpdateCutsceneTurbo(uint8_t* base);
+extern void UpdateCutsceneHarvest(PPCContext& ctx, uint8_t* base);
 
 // Below 0x821C0000: Address is identical across PAL and USA (sub_82162238, caller LR 0x821616EC)
 REX_EXTERN(__imp__sub_82162238);
@@ -43,13 +48,23 @@ REX_EXTERN(sub_82162238) {
   const float rate = ReadFloat(base, object + kRate);
   float ratio = ReadFloat(base, object + kRatio);
 
-  const float speed_mult = UpdateCutsceneTurbo(base);
+  float speed_mult = UpdateCutsceneTurbo(base);
+  if (REXCVAR_GET(majin_harvest_demos)) {
+    const double raw_speed = REXCVAR_GET(majin_harvest_speed);
+    const float harvest_spd = static_cast<float>(
+        (std::isfinite(raw_speed) && raw_speed > 0.0) ? raw_speed : 5.0);
+    // Safe clamp to avoid particle emitter frame skipping
+    const float safe_harvest_spd = std::min(std::max(harvest_spd, 1.0f), 10.0f);
+    speed_mult = std::max(speed_mult, safe_harvest_spd);
+  }
 
   if (speed_mult > 1.0f && std::isfinite(ratio)) {
     ratio *= speed_mult;
     REX_STORE_U32(object + kRatio, std::bit_cast<uint32_t>(ratio));
     REX_STORE_U32(object + 0x150F4, std::bit_cast<uint32_t>(ratio / rate));
   }
+
+  UpdateCutsceneHarvest(ctx, base);
 
   if (!Enabled()) return;
   main_object = rate == 30.0f && std::isfinite(ratio) && ratio >= 0 && ratio <= 64

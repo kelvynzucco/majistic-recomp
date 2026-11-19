@@ -7,14 +7,32 @@
 // also polled while the player is in control (gameplay dialogue, event cameras).
 
 #include <windows.h>
+#include <algorithm>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <string>
+#include <thread>
+#include <vector>
 #include "generated/default/majin_pch.h"
 #include "edition_offsets.h"
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/audio/audio_driver.h>
+#include <rex/ui/windowed_app_context.h>
+
+namespace majin {
+rex::ui::WindowedAppContext* g_app_context = nullptr;
+void RequestCleanQuit() {
+  if (g_app_context) {
+    g_app_context->RequestDeferredQuit();
+  }
+}
+}  // namespace majin
 
 REXCVAR_DEFINE_BOOL(majin_skip_cutscenes, true, "Gameplay",
     "Allow fast-forwarding in-game cutscenes by holding Select/Back on controller or Tab/Backspace on keyboard");
@@ -27,6 +45,20 @@ REXCVAR_DEFINE_INT32(majin_cutscene_end_margin, 90, "Gameplay",
 
 REXCVAR_DEFINE_BOOL(majin_cutscene_ff_camera_demos, false, "Gameplay",
     "Also allow fast-forward during short DEMO_CAMERA events (camera-only scripted shots)");
+
+REXCVAR_DECLARE(bool, majin_harvest_demos);
+REXCVAR_DECLARE(int32_t, majin_harvest_start);
+REXCVAR_DECLARE(int32_t, majin_harvest_count);
+
+DECLARE_REX_FUNC(sub_8215B918);
+DECLARE_REX_FUNC(sub_8215A700);
+DECLARE_REX_FUNC(sub_8215B290);
+DECLARE_REX_FUNC(sub_8215BEC8);
+DECLARE_REX_FUNC(sub_8215BA58);
+DECLARE_REX_FUNC(sub_8215AD28);
+#if !defined(MAJIN_EDITION_USA)
+DECLARE_REX_FUNC(sub_8235A140);
+#endif
 
 namespace {
 
@@ -215,4 +247,429 @@ float UpdateCutsceneTurbo(uint8_t* base) {
     }
   }
   return multiplier;
+}
+
+namespace {
+
+namespace fs = std::filesystem;
+
+std::vector<uint32_t> DiscoverDemoQueue() {
+  std::vector<fs::path> candidates = {
+    "game-data/finalizedXBox360/KB/demo/package",
+    "finalizedXBox360/KB/demo/package",
+    "KB/demo/package",
+    "../finalizedXBox360/KB/demo/package",
+    "../../finalizedXBox360/KB/demo/package",
+    "../../../game-data/finalizedXBox360/KB/demo/package",
+    "../../game-data/finalizedXBox360/KB/demo/package",
+    "../game-data/finalizedXBox360/KB/demo/package"
+  };
+
+#if defined(_WIN32)
+  wchar_t exe_path[MAX_PATH]{};
+  if (GetModuleFileNameW(nullptr, exe_path, MAX_PATH)) {
+    fs::path exe_dir = fs::path(exe_path).parent_path();
+    candidates.push_back(exe_dir / "finalizedXBox360/KB/demo/package");
+    candidates.push_back(exe_dir / "../finalizedXBox360/KB/demo/package");
+    candidates.push_back(exe_dir / "../../finalizedXBox360/KB/demo/package");
+    candidates.push_back(exe_dir / "../game-data/finalizedXBox360/KB/demo/package");
+    candidates.push_back(exe_dir / "../../game-data/finalizedXBox360/KB/demo/package");
+  }
+#endif
+
+  fs::path package_dir;
+  for (const auto& candidate : candidates) {
+    std::error_code ec;
+    if (fs::is_directory(candidate, ec)) {
+      package_dir = candidate;
+      break;
+    }
+  }
+
+  std::vector<uint32_t> queue;
+  if (package_dir.empty()) {
+    REXLOG_ERROR("[HARVEST] Pasta de pacotes demo (KB/demo/package) nao encontrada!");
+    return queue;
+  }
+
+  std::error_code ec;
+  for (const auto& entry : fs::directory_iterator(package_dir, ec)) {
+    if (!entry.is_regular_file()) continue;
+    const std::string filename = entry.path().filename().string();
+    if (filename.size() > 8 &&
+        (filename.compare(0, 4, "demo") == 0 || filename.compare(0, 4, "DEMO") == 0) &&
+        (filename.compare(filename.size() - 4, 4, ".pak") == 0 || filename.compare(filename.size() - 4, 4, ".PAK") == 0)) {
+      std::string id_str = filename.substr(4, filename.size() - 8);
+      try {
+        const uint32_t id = static_cast<uint32_t>(std::stoul(id_str));
+        queue.push_back(id);
+      } catch (...) {
+        // Ignora caso nao numerico
+      }
+    }
+  }
+
+  std::sort(queue.begin(), queue.end());
+  REXLOG_INFO("[HARVEST] {} demos descobertas em '{}'",
+              queue.size(), package_dir.string());
+  return queue;
+}
+
+enum class HarvestState {
+  kUninitialized,
+  kWaitingForEngine,
+  kMountPackage,
+  kWaitingForMount,
+  kStartDemo,
+  kPlayingDemo,
+  kDemoCooldown,
+  kAllFinished
+};
+
+HarvestState s_harvest_state = HarvestState::kUninitialized;
+std::vector<uint32_t> s_demo_queue;
+size_t s_current_index = 0;
+size_t s_global_offset = 0;
+size_t s_total_demos = 0;
+uint32_t s_warmup_frames = 0;
+uint32_t s_mount_wait_frames = 0;
+uint32_t s_playing_frames = 0;
+uint32_t s_cooldown_frames = 0;
+bool s_has_detected_playing = false;
+std::chrono::steady_clock::time_point s_demo_start_time;
+
+uint32_t FindDemoNode(uint8_t* base, uint32_t manager, uint32_t demo_id) {
+  uint32_t node = REX_LOAD_U32(manager + 52);
+  while (node != 0 && Span(node, 36)) {
+    if (REX_LOAD_U32(node + 24) == demo_id) {
+      return node;
+    }
+    node = REX_LOAD_U32(node + 16);
+  }
+  return 0;
+}
+
+bool IsDemoInManagerList(uint8_t* base, uint32_t manager, uint32_t demo_id) {
+  return FindDemoNode(base, manager, demo_id) != 0;
+}
+
+uint32_t CheckDemoStatus(PPCContext& ctx, uint8_t* base, uint32_t manager, uint32_t demo_id) {
+  PPCContext call_ctx = ctx;
+  call_ctx.r1.u32 = ctx.r1.u32 - 128;
+  REX_STORE_U32(call_ctx.r1.u32, ctx.r1.u32);
+  const uint32_t guest_scratch = call_ctx.r1.u32 + 64;
+  REX_STORE_U32(guest_scratch, 0);
+
+  call_ctx.r3.u32 = guest_scratch;
+  call_ctx.r4.u32 = manager;
+  call_ctx.r5.u32 = demo_id;
+  sub_8215B290(call_ctx, base);
+
+  return REX_LOAD_U32(guest_scratch);
+}
+
+} // namespace
+
+void UpdateCutsceneHarvest(PPCContext& ctx, uint8_t* base) {
+  if (!REXCVAR_GET(majin_harvest_demos)) return;
+
+#if defined(_WIN32)
+  static bool s_console_init = false;
+  if (!s_console_init) {
+    s_console_init = true;
+    HANDLE hStd = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hStd == NULL || hStd == INVALID_HANDLE_VALUE) {
+      if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        FILE* fp = nullptr;
+        freopen_s(&fp, "CONOUT$", "w", stdout);
+        freopen_s(&fp, "CONOUT$", "w", stderr);
+      }
+    }
+  }
+#endif
+
+  const uint32_t root = REX_LOAD_U32(kScenarioRootPtr);
+  if (!Span(root, kDemoManagerOffset + 4)) return;
+  const uint32_t manager = REX_LOAD_U32(root + kDemoManagerOffset);
+  if (!Span(manager, 164)) return;
+
+  switch (s_harvest_state) {
+    case HarvestState::kUninitialized: {
+      std::vector<uint32_t> full_queue = DiscoverDemoQueue();
+      if (full_queue.empty()) {
+        REXLOG_ERROR("[HARVEST] Nenhuma cutscene encontrada para colheita. Desativando...");
+        std::printf("[HARVEST] ERRO: Nenhuma cutscene encontrada para colheita.\n");
+        std::fflush(stdout);
+        s_harvest_state = HarvestState::kAllFinished;
+        return;
+      }
+
+      s_total_demos = full_queue.size();
+      const int32_t start_idx = std::max(0, REXCVAR_GET(majin_harvest_start));
+      const int32_t count = REXCVAR_GET(majin_harvest_count);
+
+      if (static_cast<size_t>(start_idx) < full_queue.size()) {
+        const size_t end_idx = (count > 0) ? std::min(full_queue.size(), static_cast<size_t>(start_idx + count)) : full_queue.size();
+        s_demo_queue = std::vector<uint32_t>(full_queue.begin() + start_idx, full_queue.begin() + end_idx);
+        s_global_offset = static_cast<size_t>(start_idx);
+      } else {
+        s_demo_queue.clear();
+        s_global_offset = static_cast<size_t>(start_idx);
+      }
+
+      if (s_demo_queue.empty()) {
+        REXLOG_INFO("[HARVEST] Fila deste lote esta vazia (inicio {} >= total {}). Finalizando.",
+                    start_idx, full_queue.size());
+        s_harvest_state = HarvestState::kAllFinished;
+        return;
+      }
+
+      std::printf("[HARVEST] Lote configurado: %zu demos (offset %zu de %zu totais). Aguardando motor...\n",
+                  s_demo_queue.size(), s_global_offset + 1, s_total_demos);
+      std::fflush(stdout);
+      s_current_index = 0;
+      s_harvest_state = HarvestState::kWaitingForEngine;
+      break;
+    }
+
+    case HarvestState::kWaitingForEngine: {
+      if (++s_warmup_frames < 60) return;
+
+      REXLOG_INFO("[HARVEST] Motor estabilizado (ScenarioRoot=0x{:08X}, DemoManager=0x{:08X})",
+                  root, manager);
+      REXLOG_INFO("[HARVEST] Iniciando lote de {} cutscenes (offset {}/{})...",
+                  s_demo_queue.size(), s_global_offset + 1, s_total_demos);
+      std::printf("[HARVEST] Motor estabilizado. Iniciando lote de %zu cutscenes (%zu a %zu de %zu)...\n",
+                  s_demo_queue.size(), s_global_offset + 1, s_global_offset + s_demo_queue.size(), s_total_demos);
+      std::fflush(stdout);
+      s_harvest_state = HarvestState::kMountPackage;
+      break;
+    }
+
+    case HarvestState::kMountPackage: {
+      if (s_current_index >= s_demo_queue.size()) {
+        s_harvest_state = HarvestState::kAllFinished;
+        break;
+      }
+
+      const uint32_t demo_id = s_demo_queue[s_current_index];
+      REXLOG_INFO("[HARVEST] [{}/{}] Montando demo{:05d}.pak...",
+                  s_global_offset + s_current_index + 1, s_total_demos, demo_id);
+
+      PPCContext call_ctx = ctx;
+      call_ctx.r3.u32 = manager;
+      call_ctx.r4.u32 = demo_id;
+      sub_8215B918(call_ctx, base);
+
+      s_harvest_state = HarvestState::kWaitingForMount;
+      s_mount_wait_frames = 0;
+      break;
+    }
+
+    case HarvestState::kWaitingForMount: {
+      s_mount_wait_frames++;
+      const uint32_t demo_id = s_demo_queue[s_current_index];
+      const uint32_t task_handle = REX_LOAD_U32(manager + 160);
+      bool package_ready = false;
+      if (task_handle != 0 && Span(task_handle, 64)) {
+        const uint32_t status_flags = REX_LOAD_U32(task_handle + 56);
+        if ((status_flags & 1) != 0) {
+          package_ready = true;
+        }
+      }
+
+      // Garante ao menos 10 frames de montagem para o novo pacote ser registrado
+      if (package_ready && s_mount_wait_frames >= 10) {
+        s_harvest_state = HarvestState::kStartDemo;
+      } else if (s_mount_wait_frames >= 300) {
+        REXLOG_WARN("[HARVEST] Timeout aguardando montagem do pacote demo{:05d}.pak. Pulando...", demo_id);
+        std::printf("[HARVEST] Timeout aguardando montagem de demo%05u.pak. Pulando...\n", demo_id);
+        std::fflush(stdout);
+        s_current_index++;
+        s_harvest_state = (s_current_index < s_demo_queue.size()) ? HarvestState::kMountPackage : HarvestState::kAllFinished;
+      }
+      break;
+    }
+
+    case HarvestState::kStartDemo: {
+      const uint32_t demo_id = s_demo_queue[s_current_index];
+      PPCContext call_ctx = ctx;
+      call_ctx.r3.u32 = manager;
+      call_ctx.r4.u32 = demo_id;
+      sub_8215A700(call_ctx, base);
+
+      const uint32_t node = FindDemoNode(base, manager, demo_id);
+      const uint32_t player = (node != 0) ? REX_LOAD_U32(node + 20) : 0;
+#if !defined(MAJIN_EDITION_USA)
+      if (player != 0 && Span(player, 160)) {
+        PPCContext p_ctx = ctx;
+        p_ctx.r3.u32 = player;
+        sub_8235A140(p_ctx, base);
+      }
+#endif
+
+      call_ctx = ctx;
+      call_ctx.r3.u32 = manager;
+      call_ctx.r4.u32 = demo_id;
+      sub_8215AD28(call_ctx, base);
+
+      if (player != 0 && Span(player, 160)) {
+        REX_STORE_U32(player + 96, 1);
+      }
+
+      REXLOG_INFO("[HARVEST] Reproducao iniciada: demo{:05d}.pak (node=0x{:X}, player=0x{:X})",
+                  demo_id, node, player);
+      std::printf("[HARVEST] Reproducao iniciada: demo%05u.pak (node=0x%X, player=0x%X)\n",
+                  demo_id, node, player);
+      std::fflush(stdout);
+
+      s_demo_start_time = std::chrono::steady_clock::now();
+      s_playing_frames = 0;
+      s_has_detected_playing = false;
+      s_harvest_state = HarvestState::kPlayingDemo;
+      break;
+    }
+
+    case HarvestState::kPlayingDemo: {
+      const uint32_t demo_id = s_demo_queue[s_current_index];
+      s_playing_frames++;
+
+      const auto now = std::chrono::steady_clock::now();
+      const double elapsed_sec = std::chrono::duration<double>(now - s_demo_start_time).count();
+
+      const uint32_t active_node = REX_LOAD_U32(manager + 120);
+      const uint32_t node = FindDemoNode(base, manager, demo_id);
+      const bool in_list = (node != 0);
+      const uint32_t player = in_list ? REX_LOAD_U32(node + 20) : 0;
+      const uint32_t pstate = (player != 0 && Span(player, 160)) ? REX_LOAD_U32(player + 96) : 0;
+      const uint32_t prequest = (player != 0 && Span(player, 160)) ? REX_LOAD_U32(player + 92) : 0;
+
+      float cur_f = 0.0f;
+      float end_f = 0.0f;
+      static float s_last_cur_f = 0.0f;
+      static float s_last_end_f = 0.0f;
+      const char* finish_reason = "";
+
+      if (s_playing_frames == 1) {
+        s_last_cur_f = 0.0f;
+        s_last_end_f = 0.0f;
+      }
+
+      if (player != 0 && Span(player, 160)) {
+        cur_f = LoadFloat(base, player + 80);
+        const uint32_t resource = REX_LOAD_U32(player + 156);
+        if (resource != 0 && Span(resource, 104)) {
+          end_f = static_cast<float>(static_cast<int32_t>(REX_LOAD_U32(resource + 100)));
+        }
+        if (cur_f > 0.0f) s_last_cur_f = cur_f;
+        if (end_f > 0.0f) s_last_end_f = end_f;
+      }
+
+      if (pstate == 1 || pstate == 2) {
+        s_has_detected_playing = true;
+      } else if (s_playing_frames <= 10 && player != 0 && Span(player, 160)) {
+        // Assegura que o player permanece no estado de reproducao
+        REX_STORE_U32(player + 96, 1);
+        s_has_detected_playing = true;
+      }
+
+      if (s_playing_frames <= 35 || (s_playing_frames % 60 == 0)) {
+        REXLOG_INFO("[HARVEST DBG] demo{} f{} in_list={} act_node=0x{:X} node=0x{:X} player=0x{:X} pstate={} req={} frames={:.1f}/{:.1f}",
+                    demo_id, s_playing_frames, in_list, active_node, node, player, pstate, prequest, cur_f, end_f);
+        std::printf("[HARVEST DBG] demo%u f%u in_list=%d act_node=0x%X node=0x%X player=0x%X pstate=%u req=%u frames=%.1f/%.1f\n",
+                    demo_id, s_playing_frames, in_list ? 1 : 0, active_node, node, player, pstate, prequest, cur_f, end_f);
+        std::fflush(stdout);
+      }
+
+      bool demo_finished = false;
+
+      // Completion conditions:
+      // 1. Natural end after cutscene was confirmed playing and advanced frames:
+      if (s_has_detected_playing && s_last_cur_f > 1.0f) {
+        if (active_node == 0) {
+          // sub_8215BEC8 liberou o node ativo ao término natural da demo
+          demo_finished = true;
+          finish_reason = "active_node==0";
+        } else if (pstate != 1 && pstate != 2) {
+          demo_finished = true;
+          finish_reason = "pstate_stopped";
+        } else if (!in_list || player == 0) {
+          demo_finished = true;
+          finish_reason = "unlinked_from_manager";
+        } else if (end_f > 0.0f && cur_f >= end_f - 1.0f) {
+          demo_finished = true;
+          finish_reason = "reached_end_frame";
+        }
+      }
+
+      // Safety watchdog: max 45s real-time per demo
+      if (elapsed_sec >= 45.0) {
+        demo_finished = true;
+        finish_reason = "watchdog_timeout_45s";
+        REXLOG_WARN("[HARVEST] Watchdog acionado: demo{:05d}.pak atingiu 45s de execucao! Avancando...",
+                    demo_id);
+        std::printf("[HARVEST] Watchdog acionado: demo%05u.pak atingiu 45s de execucao! Avancando...\n",
+                    demo_id);
+        std::fflush(stdout);
+      }
+
+      if (demo_finished) {
+        const float report_cur = (cur_f > 0.0f) ? cur_f : s_last_cur_f;
+        const float report_end = (end_f > 0.0f) ? end_f : s_last_end_f;
+        REXLOG_INFO("[HARVEST] [{}/{}] demo{:05d}.pak concluido | Tempo: {:.1f}s | Frame final: {:.1f}/{:.1f} ({})",
+                    s_global_offset + s_current_index + 1, s_total_demos, demo_id, elapsed_sec, report_cur, report_end, finish_reason);
+        std::printf("[HARVEST] [%zu/%zu] demo%05u.pak concluido | Tempo: %.1fs | Frame final: %.1f/%.1f (%s)\n",
+                    s_global_offset + s_current_index + 1, s_total_demos, demo_id, elapsed_sec, report_cur, report_end, finish_reason);
+        std::fflush(stdout);
+
+        // Flush continuo de shaders para disco
+        _flushall();
+
+        s_cooldown_frames = 0;
+        s_harvest_state = HarvestState::kDemoCooldown;
+      }
+      break;
+    }
+
+    case HarvestState::kDemoCooldown: {
+      s_cooldown_frames++;
+      // Intervalo entre demos para o motor liberar recursos e o storage thread persistir PSOs
+      if (s_cooldown_frames >= 30) {
+        s_current_index++;
+        if (s_current_index < s_demo_queue.size()) {
+          s_harvest_state = HarvestState::kMountPackage;
+        } else {
+          s_harvest_state = HarvestState::kAllFinished;
+        }
+      }
+      break;
+    }
+
+    case HarvestState::kAllFinished: {
+      static bool s_shutdown_started = false;
+      static auto s_shutdown_time = std::chrono::steady_clock::now();
+      if (!s_shutdown_started) {
+        s_shutdown_started = true;
+        s_shutdown_time = std::chrono::steady_clock::now();
+        REXLOG_INFO("[HARVEST] Lote de {} cutscenes concluido com sucesso!", s_demo_queue.size());
+        REXLOG_INFO("[HARVEST] Solicitando encerramento limpo da aplicacao para commit dos caches...");
+        std::printf("[HARVEST] Lote de %zu cutscenes concluido com sucesso!\n", s_demo_queue.size());
+        std::printf("[HARVEST] Solicitando encerramento limpo da aplicacao para commit dos caches...\n");
+        std::fflush(stdout);
+        _flushall();
+        majin::RequestCleanQuit();
+      } else {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now() - s_shutdown_time).count();
+        if (elapsed >= 3) {
+          REXLOG_INFO("[HARVEST] Watchdog de finalizacao: chamando exit(0)...");
+          std::printf("[HARVEST] Watchdog de finalizacao: chamando exit(0)...\n");
+          std::fflush(stdout);
+          _flushall();
+          std::exit(0);
+        }
+      }
+      break;
+    }
+  }
 }

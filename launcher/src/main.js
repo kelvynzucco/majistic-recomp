@@ -614,7 +614,7 @@ async function updateGameStatus() {
       // Update Header Badge
       if (status.isReady) {
         elements.gameStatusBadge.className =
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-[#6da712]/15 text-[#a3cc54] border-[#6da712]/40";
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-normal border bg-[#6da712]/15 text-[#a3cc54] border-[#6da712]/40 select-none";
         elements.gameStatusBadge.innerHTML = `
           <span class="w-2 h-2 rounded-full bg-[#6da712]"></span>
           <span>Game Ready</span>
@@ -627,7 +627,7 @@ async function updateGameStatus() {
         elements.btnLaunchText.textContent = "LAUNCH GAME";
       } else {
         elements.gameStatusBadge.className =
-          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80";
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-normal border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none";
         elements.gameStatusBadge.innerHTML = `
           <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           <span>Setup Required</span>
@@ -1307,7 +1307,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = true;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/50 text-slate-400 text-[11px] font-medium select-none cursor-wait focus:outline-none";
+    btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-darkControl/60 bg-darkControl/50 text-slate-400 text-xs font-normal select-none cursor-wait focus:outline-none";
   } else if (state === "up-to-date") {
     btnText.textContent = text || "Up to Date";
     if (btnIcon) {
@@ -1315,7 +1315,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-800/60 bg-emerald-950/40 text-emerald-400 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
   } else if (state === "available") {
     btnText.textContent = text || "Update Available";
     if (btnIcon) {
@@ -1323,14 +1323,14 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent hover:text-white border border-accent/50 text-[11px] font-semibold transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-accent/50 bg-accent/20 hover:bg-accent/30 text-accent hover:text-white text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
   } else if (state === "error") {
     btnText.textContent = text || "Check Failed";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-rose-950/40 text-rose-400 border border-rose-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-rose-800/60 bg-rose-950/40 text-rose-400 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
   } else {
     // default
     btnText.textContent = "Check for Updates";
@@ -1339,7 +1339,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-darkBorder/60 bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
   }
 }
 

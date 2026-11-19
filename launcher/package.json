@@ -11,6 +11,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource-variable/rubik": "^5.3.0",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-updater": "^2.14.1"
   },

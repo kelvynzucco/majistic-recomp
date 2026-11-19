@@ -1439,7 +1439,6 @@ fn get_connected_gamepads() -> Vec<String> {
                                 let page = info.hid.us_usage_page;
                                 let usage = info.hid.us_usage;
                                 if page == 1 && (usage == 4 || usage == 5 || usage == 8) {
-                                    // Query device interface path to check for XInput (&IG_ marker)
                                     let mut name_size: u32 = 0;
                                     let mut is_xinput = false;
                                     GetRawInputDeviceInfoW(
@@ -1460,7 +1459,7 @@ fn get_connected_gamepads() -> Vec<String> {
                                         {
                                             let path_str = String::from_utf16_lossy(&name_buf);
                                             let upper = path_str.to_uppercase();
-                                            if upper.contains("&IG_") {
+                                            if upper.contains("&IG_") || info.hid.dw_vendor_id == 0x045E {
                                                 is_xinput = true;
                                                 xinput_raw_count += 1;
                                             }
@@ -1489,10 +1488,19 @@ fn get_connected_gamepads() -> Vec<String> {
                                             _ => "PlayStation Controller".to_string(),
                                         },
                                         0x045E => match pid {
-                                            0x028E | 0x028F => "Xbox 360 Controller".to_string(),
-                                            0x02D1 | 0x02DD | 0x02E3 | 0x02EA | 0x0B00 | 0x0B0A
-                                            | 0x0B12 | 0x0B13 => {
+                                            0x028E | 0x028F | 0x0288 => "Xbox 360 Controller".to_string(),
+                                            0x02A1 | 0x0719 | 0x0291 | 0x02A9 | 0x0219 => {
+                                                "Xbox 360 Wireless Controller".to_string()
+                                            }
+                                            0x02D1 | 0x02DD | 0x02EA | 0x02FD | 0x0B12 | 0x0B13
+                                            | 0x0B20 | 0x0B22 => {
                                                 "Xbox Wireless Controller".to_string()
+                                            }
+                                            0x02E3 | 0x0B00 | 0x0B05 => {
+                                                "Xbox Elite Wireless Controller".to_string()
+                                            }
+                                            0x0B0A | 0x0B21 => {
+                                                "Xbox Adaptive Controller".to_string()
                                             }
                                             _ => "Xbox Controller".to_string(),
                                         },
@@ -1571,6 +1579,24 @@ fn get_connected_gamepads() -> Vec<String> {
                     break;
                 }
             }
+        }
+
+        // Post-processing deduplication:
+        // 1. If specific Xbox models are present, remove generic "Xbox Controller"
+        if gamepads.iter().any(|g| g.starts_with("Xbox ") && g != "Xbox Controller") {
+            gamepads.retain(|g| g != "Xbox Controller");
+        }
+        // 2. If specific Sony models are present, remove generic "PlayStation Controller"
+        if gamepads.iter().any(|g| g.starts_with("Sony ") && g != "PlayStation Controller") {
+            gamepads.retain(|g| g != "PlayStation Controller");
+        }
+        // 3. If specific GameSir models are present, remove generic "GameSir Controller"
+        if gamepads.iter().any(|g| g.starts_with("GameSir ") && g != "GameSir Controller") {
+            gamepads.retain(|g| g != "GameSir Controller");
+        }
+        // 4. If any named controller is present, remove generic fallbacks
+        if gamepads.iter().any(|g| g != "Wireless / USB Controller" && g != "Joystick Controller") {
+            gamepads.retain(|g| g != "Wireless / USB Controller" && g != "Joystick Controller");
         }
     }
 

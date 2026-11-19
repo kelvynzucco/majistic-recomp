@@ -403,30 +403,42 @@ async function updateConnectedGamepads(preferredMode = null) {
   try {
     const nativeGamepads = await invoke("get_connected_gamepads");
     if (Array.isArray(nativeGamepads)) {
-      gamepads.push(...nativeGamepads);
+      gamepads = [...nativeGamepads];
     }
   } catch (err) {
     if (isDevModeCached) {
       logToBackend(`Error fetching gamepads: ${err}`);
     }
-  }
-
-  // Also query HTML5 Gamepad API as supplementary source
-  if (typeof navigator !== "undefined" && typeof navigator.getGamepads === "function") {
-    try {
-      const webPads = navigator.getGamepads();
-      if (webPads) {
-        for (const pad of webPads) {
-          if (pad && pad.connected && pad.id) {
-            let name = pad.id.replace(/\s*\([^)]*\)/g, "").trim();
-            if (!name) name = pad.id;
-            if (!gamepads.includes(name) && !gamepads.some((g) => g.toLowerCase().includes(name.toLowerCase()))) {
-              gamepads.push(name);
+    // Fallback only if native invoke is unavailable (e.g. standalone browser environment)
+    if (typeof navigator !== "undefined" && typeof navigator.getGamepads === "function") {
+      try {
+        const webPads = navigator.getGamepads();
+        if (webPads) {
+          for (const pad of webPads) {
+            if (pad && pad.connected && pad.id) {
+              let name = pad.id.replace(/\s*\([^)]*\)/g, "").trim();
+              if (name && !gamepads.includes(name)) {
+                gamepads.push(name);
+              }
             }
           }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
+  }
+
+  // Deduplicate generic entries if a specific model was identified
+  if (gamepads.some((g) => g.startsWith("Xbox ") && g !== "Xbox Controller")) {
+    gamepads = gamepads.filter((g) => g !== "Xbox Controller");
+  }
+  if (gamepads.some((g) => g.startsWith("Sony ") && g !== "PlayStation Controller")) {
+    gamepads = gamepads.filter((g) => g !== "PlayStation Controller");
+  }
+  if (gamepads.some((g) => g.startsWith("GameSir ") && g !== "GameSir Controller")) {
+    gamepads = gamepads.filter((g) => g !== "GameSir Controller");
+  }
+  if (gamepads.some((g) => g !== "Wireless / USB Controller" && g !== "Joystick Controller")) {
+    gamepads = gamepads.filter((g) => g !== "Wireless / USB Controller" && g !== "Joystick Controller");
   }
 
   const currentKey = gamepads.join("|||");

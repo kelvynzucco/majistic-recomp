@@ -28,7 +28,7 @@
           />
           <span
             id="appVersionBadge"
-            class="h-6 inline-flex items-center px-2 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
+            class="h-6 inline-flex items-center justify-center px-2 pt-[1px] rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold leading-none select-none"
             >v0.1.3</span
           >
 
@@ -49,7 +49,9 @@
                 d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
               />
             </svg>
-            <span id="btnCheckUpdatesText">Check for Updates</span>
+            <span id="btnCheckUpdatesText" class="leading-none pt-[1px]"
+              >Check for Updates</span
+            >
           </button>
         </div>
 
@@ -63,7 +65,9 @@
             <span
               class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
             ></span>
-            <span id="gameStatusBadgeText">Checking Status...</span>
+            <span id="gameStatusBadgeText" class="leading-none pt-[1px]"
+              >Checking Status...</span
+            >
           </div>
 
           <!-- Buy Me a Coffee Button (Right of Game Ready Status) -->
@@ -249,11 +253,11 @@
           <!-- ========================================== -->
           <!-- TAB 1: GRAPHICS                            -->
           <!-- ========================================== -->
-          <div id="tabGraphics" class="space-y-3.5 tab-content-active">
+          <div id="tabGraphics" class="tab-content-active">
             <!-- Missing Game Data Warning Banner -->
             <div
               id="setupWarningBanner"
-              class="hidden p-3 rounded-xl bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
+              class="hidden mb-3.5 p-3 rounded-xl bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
             >
               <div class="flex items-center gap-2.5">
                 <svg
@@ -296,10 +300,10 @@
                   class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
                   <h2
-                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                   >
                     <svg
-                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      class="w-4 h-4 text-accent shrink-0"
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 256 256"
                       fill="currentColor"
@@ -455,7 +459,7 @@
                       <div class="flex items-center gap-2">
                         <label
                           for="deDitherStrength"
-                          class="text-xs font-semibold text-slate-300"
+                          class="text-xs text-slate-300"
                         >
                           De-Dither Intensity
                         </label>
@@ -496,7 +500,7 @@
                       <div class="flex items-center justify-between">
                         <label
                           for="casSharpness"
-                          class="text-xs font-semibold text-slate-300"
+                          class="text-xs text-slate-300"
                         >
                           CAS Sharp
                         </label>
@@ -526,7 +530,7 @@
                       <div class="flex items-center justify-between">
                         <label
                           for="fsrReduction"
-                          class="text-xs font-semibold text-slate-300"
+                          class="text-xs text-slate-300"
                         >
                           FSR RCAS Sharp
                         </label>
@@ -560,10 +564,10 @@
                   class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
                   <h2
-                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                   >
                     <svg
-                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      class="w-4 h-4 text-accent shrink-0"
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 256 256"
                       fill="currentColor"
@@ -584,10 +588,7 @@
                   <!-- Camera FOV Slider -->
                   <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
                     <div class="flex items-center justify-between">
-                      <label
-                        for="fovScale"
-                        class="text-xs font-semibold text-slate-300"
-                      >
+                      <label for="fovScale" class="text-xs text-slate-300">
                         FOV
                         <span
                           class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
@@ -610,9 +611,9 @@
                       class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
                     />
                     <p class="text-[10px] text-slate-400 leading-tight">
-                      <strong class="text-amber-300"
+                      <span class="text-amber-300"
                         >A wider FOV may cause parts of the environment to
-                        remain unrendered or appear missing</strong
+                        remain unrendered or appear missing</span
                       >
                       (default: 1.00x).
                     </p>
@@ -623,7 +624,7 @@
                     <div class="flex items-center justify-between">
                       <label
                         for="drawDistanceScale"
-                        class="text-xs font-semibold text-slate-300"
+                        class="text-xs text-slate-300"
                       >
                         Draw Distance &amp; LOD Multiplier
                       </label>
@@ -666,7 +667,7 @@
                         class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                       />
                       <span
-                        class="text-[11px] text-slate-300 truncate"
+                        class="text-xs text-slate-300 truncate"
                         title="Cinematic background distance blur"
                         >Depth of Field (Native)</span
                       >
@@ -682,7 +683,7 @@
                         class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                       />
                       <span
-                        class="text-[11px] text-slate-300 truncate"
+                        class="text-xs text-slate-300 truncate"
                         title="Pause &amp; Map screen background effect"
                         >Pause Background</span
                       >
@@ -694,7 +695,7 @@
                     <div class="flex items-center justify-between">
                       <label
                         for="bloomIntensity"
-                        class="text-xs font-semibold text-slate-300"
+                        class="text-xs text-slate-300"
                       >
                         Glare &amp; Specular Bloom
                       </label>
@@ -738,7 +739,7 @@
                         class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                       />
                       <span
-                        class="text-[11px] text-slate-300 truncate"
+                        class="text-xs text-slate-300 truncate"
                         title="Enable Vertical Synchronization (VSync)"
                         >VSync</span
                       >
@@ -753,7 +754,7 @@
                         class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                       />
                       <span
-                        class="text-[11px] text-slate-300 truncate"
+                        class="text-xs text-slate-300 truncate"
                         title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise."
                         >Output Dithering</span
                       >
@@ -769,7 +770,7 @@
                         class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                       />
                       <span
-                        class="text-[11px] text-slate-300 truncate"
+                        class="text-xs text-slate-300 truncate"
                         title="Show Live Guest FPS in Window Title (majin_window_fps)"
                         >Window Title FPS</span
                       >
@@ -783,18 +784,18 @@
           <!-- ========================================== -->
           <!-- TAB 2: CONTROLS                            -->
           <!-- ========================================== -->
-          <div id="tabControls" class="hidden space-y-3.5">
-            <div class="max-w-xl">
+          <div id="tabControls" class="hidden">
+            <div class="grid grid-cols-2 gap-4 items-start">
               <!-- Input & Controller -->
               <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
                 <div
                   class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
                   <h2
-                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                   >
                     <svg
-                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      class="w-4 h-4 text-accent shrink-0"
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 256 256"
                       fill="currentColor"
@@ -834,7 +835,7 @@
                       <div class="flex items-center gap-1.5">
                         <label
                           for="mouseSensitivity"
-                          class="text-xs font-semibold text-slate-300"
+                          class="text-xs text-slate-300"
                           >Mouse Sensitivity</label
                         >
                         <span
@@ -870,125 +871,146 @@
           <!-- ========================================== -->
           <!-- TAB 3: FIXES & PATCHES                     -->
           <!-- ========================================== -->
-          <div id="tabFixes" class="hidden space-y-3.5">
-            <!-- Collision & Movement Fixes -->
-            <section class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm">
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+          <div id="tabFixes" class="hidden">
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <!-- Physics & Movement -->
+              <section
+                class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
               >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
-                  <path
-                    d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
-                  />
-                </svg>
-                <span>Physics &amp; Movement</span>
-              </h2>
-
-              <!-- Step Fix Toggle -->
-              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <label
-                    for="stepFix"
-                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
+                  <h2
+                    class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                   >
-                    <input
-                      type="checkbox"
-                      id="stepFix"
-                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                    />
-                    <span>High FPS Edge Climbing (Step Fix)</span>
-                  </label>
-                  <span
-                    class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                    >Experimental</span
+                    <svg
+                      class="w-4 h-4 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
+                      />
+                    </svg>
+                    <span>Physics &amp; Movement</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >PHYSICS / 60+ FPS</span
                   >
                 </div>
-                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                  Scales movement step when blocked on small edges for &gt;80
-                  FPS.
-                  <strong class="text-amber-300"
-                    >Keep disabled if you feel your character being pushed away
-                    or repelled when close to walls, enemies, or Majin at 30-60
-                    FPS.</strong
-                  >
-                </p>
-              </div>
 
-              <!-- Frame-Time Smoothing -->
-              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <label
-                    for="dtSmoothing"
-                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
-                  >
-                    <input
-                      type="checkbox"
-                      id="dtSmoothing"
-                      checked
-                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Engine Delta-Time Smoothing (dt_smooth)</span>
-                  </label>
+                <!-- Step Fix Toggle -->
+                <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label
+                      for="stepFix"
+                      class="text-xs text-slate-300 cursor-pointer flex items-center gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        id="stepFix"
+                        class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                      />
+                      <span>High FPS Edge Climbing (Step Fix)</span>
+                    </label>
+                    <span
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      >Experimental</span
+                    >
+                  </div>
+                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                    Scales movement step when blocked on small edges for &gt;80
+                    FPS.
+                    <span class="text-amber-300"
+                      >Keep disabled if you feel your character being pushed
+                      away or repelled when close to walls, enemies, or Majin at
+                      30-60 FPS.</span
+                    >
+                  </p>
                 </div>
-                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                  Replaces guest frame delta-time with a smoothed moving
-                  average. Leave off for purest vanilla console physics pacing.
-                </p>
-              </div>
-            </section>
 
-            <!-- Animation Timing Fixes -->
-            <section class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm">
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                <!-- Frame-Time Smoothing -->
+                <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label
+                      for="dtSmoothing"
+                      class="text-xs text-slate-300 cursor-pointer flex items-center gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        id="dtSmoothing"
+                        checked
+                        class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                      />
+                      <span>Engine Delta-Time Smoothing (dt_smooth)</span>
+                    </label>
+                  </div>
+                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                    Replaces guest frame delta-time with a smoothed moving
+                    average. Leave off for purest vanilla console physics
+                    pacing.
+                  </p>
+                </div>
+              </section>
+
+              <!-- Animation Timing Fixes -->
+              <section
+                class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
               >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
-                  <path
-                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"
-                  />
-                </svg>
-                <span>Animation &amp; Timing</span>
-              </h2>
-
-              <!-- Sub-Motion Speed Fix -->
-              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <label
-                    for="animSpeedFix"
-                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
+                  <h2
+                    class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                   >
-                    <input
-                      type="checkbox"
-                      id="animSpeedFix"
-                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Sub-Motion Animation Normalization</span>
-                  </label>
-                  <span
-                    class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                    >Experimental</span
+                    <svg
+                      class="w-4 h-4 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"
+                      />
+                    </svg>
+                    <span>Animation &amp; Timing</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >SUB-MOTION</span
                   >
                 </div>
-                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-                  Normalizes facial expressions and world object animations
-                  above 30 FPS.
-                  <strong class="text-amber-300"
-                    >Keep disabled if you experience interaction timing or
-                    dialogue delay issues with Majin.</strong
-                  >
-                </p>
-              </div>
-            </section>
+
+                <!-- Sub-Motion Speed Fix -->
+                <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label
+                      for="animSpeedFix"
+                      class="text-xs text-slate-300 cursor-pointer flex items-center gap-2"
+                    >
+                      <input
+                        type="checkbox"
+                        id="animSpeedFix"
+                        class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                      />
+                      <span>Sub-Motion Animation Normalization</span>
+                    </label>
+                    <span
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      >Experimental</span
+                    >
+                  </div>
+                  <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                    Normalizes facial expressions and world object animations
+                    above 30 FPS.
+                    <span class="text-amber-300"
+                      >Keep disabled if you experience interaction timing or
+                      dialogue delay issues with Majin.</span
+                    >
+                  </p>
+                </div>
+              </section>
+            </div>
           </div>
 
           <!-- ========================================== -->
@@ -1006,10 +1028,10 @@
                     class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                   >
                     <h2
-                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                      class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                     >
                       <svg
-                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        class="w-4 h-4 text-accent shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"
@@ -1113,10 +1135,10 @@
                     class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                   >
                     <h2
-                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                      class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                     >
                       <svg
-                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        class="w-4 h-4 text-accent shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"
@@ -1171,10 +1193,10 @@
                     class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                   >
                     <h2
-                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                      class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                     >
                       <svg
-                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        class="w-4 h-4 text-accent shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"
@@ -1314,9 +1336,7 @@
                       />
                     </svg>
                     <span
-                      ><span class="text-amber-300 font-medium"
-                        >Work in progress:</span
-                      >
+                      ><span class="text-amber-300">Work in progress:</span>
                       Pipeline precompilation is still expanding. Not all
                       in-game pipelines have been discovered yet.</span
                     >
@@ -1419,10 +1439,10 @@
                     class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                   >
                     <h2
-                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                      class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
                     >
                       <svg
-                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        class="w-4 h-4 text-accent shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"

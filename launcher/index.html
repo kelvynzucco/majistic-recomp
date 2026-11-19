@@ -784,8 +784,8 @@
           <!-- TAB 2: CONTROLS                            -->
           <!-- ========================================== -->
           <div id="tabControls" class="hidden space-y-3.5">
-            <div class="grid grid-cols-2 gap-4 items-start">
-              <!-- Left Column: Input & Controls -->
+            <div class="max-w-xl">
+              <!-- Input & Controller -->
               <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
                 <div
                   class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -861,109 +861,6 @@
                       Camera look sensitivity when playing with Keyboard &amp;
                       Mouse.
                     </p>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Right Column: Gameplay & Preferences -->
-              <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
-                <div
-                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-                >
-                  <h2
-                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-                  >
-                    <svg
-                      class="w-3.5 h-3.5 text-accent shrink-0"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 256 256"
-                      fill="currentColor"
-                    >
-                      <path
-                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a40,40,0,0,1-40,40,8,8,0,0,1,0-16,24,24,0,0,0,24-24,8,8,0,0,1,16,0Z"
-                      />
-                    </svg>
-                    <span>Game Preferences</span>
-                  </h2>
-                  <span class="text-[10px] text-slate-400 font-mono"
-                    >GAMEPLAY</span
-                  >
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs text-slate-300 mb-1"
-                      >Game Language</label
-                    >
-                    <select
-                      id="language"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                    >
-                      <option value="English">English (US)</option>
-                      <option value="Spanish">Spanish (Español)</option>
-                      <option value="French">French (Français)</option>
-                      <option value="German">German (Deutsch)</option>
-                      <option value="Italian">Italian (Italiano)</option>
-                      <option value="Korean">Korean (한국어)</option>
-                      <option value="Japanese">Japanese (日本語)</option>
-                      <option value="Portuguese">Portuguese (Português)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs text-slate-300 mb-1"
-                      >Cutscene Speed</label
-                    >
-                    <select
-                      id="cutsceneSpeed"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                    >
-                      <option value="1">1x (Normal Speed)</option>
-                      <option value="2">2x Speed</option>
-                      <option value="4">4x Fast-Forward</option>
-                      <option value="8">8x Hyper Speed</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="space-y-2 pt-2 border-t border-darkBorder/40">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="skipCutscenes"
-                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                      />
-                      <label
-                        for="skipCutscenes"
-                        class="text-xs text-slate-300 cursor-pointer"
-                        title="Hold [Select/Back] or [Tab] to speed through cutscenes"
-                        >Allow Fast-Forwarding In-Game Cutscenes</label
-                      >
-                    </div>
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                      >Experimental</span
-                    >
-                  </div>
-
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="skipIntroLogos"
-                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                      />
-                      <label
-                        for="skipIntroLogos"
-                        class="text-xs text-slate-300 cursor-pointer"
-                        >Skip Intro Logos</label
-                      >
-                    </div>
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                      >Experimental</span
-                    >
                   </div>
                 </div>
               </section>
@@ -1099,8 +996,115 @@
           <!-- ========================================== -->
           <div id="tabBuild" class="hidden">
             <div class="grid grid-cols-2 gap-4 items-start">
-              <!-- Left Column: Game Data Folder, Disc Selection, Build Action, Shader Precompilation -->
+              <!-- Left Column: Game Preferences, Game Data Folder, Disc Selection, Build Action, Shader Precompilation -->
               <div class="space-y-3">
+                <!-- Game Preferences -->
+                <section
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
+                >
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <h2
+                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a40,40,0,0,1-40,40,8,8,0,0,1,0-16,24,24,0,0,0,24-24,8,8,0,0,1,16,0Z"
+                        />
+                      </svg>
+                      <span>Game Preferences</span>
+                    </h2>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      >GAMEPLAY</span
+                    >
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs text-slate-300 mb-1"
+                        >Game Language</label
+                      >
+                      <select
+                        id="language"
+                        class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      >
+                        <option value="English">English (US)</option>
+                        <option value="Spanish">Spanish (Español)</option>
+                        <option value="French">French (Français)</option>
+                        <option value="German">German (Deutsch)</option>
+                        <option value="Italian">Italian (Italiano)</option>
+                        <option value="Korean">Korean (한국어)</option>
+                        <option value="Japanese">Japanese (日本語)</option>
+                        <option value="Portuguese">
+                          Portuguese (Português)
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="block text-xs text-slate-300 mb-1"
+                        >Cutscene Speed</label
+                      >
+                      <select
+                        id="cutsceneSpeed"
+                        class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      >
+                        <option value="1">1x (Normal Speed)</option>
+                        <option value="2">2x Speed</option>
+                        <option value="4">4x Fast-Forward</option>
+                        <option value="8">8x Hyper Speed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2 pt-2 border-t border-darkBorder/40">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="skipCutscenes"
+                          class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                        />
+                        <label
+                          for="skipCutscenes"
+                          class="text-xs text-slate-300 cursor-pointer"
+                          title="Hold [Select/Back] or [Tab] to speed through cutscenes"
+                          >Allow Fast-Forwarding In-Game Cutscenes</label
+                        >
+                      </div>
+                      <span
+                        class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                        >Experimental</span
+                      >
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="skipIntroLogos"
+                          class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                        />
+                        <label
+                          for="skipIntroLogos"
+                          class="text-xs text-slate-300 cursor-pointer"
+                          >Skip Intro Logos</label
+                        >
+                      </div>
+                      <span
+                        class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                        >Experimental</span
+                      >
+                    </div>
+                  </div>
+                </section>
+
                 <!-- Game Data Folder (PLACED ABOVE ISO OPTIONS) -->
                 <section
                   class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
@@ -1260,7 +1264,7 @@
                 </button>
 
                 <!-- Step 3: Vulkan Shader Precompilation (Dev Mode Only) -->
-                <div data-dev-only class="pt-1 space-y-2">
+                <div class="pt-1 space-y-2">
                   <div class="flex items-center gap-2">
                     <button
                       id="btnPrecompile"

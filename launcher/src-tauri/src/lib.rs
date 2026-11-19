@@ -1188,7 +1188,8 @@ fn process_failed_kind_to_str(kind: i32) -> &'static str {
 }
 
 pub fn is_dev_or_debug() -> bool {
-    cfg!(feature = "dev-mode")
+    cfg!(debug_assertions)
+        || cfg!(feature = "dev-mode")
         || std::env::args().any(|a| {
             a.eq_ignore_ascii_case("--debug")
                 || a.eq_ignore_ascii_case("--dev")

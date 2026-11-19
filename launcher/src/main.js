@@ -1333,7 +1333,7 @@ function setUpdateBtnState(state, text) {
   if (state === "checking") {
     btnText.textContent = text || "Checking...";
     if (btnIcon) {
-      btnIcon.classList.add("animate-spin");
+      btnIcon.setAttribute("class", "w-3.5 h-3.5 shrink-0 transition-colors animate-spin");
       btnIcon.innerHTML = `<path fill="currentColor" d="M12.0789 2.25C7.28537 2.25 3.34474 5.913 2.96052 10.5833H1.99999C1.69611 10.5833 1.42226 10.7667 1.30652 11.0477C1.19078 11.3287 1.25603 11.6517 1.47175 11.8657L3.15156 13.5324C3.44397 13.8225 3.91564 13.8225 4.20805 13.5324L5.88786 11.8657C6.10358 11.6517 6.16883 11.3287 6.05309 11.0477C5.93735 10.7667 5.6635 10.5833 5.35961 10.5833H4.46677C4.84649 6.75167 8.10476 3.75 12.0789 3.75C14.8484 3.75 17.2727 5.20845 18.6156 7.39279C18.8325 7.74565 19.2944 7.85585 19.6473 7.63892C20.0001 7.42199 20.1103 6.96007 19.8934 6.60721C18.287 3.99427 15.3873 2.25 12.0789 2.25Z"/><path fill="currentColor" d="M20.8411 10.4666C20.5489 10.1778 20.0788 10.1778 19.7867 10.4666L18.1004 12.1333C17.8841 12.3471 17.8183 12.6703 17.9339 12.9517C18.0495 13.233 18.3235 13.4167 18.6277 13.4167H19.5268C19.1455 17.2462 15.8759 20.25 11.8827 20.25C9.10023 20.25 6.66583 18.7903 5.31793 16.6061C5.10039 16.2536 4.6383 16.1442 4.2858 16.3618C3.93331 16.5793 3.8239 17.0414 4.04143 17.3939C5.65404 20.007 8.56403 21.75 11.8827 21.75C16.6906 21.75 20.6474 18.0892 21.0331 13.4167H22.0001C22.3043 13.4167 22.5783 13.233 22.6939 12.9517C22.8094 12.6703 22.7437 12.3471 22.5273 12.1333L20.8411 10.4666Z"/>`;
     }
     btn.disabled = true;
@@ -1341,7 +1341,7 @@ function setUpdateBtnState(state, text) {
   } else if (state === "up-to-date") {
     btnText.textContent = text || "Up to Date";
     if (btnIcon) {
-      btnIcon.classList.remove("animate-spin");
+      btnIcon.setAttribute("class", "w-3.5 h-3.5 shrink-0 transition-colors");
       btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
@@ -1349,7 +1349,7 @@ function setUpdateBtnState(state, text) {
   } else if (state === "available") {
     btnText.textContent = text || "Update Available";
     if (btnIcon) {
-      btnIcon.classList.remove("animate-spin");
+      btnIcon.setAttribute("class", "w-3.5 h-3.5 shrink-0 transition-colors");
       btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V12.1893L14.4697 10.4697C14.7626 10.1768 15.2374 10.1768 15.5303 10.4697C15.8232 10.7626 15.8232 11.2374 15.5303 11.5303L12.5303 14.5303C12.3897 14.671 12.1989 14.75 12 14.75C11.8011 14.75 11.6103 14.671 11.4697 14.5303L8.46967 11.5303C8.17678 11.2374 8.17678 10.7626 8.46967 10.4697C8.76256 10.1768 9.23744 10.1768 9.53033 10.4697L11.25 12.1893V7C11.25 6.58579 11.5858 6.25 12 6.25ZM8 16.25C7.58579 16.25 7.25 16.5858 7.25 17C7.25 17.4142 7.58579 17.75 8 17.75H16C16.4142 17.75 16.75 17.4142 16.75 17C16.75 16.5858 16.4142 16.25 16 16.25H8Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
@@ -1357,7 +1357,7 @@ function setUpdateBtnState(state, text) {
   } else if (state === "error") {
     btnText.textContent = text || "Check Failed";
     if (btnIcon) {
-      btnIcon.classList.remove("animate-spin");
+      btnIcon.setAttribute("class", "w-3.5 h-3.5 shrink-0 transition-colors");
       btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25ZM12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
@@ -1366,7 +1366,7 @@ function setUpdateBtnState(state, text) {
     // default
     btnText.textContent = "Check for Updates";
     if (btnIcon) {
-      btnIcon.classList.remove("animate-spin");
+      btnIcon.setAttribute("class", "w-3.5 h-3.5 shrink-0 transition-colors");
       btnIcon.innerHTML = `<path fill="currentColor" d="M12.0789 2.25C7.28537 2.25 3.34474 5.913 2.96052 10.5833H1.99999C1.69611 10.5833 1.42226 10.7667 1.30652 11.0477C1.19078 11.3287 1.25603 11.6517 1.47175 11.8657L3.15156 13.5324C3.44397 13.8225 3.91564 13.8225 4.20805 13.5324L5.88786 11.8657C6.10358 11.6517 6.16883 11.3287 6.05309 11.0477C5.93735 10.7667 5.6635 10.5833 5.35961 10.5833H4.46677C4.84649 6.75167 8.10476 3.75 12.0789 3.75C14.8484 3.75 17.2727 5.20845 18.6156 7.39279C18.8325 7.74565 19.2944 7.85585 19.6473 7.63892C20.0001 7.42199 20.1103 6.96007 19.8934 6.60721C18.287 3.99427 15.3873 2.25 12.0789 2.25Z"/><path fill="currentColor" d="M20.8411 10.4666C20.5489 10.1778 20.0788 10.1778 19.7867 10.4666L18.1004 12.1333C17.8841 12.3471 17.8183 12.6703 17.9339 12.9517C18.0495 13.233 18.3235 13.4167 18.6277 13.4167H19.5268C19.1455 17.2462 15.8759 20.25 11.8827 20.25C9.10023 20.25 6.66583 18.7903 5.31793 16.6061C5.10039 16.2536 4.6383 16.1442 4.2858 16.3618C3.93331 16.5793 3.8239 17.0414 4.04143 17.3939C5.65404 20.007 8.56403 21.75 11.8827 21.75C16.6906 21.75 20.6474 18.0892 21.0331 13.4167H22.0001C22.3043 13.4167 22.5783 13.233 22.6939 12.9517C22.8094 12.6703 22.7437 12.3471 22.5273 12.1333L20.8411 10.4666Z"/>`;
     }
     btn.disabled = false;
@@ -1401,6 +1401,20 @@ function hideUpdateModal() {
   elements.updateModal.classList.add("hidden");
 }
 
+function isVersionNewer(remote, current) {
+  if (!remote || !current) return false;
+  const parse = (v) => v.replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+  const r = parse(remote);
+  const c = parse(current);
+  for (let i = 0; i < Math.max(r.length, c.length); i++) {
+    const rVal = r[i] || 0;
+    const cVal = c[i] || 0;
+    if (rVal > cVal) return true;
+    if (rVal < cVal) return false;
+  }
+  return false;
+}
+
 async function checkForUpdates(isUserClick = false) {
   if (isCheckingUpdates || isDownloadingUpdate) return;
   isCheckingUpdates = true;
@@ -1408,14 +1422,68 @@ async function checkForUpdates(isUserClick = false) {
   logToBackend(`checkForUpdates: start (userClick=${isUserClick})`);
 
   try {
-    const update = await check();
-    if (update) {
-      logToBackend(`checkForUpdates: update available: v${update.version}`);
-      currentPendingUpdate = update;
+    const currentVer = (elements.appVersionBadge?.textContent || "0.1.3").replace(/^v/, "").trim();
+    let remoteVer = null;
+    let releaseData = null;
+
+    // Fast check: query GitHub Releases API directly with 2.5s timeout
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch("https://api.github.com/repos/kelvynzucco/majistic-recomp/releases/latest", {
+        signal: controller.signal,
+        headers: { Accept: "application/vnd.github.v3+json" }
+      });
+      clearTimeout(timer);
+
+      if (res.ok) {
+        releaseData = await res.json();
+        remoteVer = (releaseData.tag_name || "").replace(/^v/, "").trim();
+      }
+    } catch (e) {
+      logToBackend(`GitHub API fetch error: ${e?.message || e}`);
+    }
+
+    // Secondary fallback if api.github.com is rate-limited: check raw manifest
+    if (!remoteVer) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch("https://raw.githubusercontent.com/kelvynzucco/majistic-recomp/main/launcher/package.json", {
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const pkg = await res.json();
+          remoteVer = (pkg.version || "").replace(/^v/, "").trim();
+        }
+      } catch (e) {
+        logToBackend(`Raw fallback error: ${e?.message || e}`);
+      }
+    }
+
+    const hasUpdate = remoteVer && isVersionNewer(remoteVer, currentVer);
+
+    if (hasUpdate) {
+      logToBackend(`checkForUpdates: newer version detected: v${remoteVer} (current: v${currentVer})`);
+
+      // Attempt Tauri plugin check for native installer hook
+      let pluginUpdate = null;
+      try {
+        pluginUpdate = await check({ timeout: 2000 });
+      } catch {}
+
+      currentPendingUpdate = pluginUpdate || {
+        version: remoteVer,
+        body: releaseData?.body || "",
+        date: releaseData?.published_at || "",
+        html_url: releaseData?.html_url || "https://github.com/kelvynzucco/majistic-recomp/releases/latest"
+      };
+
       setUpdateBtnState("available");
-      showUpdateModal(update);
+      showUpdateModal(currentPendingUpdate);
     } else {
-      logToBackend("checkForUpdates: up to date");
+      logToBackend(`checkForUpdates: up to date (current: v${currentVer}, remote: v${remoteVer || currentVer})`);
       currentPendingUpdate = null;
       setUpdateBtnState("up-to-date");
       setTimeout(() => {
@@ -1424,28 +1492,12 @@ async function checkForUpdates(isUserClick = false) {
     }
   } catch (err) {
     logToBackend(`checkForUpdates: error: ${err?.message || err}`);
-    console.warn("Update check response:", err);
-    const errMsg = String(err?.message || err || "").toLowerCase();
-    // In GitHub releases, if release 1 hasn't been posted yet, 404, or remote is not reachable, app is up to date
-    if (
-      errMsg.includes("404") ||
-      errMsg.includes("not found") ||
-      errMsg.includes("no release") ||
-      errMsg.includes("could not fetch") ||
-      errMsg.includes("status code") ||
-      errMsg.includes("network")
-    ) {
-      currentPendingUpdate = null;
-      setUpdateBtnState("up-to-date", "Up to Date");
-      setTimeout(() => {
-        if (!currentPendingUpdate) setUpdateBtnState("default");
-      }, 4000);
-    } else {
-      setUpdateBtnState("error", "Check Failed");
-      setTimeout(() => {
-        if (!currentPendingUpdate) setUpdateBtnState("default");
-      }, 4000);
-    }
+    console.warn("Update check general error:", err);
+    currentPendingUpdate = null;
+    setUpdateBtnState("up-to-date");
+    setTimeout(() => {
+      if (!currentPendingUpdate) setUpdateBtnState("default");
+    }, 4000);
   } finally {
     isCheckingUpdates = false;
   }
@@ -1453,6 +1505,11 @@ async function checkForUpdates(isUserClick = false) {
 
 async function installUpdate() {
   if (!currentPendingUpdate || isDownloadingUpdate) return;
+  if (typeof currentPendingUpdate.downloadAndInstall !== "function") {
+    window.open(currentPendingUpdate.html_url || "https://github.com/kelvynzucco/majistic-recomp/releases/latest", "_blank");
+    hideUpdateModal();
+    return;
+  }
   isDownloadingUpdate = true;
 
   if (elements.updateProgressContainer) {

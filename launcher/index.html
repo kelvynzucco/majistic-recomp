@@ -17,7 +17,7 @@
       <!-- Custom Application Top Bar / Titlebar -->
       <header
         id="appHeader"
-        class="h-16 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default rounded-t-xl"
+        class="px-4 py-[22px] flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default rounded-t-xl"
       >
         <!-- Left: Logo, Version & Update Button (Draggable) -->
         <div class="flex items-center gap-3 select-none">
@@ -26,64 +26,68 @@
             alt="Majistic Recomp"
             class="h-12 w-auto object-contain pointer-events-none select-none"
           />
-          <span
-            id="appVersionBadge"
-            class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 text-xs font-normal select-none"
-            >v0.1.3</span
-          >
-
-          <button
-            id="btnCheckUpdates"
-            type="button"
-            title="Check for updates"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white border border-darkBorder/60 hover:border-darkBorder text-xs font-normal transition-all select-none cursor-pointer focus:outline-none"
-          >
-            <svg
-              id="updateBtnIcon"
-              class="w-3.5 h-3.5 text-slate-400 shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
+          <div class="flex items-center gap-2">
+            <span
+              id="appVersionBadge"
+              class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 text-xs font-normal select-none"
+              >v0.1.3</span
             >
+
+            <button
+              id="btnCheckUpdates"
+              type="button"
+              title="Check for updates"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white border border-darkBorder/60 hover:border-darkBorder text-xs font-normal transition-all select-none cursor-pointer focus:outline-none"
+            >
+              <svg
+                id="updateBtnIcon"
+                class="w-3.5 h-3.5 shrink-0 transition-colors"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
   <path fill="currentColor" d="M12.0789 2.25C7.28537 2.25 3.34474 5.913 2.96052 10.5833H1.99999C1.69611 10.5833 1.42226 10.7667 1.30652 11.0477C1.19078 11.3287 1.25603 11.6517 1.47175 11.8657L3.15156 13.5324C3.44397 13.8225 3.91564 13.8225 4.20805 13.5324L5.88786 11.8657C6.10358 11.6517 6.16883 11.3287 6.05309 11.0477C5.93735 10.7667 5.6635 10.5833 5.35961 10.5833H4.46677C4.84649 6.75167 8.10476 3.75 12.0789 3.75C14.8484 3.75 17.2727 5.20845 18.6156 7.39279C18.8325 7.74565 19.2944 7.85585 19.6473 7.63892C20.0001 7.42199 20.1103 6.96007 19.8934 6.60721C18.287 3.99427 15.3873 2.25 12.0789 2.25Z"/><path fill="currentColor" d="M20.8411 10.4666C20.5489 10.1778 20.0788 10.1778 19.7867 10.4666L18.1004 12.1333C17.8841 12.3471 17.8183 12.6703 17.9339 12.9517C18.0495 13.233 18.3235 13.4167 18.6277 13.4167H19.5268C19.1455 17.2462 15.8759 20.25 11.8827 20.25C9.10023 20.25 6.66583 18.7903 5.31793 16.6061C5.10039 16.2536 4.6383 16.1442 4.2858 16.3618C3.93331 16.5793 3.8239 17.0414 4.04143 17.3939C5.65404 20.007 8.56403 21.75 11.8827 21.75C16.6906 21.75 20.6474 18.0892 21.0331 13.4167H22.0001C22.3043 13.4167 22.5783 13.233 22.6939 12.9517C22.8094 12.6703 22.7437 12.3471 22.5273 12.1333L20.8411 10.4666Z"/>
 </svg>
-            <span id="btnCheckUpdatesText">Check for Updates</span>
-          </button>
+              <span id="btnCheckUpdatesText">Check for Updates</span>
+            </button>
+          </div>
         </div>
 
         <!-- Right: Status Badge, Donation & Window Controls -->
         <div class="flex items-center gap-3">
-          <!-- Status Badge (Game Ready / Setup Required) -->
-          <div
-            id="gameStatusBadge"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-normal border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
-          >
-            <span
-              class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
-            ></span>
-            <span id="gameStatusBadgeText">Checking Status...</span>
-          </div>
-
-          <!-- Buy Me a Coffee Button (Right of Game Ready Status) -->
-          <a
-            id="btnBuyMeCoffee"
-            href="https://buymeacoffee.com/majistic"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Buy Me a Coffee"
-            aria-label="Buy Me a Coffee"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none"
-          >
-            <svg
-              class="w-3.5 h-3.5 shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
+          <div class="flex items-center gap-2">
+            <!-- Status Badge (Game Ready / Setup Required) -->
+            <div
+              id="gameStatusBadge"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-normal border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
             >
+              <span
+                class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"
+              ></span>
+              <span id="gameStatusBadgeText">Checking Status...</span>
+            </div>
+
+            <!-- Buy Me a Coffee Button (Right of Game Ready Status) -->
+            <a
+              id="btnBuyMeCoffee"
+              href="https://buymeacoffee.com/majistic"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Buy Me a Coffee"
+              aria-label="Buy Me a Coffee"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none"
+            >
+              <svg
+                class="w-3.5 h-3.5 shrink-0"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
   <path fill="currentColor" d="M16.181 18.7496C16.0372 19.9263 15.8022 20.6674 15.2425 21.191C14.3775 22 13.0465 21.9996 10.3861 21.9996H9.61361C6.95314 21.9996 5.62218 22 4.75716 21.191C4.1975 20.6674 3.96252 19.9263 3.81869 18.7496H16.181Z"/><path fill="currentColor" fill-rule="evenodd" d="M12.724 6.99963C14.7276 6.99963 15.7298 6.99982 16.3226 7.63342C16.485 7.80697 16.5976 8.00814 16.6732 8.24963H17.0003C19.5262 8.24986 21.7502 10.0618 21.7503 12.4996C21.7503 14.9376 19.5263 16.7494 17.0003 16.7496H16.3499C16.3383 16.9221 16.3272 17.0888 16.3158 17.2496H3.68392C3.66493 16.9823 3.64631 16.6991 3.6263 16.399L3.28451 11.2662C3.15123 9.26702 3.08429 8.26705 3.67709 7.63342C4.26989 6.99981 5.2721 6.99963 7.27572 6.99963H12.724ZM16.8001 9.74963C16.7874 10.1798 16.7542 10.6803 16.7152 11.2662L16.4495 15.2496H17.0003C18.8922 15.2494 20.2503 13.9273 20.2503 12.4996C20.2502 11.072 18.8921 9.74986 17.0003 9.74963H16.8001Z" clip-rule="evenodd"/><path fill="currentColor" d="M5.93099 1.50158C6.17154 1.16444 6.6397 1.08628 6.97689 1.32678C7.31411 1.56731 7.39223 2.03546 7.1517 2.37268L6.76595 2.91369C7.39168 3.38788 7.53035 4.27708 7.07162 4.92053L6.66048 5.4967C6.41989 5.83368 5.95171 5.91197 5.61459 5.6715C5.2776 5.43092 5.19934 4.96273 5.43978 4.62561L5.82552 4.08459C5.19994 3.61043 5.06133 2.72115 5.51986 2.07775L5.93099 1.50158Z"/><path fill="currentColor" d="M9.93099 1.50158C10.1715 1.16444 10.6397 1.08628 10.9769 1.32678C11.3141 1.56731 11.3922 2.03546 11.1517 2.37268L10.766 2.91369C11.3917 3.38788 11.5303 4.27708 11.0716 4.92053L10.6605 5.4967C10.4199 5.83368 9.95171 5.91197 9.61459 5.6715C9.2776 5.43092 9.19934 4.96273 9.43978 4.62561L9.82552 4.08459C9.19994 3.61043 9.06133 2.72115 9.51986 2.07775L9.93099 1.50158Z"/><path fill="currentColor" d="M13.931 1.50158C14.1715 1.16444 14.6397 1.08628 14.9769 1.32678C15.3141 1.56731 15.3922 2.03546 15.1517 2.37268L14.766 2.91369C15.3917 3.38788 15.5303 4.27708 15.0716 4.92053L14.6605 5.4967C14.4199 5.83368 13.9517 5.91197 13.6146 5.6715C13.2776 5.43092 13.1993 4.96273 13.4398 4.62561L13.8255 4.08459C13.1999 3.61043 13.0613 2.72115 13.5199 2.07775L13.931 1.50158Z"/>
-</svg>
-            <span>Buy me a coffee</span>
-          </a>
+              </svg>
+              <span>Buy me a coffee</span>
+            </a>
+          </div>
 
           <!-- Window Control Buttons (Min, Max, Close) -->
           <div
@@ -157,7 +161,7 @@
       <div class="flex-1 flex min-h-0 overflow-hidden">
         <!-- Vertical Sidebar Tabs -->
         <aside
-          class="w-56 shrink-0 border-r border-darkBorder bg-darkCard/30 flex flex-col p-3 gap-2 select-none overflow-y-auto"
+          class="w-56 shrink-0 border-r border-darkBorder bg-darkCard/30 flex flex-col p-3 pt-4 gap-2 select-none overflow-y-auto"
         >
           <button
             id="tabBtnGraphics"
@@ -1514,7 +1518,7 @@
       <!-- Footer Controls (Centered Launch Button) -->
       <footer
         id="appFooter"
-        class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
+        class="px-6 py-[22px] bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
       >
         <button
           id="btnLaunch"

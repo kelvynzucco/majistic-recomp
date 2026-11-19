@@ -151,8 +151,15 @@ function enhance(select) {
       },
     });
   }
-  select.addEventListener("change", refresh);
+    select.addEventListener("change", refresh);
+  select._customSelectRefresh = refresh;
   refresh();
+}
+
+export function refreshCustomSelect(select) {
+  if (select && select._customSelectRefresh) {
+    select._customSelectRefresh();
+  }
 }
 
 export function initCustomSelects() {

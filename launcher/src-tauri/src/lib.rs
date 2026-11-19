@@ -1362,6 +1362,221 @@ fn open_external_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn get_connected_gamepads() -> Vec<String> {
+    let mut gamepads: Vec<String> = Vec::new();
+
+    #[cfg(windows)]
+    {
+        use std::ffi::c_void;
+
+        #[repr(C)]
+        struct RAWINPUTDEVICELIST {
+            h_device: *mut c_void,
+            dw_type: u32,
+            _pad: u32,
+        }
+
+        #[repr(C)]
+        struct RID_DEVICE_INFO_HID {
+            dw_vendor_id: u32,
+            dw_product_id: u32,
+            dw_version_number: u32,
+            us_usage_page: u16,
+            us_usage: u16,
+        }
+
+        #[repr(C)]
+        struct RID_DEVICE_INFO {
+            cb_size: u32,
+            dw_type: u32,
+            hid: RID_DEVICE_INFO_HID,
+            _pad: [u8; 8],
+        }
+
+        extern "system" {
+            fn GetRawInputDeviceList(
+                p_raw_input_device_list: *mut RAWINPUTDEVICELIST,
+                pui_num_devices: *mut u32,
+                cb_size: u32,
+            ) -> u32;
+
+            fn GetRawInputDeviceInfoW(
+                h_device: *mut c_void,
+                ui_command: u32,
+                p_data: *mut c_void,
+                pcb_size: *mut u32,
+            ) -> u32;
+        }
+
+        let mut num_devices: u32 = 0;
+        let list_item_size = std::mem::size_of::<RAWINPUTDEVICELIST>() as u32;
+        let mut xinput_raw_count: usize = 0;
+
+        unsafe {
+            if GetRawInputDeviceList(std::ptr::null_mut(), &mut num_devices, list_item_size) != u32::MAX
+                && num_devices > 0
+            {
+                let mut list: Vec<RAWINPUTDEVICELIST> = Vec::with_capacity(num_devices as usize);
+                list.set_len(num_devices as usize);
+                let count = GetRawInputDeviceList(list.as_mut_ptr(), &mut num_devices, list_item_size);
+                if count != u32::MAX {
+                    for dev in list.iter().take(count as usize) {
+                        if dev.dw_type == 2 {
+                            // RIM_TYPEHID
+                            let mut info: RID_DEVICE_INFO = std::mem::zeroed();
+                            info.cb_size = std::mem::size_of::<RID_DEVICE_INFO>() as u32;
+                            let mut info_size = info.cb_size;
+
+                            let res = GetRawInputDeviceInfoW(
+                                dev.h_device,
+                                0x2000000b, // RIDI_DEVICEINFO
+                                &mut info as *mut _ as *mut c_void,
+                                &mut info_size,
+                            );
+
+                            if res != u32::MAX {
+                                let page = info.hid.us_usage_page;
+                                let usage = info.hid.us_usage;
+                                if page == 1 && (usage == 4 || usage == 5 || usage == 8) {
+                                    // Query device interface path to check for XInput (&IG_ marker)
+                                    let mut name_size: u32 = 0;
+                                    let mut is_xinput = false;
+                                    GetRawInputDeviceInfoW(
+                                        dev.h_device,
+                                        0x20000007, // RIDI_DEVICENAME
+                                        std::ptr::null_mut(),
+                                        &mut name_size,
+                                    );
+                                    if name_size > 0 {
+                                        let mut name_buf: Vec<u16> = Vec::with_capacity(name_size as usize);
+                                        name_buf.set_len(name_size as usize);
+                                        if GetRawInputDeviceInfoW(
+                                            dev.h_device,
+                                            0x20000007,
+                                            name_buf.as_mut_ptr() as *mut c_void,
+                                            &mut name_size,
+                                        ) != u32::MAX
+                                        {
+                                            let path_str = String::from_utf16_lossy(&name_buf);
+                                            let upper = path_str.to_uppercase();
+                                            if upper.contains("&IG_") {
+                                                is_xinput = true;
+                                                xinput_raw_count += 1;
+                                            }
+                                        }
+                                    }
+
+                                    let vid = info.hid.dw_vendor_id;
+                                    let pid = info.hid.dw_product_id;
+                                    let name = match vid {
+                                        0x3537 => match pid {
+                                            0x1040 => "GameSir T4 Nova Lite".to_string(),
+                                            0x1005 => "GameSir G7".to_string(),
+                                            0x1008 => "GameSir G7 SE".to_string(),
+                                            0x1010..=0x1012 => "GameSir T4 Pro".to_string(),
+                                            0x1025 => "GameSir Cyclone".to_string(),
+                                            _ => "GameSir Controller".to_string(),
+                                        },
+                                        0x054C => match pid {
+                                            0x09CC | 0x05C4 | 0x0BA0 => {
+                                                "Sony DualShock 4 Wireless Controller".to_string()
+                                            }
+                                            0x0CE6 | 0x0DF2 => {
+                                                "Sony DualSense Wireless Controller (PS5)".to_string()
+                                            }
+                                            0x0268 => "Sony DualShock 3 Controller".to_string(),
+                                            _ => "PlayStation Controller".to_string(),
+                                        },
+                                        0x045E => match pid {
+                                            0x028E | 0x028F => "Xbox 360 Controller".to_string(),
+                                            0x02D1 | 0x02DD | 0x02E3 | 0x02EA | 0x0B00 | 0x0B0A
+                                            | 0x0B12 | 0x0B13 => {
+                                                "Xbox Wireless Controller".to_string()
+                                            }
+                                            _ => "Xbox Controller".to_string(),
+                                        },
+                                        0x057E => match pid {
+                                            0x2009 => "Nintendo Switch Pro Controller".to_string(),
+                                            0x2006 | 0x2007 => {
+                                                "Nintendo Switch Joy-Con".to_string()
+                                            }
+                                            _ => "Nintendo Controller".to_string(),
+                                        },
+                                        0x2DC8 | 0x05A0 => "8BitDo Controller".to_string(),
+                                        0x0F0D => "Hori Controller".to_string(),
+                                        0x1532 => "Razer Controller".to_string(),
+                                        0x1038 => "SteelSeries Controller".to_string(),
+                                        0x24C6 | 0x0E6F => "PowerA / PDP Controller".to_string(),
+                                        0x2563 | 0x11C0 => "Flydigi Controller".to_string(),
+                                        0x20BC => "EasySMX Controller".to_string(),
+                                        0x28DE => "Steam Controller".to_string(),
+                                        _ => {
+                                            if is_xinput {
+                                                "Xbox Controller".to_string()
+                                            } else if usage == 5 {
+                                                "Wireless / USB Controller".to_string()
+                                            } else {
+                                                "Joystick Controller".to_string()
+                                            }
+                                        }
+                                    };
+                                    if !gamepads.contains(&name) {
+                                        gamepads.push(name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Also check XInput controllers (ports 0..3)
+            // Only add an Xbox Controller entry if there are active XInput ports that
+            // were not already mapped/accounted for by the RawInput &IG_ enumeration.
+            type PfnXInputGetState = unsafe extern "system" fn(u32, *mut u8) -> u32;
+
+            for dll_name in [
+                b"xinput1_4.dll\0".as_ptr(),
+                b"xinput1_3.dll\0".as_ptr(),
+                b"xinput9_1_0.dll\0".as_ptr(),
+            ] {
+                let h_mod = windows_sys::Win32::System::LibraryLoader::LoadLibraryA(dll_name);
+                if !h_mod.is_null() {
+                    let proc = windows_sys::Win32::System::LibraryLoader::GetProcAddress(
+                        h_mod,
+                        b"XInputGetState\0".as_ptr(),
+                    );
+                    if let Some(pfn) = proc {
+                        let get_state: PfnXInputGetState = std::mem::transmute(pfn);
+                        let mut state = [0u8; 16];
+                        let mut xinput_active_ports: usize = 0;
+                        for port in 0..4 {
+                            if get_state(port, state.as_mut_ptr()) == 0 {
+                                xinput_active_ports += 1;
+                            }
+                        }
+
+                        if xinput_active_ports > xinput_raw_count {
+                            let unmapped = xinput_active_ports - xinput_raw_count;
+                            for _ in 0..unmapped {
+                                let name = "Xbox Controller".to_string();
+                                if !gamepads.contains(&name) {
+                                    gamepads.push(name);
+                                }
+                            }
+                        }
+                    }
+                    windows_sys::Win32::Foundation::FreeLibrary(h_mod);
+                    break;
+                }
+            }
+        }
+    }
+
+    gamepads
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1582,7 +1797,8 @@ pub fn run() {
             log_message,
             is_dev_mode,
             exit_app,
-            open_external_url
+            open_external_url,
+            get_connected_gamepads
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1591,6 +1807,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_get_connected_gamepads() {
+        let pads = get_connected_gamepads();
+        println!("Connected gamepads: {:?}", pads);
+    }
 
     #[test]
     fn test_deserialize_settings_with_null_fov_scale() {

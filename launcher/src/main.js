@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { check } from "@tauri-apps/plugin-updater";
-import { initCustomSelects } from "./customSelect.js";
+import { initCustomSelects, refreshCustomSelect } from "./customSelect.js";
 
 let isDevModeCached = false;
 
@@ -323,6 +323,8 @@ function switchTab(tab) {
 
   if (target === "build") {
     updateShaderCacheInfo();
+  } else if (target === "controls") {
+    updateConnectedGamepads();
   }
 }
 
@@ -392,6 +394,80 @@ function updateInputModeVisibility() {
   elements.mouseSensitivityContainer.classList.toggle("hidden", !isKbm);
 }
 
+let lastConnectedGamepadsKey = null;
+
+async function updateConnectedGamepads(preferredMode = null) {
+  if (!elements.inputMode) return;
+
+  let gamepads = [];
+  try {
+    const nativeGamepads = await invoke("get_connected_gamepads");
+    if (Array.isArray(nativeGamepads)) {
+      gamepads.push(...nativeGamepads);
+    }
+  } catch (err) {
+    if (isDevModeCached) {
+      logToBackend(`Error fetching gamepads: ${err}`);
+    }
+  }
+
+  // Also query HTML5 Gamepad API as supplementary source
+  if (typeof navigator !== "undefined" && typeof navigator.getGamepads === "function") {
+    try {
+      const webPads = navigator.getGamepads();
+      if (webPads) {
+        for (const pad of webPads) {
+          if (pad && pad.connected && pad.id) {
+            let name = pad.id.replace(/\s*\([^)]*\)/g, "").trim();
+            if (!name) name = pad.id;
+            if (!gamepads.includes(name) && !gamepads.some((g) => g.toLowerCase().includes(name.toLowerCase()))) {
+              gamepads.push(name);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  const currentKey = gamepads.join("|||");
+  if (currentKey === lastConnectedGamepadsKey && preferredMode === null) {
+    return;
+  }
+  lastConnectedGamepadsKey = currentKey;
+
+  const currentSelection = preferredMode || elements.inputMode.value;
+  elements.inputMode.innerHTML = "";
+
+  if (gamepads.length > 0) {
+    gamepads.forEach((gpName) => {
+      const opt = document.createElement("option");
+      opt.value = "Controller";
+      opt.textContent = gpName;
+      elements.inputMode.appendChild(opt);
+    });
+
+    const kbmOpt = document.createElement("option");
+    kbmOpt.value = "KeyboardMouse";
+    kbmOpt.textContent = "Keyboard & Mouse";
+    elements.inputMode.appendChild(kbmOpt);
+
+    if (currentSelection === "KeyboardMouse") {
+      elements.inputMode.value = "KeyboardMouse";
+    } else {
+      elements.inputMode.value = "Controller";
+    }
+  } else {
+    const kbmOpt = document.createElement("option");
+    kbmOpt.value = "KeyboardMouse";
+    kbmOpt.textContent = "Keyboard & Mouse";
+    elements.inputMode.appendChild(kbmOpt);
+    elements.inputMode.value = "KeyboardMouse";
+  }
+
+  refreshCustomSelect(elements.inputMode);
+  updateInputModeVisibility();
+}
+
 // ==========================================
 // Settings Management
 // ==========================================
@@ -432,8 +508,7 @@ function populateForm(settings) {
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;
   if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
   if (elements.windowFps) elements.windowFps.checked = settings.WindowFps ?? false;
-  if (elements.inputMode) elements.inputMode.value = settings.InputMode || "Controller";
-  updateInputModeVisibility();
+  updateConnectedGamepads(settings.InputMode || "Controller");
   if (elements.cutsceneSpeed) elements.cutsceneSpeed.value = String(settings.CutsceneSpeed || 4);
   if (elements.mouseSensitivity) {
     const sens = safeFloat(settings.MouseSensitivity, 1.0);
@@ -1152,6 +1227,16 @@ if (elements.inputMode) {
     updateInputModeVisibility();
   });
 }
+
+window.addEventListener("gamepadconnected", () => {
+  updateConnectedGamepads();
+});
+window.addEventListener("gamepaddisconnected", () => {
+  updateConnectedGamepads();
+});
+setInterval(() => {
+  updateConnectedGamepads();
+}, 2500);
 
 if (elements.btnWindowClose) {
   elements.btnWindowClose.addEventListener("click", async () => {

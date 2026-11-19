@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="bg-darkBg">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,12 +8,16 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body
-    class="bg-darkBg text-slate-100 flex flex-col h-screen select-none overflow-hidden border border-darkBorder/80"
+    class="bg-transparent text-slate-100 flex flex-col h-screen select-none overflow-hidden"
   >
-    <!-- Custom Application Top Bar / Titlebar -->
+    <div
+      id="appContainer"
+      class="flex-1 flex flex-col bg-darkBg text-slate-100 select-none overflow-hidden rounded-xl border border-darkBorder/80"
+    >
+      <!-- Custom Application Top Bar / Titlebar -->
     <header
       id="appHeader"
-      class="h-16 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default"
+      class="h-16 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default rounded-t-xl"
     >
       <!-- Left: Logo, Version & Update Button (Draggable) -->
       <div class="flex items-center gap-3 select-none">
@@ -24,7 +28,7 @@
         />
         <span
           id="appVersionBadge"
-          class="h-6 inline-flex items-center px-2 rounded bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
+          class="h-6 inline-flex items-center px-2 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
           >v0.1.3</span
         >
 
@@ -32,7 +36,7 @@
           id="btnCheckUpdates"
           type="button"
           title="Check for updates"
-          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white border border-darkBorder hover:border-slate-500 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none"
+          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none"
         >
           <svg
             id="updateBtnIcon"
@@ -54,7 +58,7 @@
         <!-- Status Badge (Game Ready / Setup Required) -->
         <div
           id="gameStatusBadge"
-          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded text-[11px] font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
+          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg text-[11px] font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
         >
           <span
             class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
@@ -70,7 +74,7 @@
           rel="noopener noreferrer"
           title="Buy Me a Coffee"
           aria-label="Buy Me a Coffee"
-          class="h-6 inline-flex items-center justify-center px-2 rounded bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 transition-all select-none cursor-pointer focus:outline-none"
+          class="h-6 inline-flex items-center justify-center px-2 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 transition-all select-none cursor-pointer focus:outline-none"
         >
           <svg
             class="w-3.5 h-3.5 shrink-0"
@@ -93,7 +97,7 @@
             id="btnWindowMinimize"
             type="button"
             title="Minimize"
-            class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <svg
               class="w-3.5 h-3.5"
@@ -112,7 +116,7 @@
             id="btnWindowMaximize"
             type="button"
             title="Maximize"
-            class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
           >
             <svg
               id="iconMaximize"
@@ -143,7 +147,7 @@
             id="btnWindowClose"
             type="button"
             title="Close"
-            class="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
+            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
           >
             <svg
               class="w-3.5 h-3.5"
@@ -166,7 +170,7 @@
     >
       <button
         id="tabBtnGraphics"
-        class="px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2"
+        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2"
       >
         <svg
           class="w-3.5 h-3.5 shrink-0"
@@ -182,7 +186,7 @@
       </button>
       <button
         id="tabBtnControls"
-        class="px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
+        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
       >
         <svg
           class="w-3.5 h-3.5 shrink-0"
@@ -198,7 +202,7 @@
       </button>
       <button
         id="tabBtnFixes"
-        class="px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
+        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
       >
         <svg
           class="w-3.5 h-3.5 shrink-0"
@@ -214,7 +218,7 @@
       </button>
       <button
         id="tabBtnBuild"
-        class="px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
+        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
       >
         <svg
           class="w-3.5 h-3.5 shrink-0"
@@ -243,7 +247,7 @@
         <!-- Missing Game Data Warning Banner -->
         <div
           id="setupWarningBanner"
-          class="hidden p-3 rounded-lg border border-amber-700/60 bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
+          class="hidden p-3 rounded-xl bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
         >
           <div class="flex items-center gap-2.5">
             <svg
@@ -263,7 +267,7 @@
           </div>
           <button
             id="btnGoToSetup"
-            class="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold whitespace-nowrap text-xs transition-colors flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold whitespace-nowrap text-xs transition-colors flex items-center gap-1.5"
           >
             <span>Setup Game</span>
             <svg
@@ -282,7 +286,7 @@
         <div class="grid grid-cols-2 gap-4 items-start">
           <!-- Column 1: Display & Resolution -->
           <section
-            class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-3"
+            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
           >
             <div
               class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -314,7 +318,7 @@
                 >
                 <select
                   id="windowSize"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="1280x720" selected>
                     1280x720 (720p - Native)
@@ -331,7 +335,7 @@
                 >
                 <select
                   id="fullscreen"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="false" selected>Windowed</option>
                   <option value="true">Fullscreen</option>
@@ -346,7 +350,7 @@
                 >
                 <select
                   id="renderScale"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="1" selected>1x - 720p (Native)</option>
                   <option value="2">2x - 1440p</option>
@@ -360,7 +364,7 @@
                 >
                 <select
                   id="frameRateMode"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="30" selected>30 FPS (Native)</option>
                   <option value="60">60 FPS (Patched)</option>
@@ -378,7 +382,7 @@
                 >
                 <select
                   id="renderingPath"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="Vulkan" selected>Vulkan (Recommended)</option>
                   <option value="Default">D3D12</option>
@@ -395,7 +399,7 @@
                 >
                 <select
                   id="upscaler"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="bilinear" selected>Bilinear (Native)</option>
                   <option value="fsr">FSR 1.0</option>
@@ -411,7 +415,7 @@
                 >
                 <select
                   id="postEffect"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="none">Off (Native)</option>
                   <option value="fxaa">FXAA 3.11 Default</option>
@@ -435,7 +439,7 @@
               <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
               <div
                 id="deDitherStrengthContainer"
-                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-all duration-150"
+                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
               >
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
@@ -447,7 +451,7 @@
                     </label>
                     <span
                       id="deDitherDisabledBadge"
-                      class="hidden text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono"
+                      class="hidden text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 font-mono"
                       >Requires De-Dither</span
                     >
                   </div>
@@ -475,7 +479,7 @@
               <!-- Upscaler Sharpening Controls -->
               <div
                 id="upscalerSharpeningContainer"
-                class="hidden p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-all duration-150"
+                class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
               >
                 <!-- CAS Additional Sharpness -->
                 <div id="casSharpnessBlock" class="hidden space-y-1">
@@ -542,7 +546,7 @@
 
           <!-- Column 2: Camera & Visual Effects -->
           <section
-            class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-3"
+            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
           >
             <div
               class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -571,7 +575,7 @@
             <div class="space-y-2.5">
               <!-- Camera FOV Slider -->
               <div
-                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1"
+                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
               >
                 <div class="flex items-center justify-between">
                   <label
@@ -580,7 +584,7 @@
                   >
                     FOV
                     <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                       >Experimental</span
                     >
                   </label>
@@ -610,7 +614,7 @@
 
               <!-- Draw Distance Slider -->
               <div
-                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1"
+                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
               >
                 <div class="flex items-center justify-between">
                   <label
@@ -655,7 +659,7 @@
                   <input
                     type="checkbox"
                     id="depthOfField"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
                   <span
                     class="text-[11px] text-slate-300 truncate"
@@ -671,7 +675,7 @@
                     type="checkbox"
                     id="pauseDistortion"
                     checked
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
                   <span
                     class="text-[11px] text-slate-300 truncate"
@@ -683,7 +687,7 @@
 
               <!-- Glare & Specular Bloom Slider -->
               <div
-                class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1"
+                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
               >
                 <div class="flex items-center justify-between">
                   <label
@@ -729,7 +733,7 @@
                     type="checkbox"
                     id="vsync"
                     checked
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
                   <span
                     class="text-[11px] text-slate-300 truncate"
@@ -744,7 +748,7 @@
                   <input
                     type="checkbox"
                     id="presentDither"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
                   <span
                     class="text-[11px] text-slate-300 truncate"
@@ -760,7 +764,7 @@
                   <input
                     type="checkbox"
                     id="windowFps"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
                   />
                   <span
                     class="text-[11px] text-slate-300 truncate"
@@ -781,7 +785,7 @@
         <div class="grid grid-cols-2 gap-4 items-start">
           <!-- Left Column: Input & Controls -->
           <section
-            class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-3"
+            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
           >
             <div
               class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -813,7 +817,7 @@
                 >
                 <select
                   id="inputMode"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="Controller">Gamepad / Controller</option>
                   <option value="KeyboardMouse">Keyboard &amp; Mouse</option>
@@ -822,7 +826,7 @@
 
               <div
                 id="mouseSensitivityContainer"
-                class="hidden p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1 transition-all duration-150"
+                class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
               >
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-1.5">
@@ -832,7 +836,7 @@
                       >Mouse Sensitivity</label
                     >
                     <span
-                      class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                       >Experimental</span
                     >
                   </div>
@@ -861,7 +865,7 @@
 
           <!-- Right Column: Gameplay & Preferences -->
           <section
-            class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-3"
+            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
           >
             <div
               class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -891,7 +895,7 @@
                 >
                 <select
                   id="language"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="English">English (US)</option>
                   <option value="Spanish">Spanish (Español)</option>
@@ -910,7 +914,7 @@
                 >
                 <select
                   id="cutsceneSpeed"
-                  class="w-full bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent"
+                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
                 >
                   <option value="1">1x (Normal Speed)</option>
                   <option value="2">2x Speed</option>
@@ -926,7 +930,7 @@
                   <input
                     type="checkbox"
                     id="skipCutscenes"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
                   />
                   <label
                     for="skipCutscenes"
@@ -936,7 +940,7 @@
                   >
                 </div>
                 <span
-                  class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                   >Experimental</span
                 >
               </div>
@@ -946,7 +950,7 @@
                   <input
                     type="checkbox"
                     id="skipIntroLogos"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
                   />
                   <label
                     for="skipIntroLogos"
@@ -955,7 +959,7 @@
                   >
                 </div>
                 <span
-                  class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                   >Experimental</span
                 >
               </div>
@@ -970,7 +974,7 @@
       <div id="tabFixes" class="hidden space-y-3.5">
         <!-- Collision & Movement Fixes -->
         <section
-          class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-2.5"
+          class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
         >
           <h2
             class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
@@ -990,7 +994,7 @@
 
           <!-- Step Fix Toggle -->
           <div
-            class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1.5"
+            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
           >
             <div class="flex items-center justify-between">
               <label
@@ -1000,12 +1004,12 @@
                 <input
                   type="checkbox"
                   id="stepFix"
-                  class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
                 />
                 <span>High FPS Edge Climbing (Step Fix)</span>
               </label>
               <span
-                class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                 >Experimental</span
               >
             </div>
@@ -1021,7 +1025,7 @@
 
           <!-- Frame-Time Smoothing -->
           <div
-            class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1.5"
+            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
           >
             <div class="flex items-center justify-between">
               <label
@@ -1032,7 +1036,7 @@
                   type="checkbox"
                   id="dtSmoothing"
                   checked
-                  class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
                 />
                 <span>Engine Delta-Time Smoothing (dt_smooth)</span>
               </label>
@@ -1046,7 +1050,7 @@
 
         <!-- Animation Timing Fixes -->
         <section
-          class="bg-darkCard border border-darkBorder rounded-lg p-3.5 space-y-2.5"
+          class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
         >
           <h2
             class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
@@ -1066,7 +1070,7 @@
 
           <!-- Sub-Motion Speed Fix -->
           <div
-            class="p-2.5 rounded bg-darkControl/60 border border-darkBorder/60 space-y-1.5"
+            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
           >
             <div class="flex items-center justify-between">
               <label
@@ -1076,12 +1080,12 @@
                 <input
                   type="checkbox"
                   id="animSpeedFix"
-                  class="rounded border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
                 />
                 <span>Sub-Motion Animation Normalization</span>
               </label>
               <span
-                class="text-[9px] px-1.5 py-0.5 rounded bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
                 >Experimental</span
               >
             </div>
@@ -1106,9 +1110,11 @@
           <div class="space-y-3">
             <!-- Game Data Folder (PLACED ABOVE ISO OPTIONS) -->
             <section
-              class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2"
+              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
             >
-              <div class="flex items-center justify-between">
+              <div
+                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+              >
                 <h2
                   class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
                 >
@@ -1138,12 +1144,12 @@
                   type="text"
                   id="gameDataRoot"
                   value="game-data"
-                  class="flex-1 bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent font-mono truncate"
+                  class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
                 />
                 <button
                   id="btnBrowseGameData"
                   type="button"
-                  class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-darkBorder text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
                 >
                   <svg
                     class="w-3.5 h-3.5 shrink-0"
@@ -1162,9 +1168,11 @@
 
             <!-- Step 1: ISO Selection Card -->
             <section
-              class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2.5"
+              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
             >
-              <div class="flex items-center justify-between">
+              <div
+                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+              >
                 <h2
                   class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
                 >
@@ -1188,13 +1196,13 @@
                   type="text"
                   id="txtIsoPath"
                   placeholder="Select .iso file..."
-                  class="flex-1 bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-accent font-mono truncate"
+                  class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
                   readonly
                 />
                 <button
                   id="btnBrowseIso"
                   type="button"
-                  class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 border border-darkBorder text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
                 >
                   <svg
                     class="w-3.5 h-3.5 shrink-0"
@@ -1212,13 +1220,13 @@
 
               <div
                 data-dev-only
-                class="pt-1 flex items-center justify-between border-t border-darkBorder/50"
+                class="pt-1 flex items-center justify-between border-t border-darkBorder/40"
               >
                 <div class="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="chkCompileBinary"
-                    class="rounded bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
                   />
                   <label for="chkCompileBinary" class="text-xs text-slate-300">
                     Recompile binary from C++ source (<span
@@ -1228,7 +1236,7 @@
                   </label>
                 </div>
                 <span
-                  class="text-[9px] px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/60 font-mono"
+                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/60 font-mono"
                   >Dev Tool</span
                 >
               </div>
@@ -1238,7 +1246,7 @@
             <button
               id="btnStartBuild"
               type="button"
-              class="w-full py-2.5 px-4 rounded bg-[#6da712] hover:bg-[#7cb818] disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all"
+              class="w-full py-2.5 px-4 rounded-xl bg-[#6da712] hover:bg-[#7cb818] disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-md"
             >
               <svg
                 class="w-3.5 h-3.5 shrink-0"
@@ -1260,7 +1268,7 @@
                   id="btnPrecompile"
                   type="button"
                   title="Precompile all Vulkan pipeline shaders to eliminate in-game stuttering"
-                  class="flex-1 py-2.5 px-3 rounded-lg bg-darkControl hover:bg-slate-700 text-slate-100 border border-darkBorder hover:border-slate-500 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                  class="flex-1 py-2.5 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-100 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
                 >
                   <span
                     id="precompileStatusIcon"
@@ -1273,7 +1281,7 @@
                   id="btnCleanShaders"
                   type="button"
                   title="Purge compiled Vulkan driver cache (.vkpc) to allow a clean re-compilation"
-                  class="py-2.5 px-3.5 rounded-lg bg-darkControl hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-darkBorder hover:border-rose-700/60 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                  class="py-2.5 px-3.5 rounded-xl bg-darkControl hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
                 >
                   <svg
                     class="w-3.5 h-3.5 text-rose-400 shrink-0"
@@ -1316,9 +1324,9 @@
               <div
                 data-dev-only
                 id="devShaderCacheCard"
-                class="p-2.5 rounded-lg border border-amber-800/50 bg-amber-950/20 text-xs space-y-2"
+                class="p-2.5 rounded-xl bg-amber-950/20 text-xs space-y-2 shadow-sm"
               >
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between border-b border-amber-800/30 pb-1.5">
                   <div class="flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span
@@ -1326,7 +1334,7 @@
                       >Shader Cache Monitor</span
                     >
                     <span
-                      class="text-[9px] px-1 py-0.2 rounded bg-amber-900/60 text-amber-300 font-mono"
+                      class="text-[9px] px-1 py-0.2 rounded-md bg-amber-900/60 text-amber-300 font-mono"
                       >Dev Only</span
                     >
                   </div>
@@ -1341,7 +1349,7 @@
                 </div>
 
                 <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
-                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                  <div class="bg-black/40 p-2 rounded-lg">
                     <span
                       class="text-slate-400 block text-[9px] uppercase tracking-wider"
                       >Total Cache Size</span
@@ -1352,7 +1360,7 @@
                       >--</span
                     >
                   </div>
-                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                  <div class="bg-black/40 p-2 rounded-lg">
                     <span
                       class="text-slate-400 block text-[9px] uppercase tracking-wider"
                       >Target Pipelines</span
@@ -1363,7 +1371,7 @@
                       >--</span
                     >
                   </div>
-                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                  <div class="bg-black/40 p-2 rounded-lg">
                     <span
                       class="text-slate-400 block text-[9px] uppercase tracking-wider"
                       >Driver Cache (.vkpc)</span
@@ -1372,7 +1380,7 @@
                       >--</span
                     >
                   </div>
-                  <div class="bg-black/40 p-2 rounded border border-darkBorder">
+                  <div class="bg-black/40 p-2 rounded-lg">
                     <span
                       class="text-slate-400 block text-[9px] uppercase tracking-wider"
                       >Shaders Store (.xsh)</span
@@ -1399,9 +1407,11 @@
           <div class="space-y-3">
             <!-- Status Overview Card -->
             <section
-              class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2"
+              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
             >
-              <div class="flex items-center justify-between">
+              <div
+                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+              >
                 <h2
                   class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
                 >
@@ -1421,7 +1431,7 @@
 
               <div class="grid grid-cols-3 gap-2 text-xs">
                 <div
-                  class="bg-darkControl/60 border border-darkBorder/60 p-2 rounded"
+                  class="bg-darkControl/60 p-2 rounded-lg"
                 >
                   <span
                     class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
@@ -1434,7 +1444,7 @@
                   >
                 </div>
                 <div
-                  class="bg-darkControl/60 border border-darkBorder/60 p-2 rounded"
+                  class="bg-darkControl/60 p-2 rounded-lg"
                 >
                   <span
                     class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
@@ -1447,7 +1457,7 @@
                   >
                 </div>
                 <div
-                  class="bg-darkControl/60 border border-darkBorder/60 p-2 rounded"
+                  class="bg-darkControl/60 p-2 rounded-lg"
                 >
                   <span
                     class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
@@ -1465,9 +1475,11 @@
             <!-- Real-Time Build Output & Console Terminal -->
             <section
               id="buildProgressSection"
-              class="bg-darkCard border border-darkBorder rounded-lg p-3 space-y-2.5 flex flex-col h-[390px]"
+              class="bg-darkCard rounded-xl p-3.5 space-y-3 flex flex-col h-[390px] shadow-sm"
             >
-              <div class="flex items-center justify-between">
+              <div
+                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+              >
                 <div class="flex items-center gap-2">
                   <svg
                     id="buildSpinner"
@@ -1495,7 +1507,7 @@
 
               <!-- Progress Bar -->
               <div
-                class="w-full bg-darkControl h-2 rounded-full overflow-hidden border border-darkBorder"
+                class="w-full bg-darkControl h-2 rounded-md overflow-hidden"
               >
                 <div
                   id="buildProgressBar"
@@ -1549,7 +1561,7 @@
                 </div>
                 <div
                   id="buildConsole"
-                  class="flex-1 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded border border-darkBorder/80 overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
+                  class="flex-1 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
                 >
                   <div class="text-slate-500">
                     [Launcher Ready] Select an ISO to start extraction and
@@ -1565,12 +1577,13 @@
 
     <!-- Footer Controls (Centered Launch Button) -->
     <footer
-      class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0"
+      id="appFooter"
+      class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
     >
       <button
         id="btnLaunch"
         type="button"
-        class="w-full max-w-sm py-2.5 px-8 rounded-lg bg-[#6da712] hover:bg-[#7cb818] text-white text-xs font-bold tracking-wider flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
+        class="w-full max-w-sm py-2.5 px-8 rounded-xl bg-[#6da712] hover:bg-[#7cb818] text-white text-xs font-bold tracking-wider flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none shadow-lg"
       >
         <svg
           class="w-3.5 h-3.5 shrink-0"
@@ -1593,7 +1606,7 @@
       class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
     >
       <div
-        class="bg-darkCard border border-darkBorder rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl animate-fade-in"
+        class="bg-darkCard rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl animate-fade-in"
       >
         <div
           class="flex items-center justify-between pb-3 border-b border-darkBorder"
@@ -1664,7 +1677,7 @@
             >
           </div>
           <div
-            class="w-full bg-darkControl h-2.5 rounded-full overflow-hidden border border-darkBorder"
+            class="w-full bg-darkControl h-2.5 rounded-md overflow-hidden"
           >
             <div
               id="precompileProgressBar"
@@ -1690,7 +1703,7 @@
           </div>
           <div
             id="precompileConsole"
-            class="bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded border border-darkBorder/80 h-36 overflow-y-auto space-y-0.5 leading-relaxed select-text cursor-text"
+            class="bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl h-36 overflow-y-auto space-y-0.5 leading-relaxed select-text cursor-text"
           >
             <div class="text-slate-500">
               [Precompiler Ready] Initializing Vulkan pipelines...
@@ -1703,7 +1716,7 @@
           <button
             id="btnPrecompileDone"
             type="button"
-            class="px-5 py-1.5 rounded text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+            class="px-5 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:pointer-events-none"
           >
             Close
           </button>
@@ -1717,7 +1730,7 @@
       class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
     >
       <div
-        class="bg-darkCard border border-darkBorder rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fade-in"
+        class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fade-in"
       >
         <div
           class="flex items-center justify-between pb-3 border-b border-darkBorder"
@@ -1767,7 +1780,7 @@
           </p>
           <div
             id="updateModalNotesContainer"
-            class="hidden bg-darkBg/90 border border-darkBorder rounded p-3 text-[11px] font-mono text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap"
+            class="hidden bg-darkBg/90 rounded-xl p-3 text-[11px] font-mono text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap"
           ></div>
         </div>
 
@@ -1782,7 +1795,7 @@
             >
           </div>
           <div
-            class="w-full bg-darkControl h-2 rounded-full overflow-hidden border border-darkBorder"
+            class="w-full bg-darkControl h-2 rounded-md overflow-hidden"
           >
             <div
               id="updateProgressBar"
@@ -1797,14 +1810,14 @@
           <button
             id="btnUpdateLater"
             type="button"
-            class="px-3.5 py-1.5 rounded text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl border border-darkBorder transition-all cursor-pointer"
+            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
           >
             Later
           </button>
           <button
             id="btnUpdateNow"
             type="button"
-            class="px-4 py-1.5 rounded text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
             <svg
               class="w-3.5 h-3.5 text-white"
@@ -1820,6 +1833,7 @@
           </button>
         </div>
       </div>
+    </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>

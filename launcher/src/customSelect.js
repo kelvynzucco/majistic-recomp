@@ -5,9 +5,9 @@
 // and `change` events keep working for the rest of the code.
 
 const BTN_CLASS =
-  "w-full flex items-center justify-between gap-2 bg-darkControl border border-darkBorder rounded px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none focus:border-accent cursor-pointer";
+  "w-full flex items-center justify-between gap-2 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none cursor-pointer transition-colors hover:bg-slate-800/80";
 const LIST_CLASS =
-  "fixed z-[9999] overflow-y-auto bg-darkCard border border-darkBorder rounded shadow-lg py-1 text-xs select-none";
+  "fixed z-[9999] overflow-y-auto bg-darkCard rounded-xl shadow-2xl py-1 text-xs select-none";
 
 let openInstance = null;
 
@@ -70,7 +70,7 @@ function enhance(select) {
       const item = document.createElement("div");
       const active = i === select.selectedIndex;
       item.className =
-        "px-2.5 py-1.5 cursor-pointer hover:bg-darkControl " +
+        "px-2.5 py-1.5 cursor-pointer hover:bg-darkControl rounded-lg mx-1 my-0.5 transition-colors " +
         (active ? "text-accent font-semibold" : "text-slate-200");
       item.textContent = o.textContent;
       item.addEventListener("mousedown", (e) => {

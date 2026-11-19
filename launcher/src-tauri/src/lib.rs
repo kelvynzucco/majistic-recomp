@@ -1383,6 +1383,45 @@ pub fn run() {
                 if let Some(main_window) = app.get_webview_window("main") {
                     write_debug_log("Main WebviewWindow found. Initializing telemetry and listeners...");
 
+                    if let Ok(hwnd) = main_window.hwnd() {
+                        unsafe {
+                            use windows_sys::Win32::Graphics::Dwm::{
+                                DwmSetWindowAttribute,
+                                DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND,
+                                DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE,
+                                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                            };
+
+                            // 1. Tell DWM not to draw any native rounded system corners
+                            let do_not_round = DWMWCP_DONOTROUND;
+                            let _ = DwmSetWindowAttribute(
+                                hwnd.0 as _,
+                                DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+                                &do_not_round as *const _ as *const _,
+                                std::mem::size_of_val(&do_not_round) as u32,
+                            );
+
+                            // 2. Remove the Windows 11 1px native outer system border entirely
+                            let border_none = DWMWA_COLOR_NONE;
+                            let res_border = DwmSetWindowAttribute(
+                                hwnd.0 as _,
+                                DWMWA_BORDER_COLOR as u32,
+                                &border_none as *const _ as *const _,
+                                std::mem::size_of_val(&border_none) as u32,
+                            );
+                            write_debug_log(&format!("DwmSetWindowAttribute BORDER_COLOR (NONE) result: 0x{:X}", res_border));
+
+                            // 3. Enable immersive dark mode
+                            let dark_mode: i32 = 1;
+                            let _ = DwmSetWindowAttribute(
+                                hwnd.0 as _,
+                                DWMWA_USE_IMMERSIVE_DARK_MODE as u32,
+                                &dark_mode as *const _ as *const _,
+                                std::mem::size_of_val(&dark_mode) as u32,
+                            );
+                        }
+                    }
+
                     // Watchdog thread: checks window state periodically (dev-mode only)
                     if is_dev_or_debug() {
                         let window_for_watchdog = main_window.clone();
@@ -1412,6 +1451,10 @@ pub fn run() {
 
                             let controller = webview.controller();
                             let environment = webview.environment();
+
+                            if let Ok(c2) = controller.cast::<ICoreWebView2Controller2>() {
+                                let _ = c2.SetDefaultBackgroundColor(COREWEBVIEW2_COLOR { A: 0, R: 0, G: 0, B: 0 });
+                            }
 
                             let mut ver = windows_core::PWSTR::null();
                             if environment.BrowserVersionString(&mut ver).is_ok() && !ver.is_null() {

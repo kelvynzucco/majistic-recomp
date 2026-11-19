@@ -290,9 +290,9 @@ const elements = {
 // ==========================================
 function switchTab(tab) {
   const activeClass =
-    "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
+    "px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
   const inactiveClass =
-    "px-5 py-2 text-xs font-semibold rounded-t-lg border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
+    "px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
 
   const target = tab === "settings" ? "graphics" : tab;
 
@@ -520,7 +520,7 @@ async function updateGameStatus() {
       // Update Header Badge
       if (status.isReady) {
         elements.gameStatusBadge.className =
-          "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border bg-[#6da712]/15 text-[#a3cc54] border-[#6da712]/40";
+          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-[#6da712]/15 text-[#a3cc54] border-[#6da712]/40";
         elements.gameStatusBadge.innerHTML = `
           <span class="w-2 h-2 rounded-full bg-[#6da712]"></span>
           <span>Game Ready</span>
@@ -533,7 +533,7 @@ async function updateGameStatus() {
         elements.btnLaunchText.textContent = "LAUNCH GAME";
       } else {
         elements.gameStatusBadge.className =
-          "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80";
+          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80";
         elements.gameStatusBadge.innerHTML = `
           <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           <span>Setup Required</span>
@@ -1000,13 +1000,21 @@ elements.btnLaunch.addEventListener("click", async () => {
 async function updateMaximizeIcon() {
   try {
     const isMax = await invoke("is_window_maximized");
+    const appContainer = document.getElementById("appContainer");
+    const appFooter = document.getElementById("appFooter");
     if (elements.iconMaximize && elements.iconRestore) {
       if (isMax) {
         elements.iconMaximize.classList.add("hidden");
         elements.iconRestore.classList.remove("hidden");
+        appContainer?.classList.remove("rounded-xl", "border");
+        appHeader?.classList.remove("rounded-t-xl");
+        appFooter?.classList.remove("rounded-b-xl");
       } else {
         elements.iconMaximize.classList.remove("hidden");
         elements.iconRestore.classList.add("hidden");
+        appContainer?.classList.add("rounded-xl", "border");
+        appHeader?.classList.add("rounded-t-xl");
+        appFooter?.classList.add("rounded-b-xl");
       }
     }
   } catch {
@@ -1195,7 +1203,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = true;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-darkControl/50 text-slate-400 border border-darkBorder text-[11px] font-medium select-none cursor-wait focus:outline-none";
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/50 text-slate-400 text-[11px] font-medium select-none cursor-wait focus:outline-none";
   } else if (state === "up-to-date") {
     btnText.textContent = text || "Up to Date";
     if (btnIcon) {
@@ -1203,7 +1211,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
   } else if (state === "available") {
     btnText.textContent = text || "Update Available";
     if (btnIcon) {
@@ -1211,14 +1219,14 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-accent/20 hover:bg-accent/30 text-accent hover:text-white border border-accent/50 text-[11px] font-semibold transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent hover:text-white border border-accent/50 text-[11px] font-semibold transition-all select-none cursor-pointer focus:outline-none";
   } else if (state === "error") {
     btnText.textContent = text || "Check Failed";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-rose-950/40 text-rose-400 border border-rose-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-rose-950/40 text-rose-400 border border-rose-800/60 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
   } else {
     // default
     btnText.textContent = "Check for Updates";
@@ -1227,7 +1235,7 @@ function setUpdateBtnState(state, text) {
       btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
     }
     btn.disabled = false;
-    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white border border-darkBorder hover:border-slate-500 text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
+    btn.className = "h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none";
   }
 }
 
@@ -1407,7 +1415,7 @@ async function init() {
     if (versionBadge && !document.getElementById("devModeBadge")) {
       const devBadge = document.createElement("span");
       devBadge.id = "devModeBadge";
-      devBadge.className = "text-[9px] px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono font-bold";
+      devBadge.className = "text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono font-bold";
       devBadge.textContent = "DEV";
       versionBadge.parentElement.appendChild(devBadge);
     }

@@ -298,7 +298,7 @@
                     >
                     <select
                       id="windowSize"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="1280x720" selected>
                         1280x720 (720p - Native)
@@ -315,7 +315,7 @@
                     >
                     <select
                       id="fullscreen"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="false" selected>Windowed</option>
                       <option value="true">Fullscreen</option>
@@ -330,7 +330,7 @@
                     >
                     <select
                       id="renderScale"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="1" selected>1x - 720p (Native)</option>
                       <option value="2">2x - 1440p</option>
@@ -344,7 +344,7 @@
                     >
                     <select
                       id="frameRateMode"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="30" selected>30 FPS (Native)</option>
                       <option value="60">60 FPS (Patched)</option>
@@ -362,7 +362,7 @@
                     >
                     <select
                       id="renderingPath"
-                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="Vulkan" selected>
                         Vulkan (Recommended)
@@ -383,7 +383,7 @@
                     >
                     <select
                       id="upscaler"
-                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="bilinear" selected>
                         Bilinear (Native)
@@ -401,7 +401,7 @@
                     >
                     <select
                       id="postEffect"
-                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="none">Off (Native)</option>
                       <option value="fxaa">FXAA 3.11 Default</option>
@@ -780,7 +780,7 @@
                     >
                     <select
                       id="inputMode"
-                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                     >
                       <option value="Controller">Gamepad / Controller</option>
                       <option value="KeyboardMouse">
@@ -1001,7 +1001,7 @@
                       >
                       <select
                         id="language"
-                        class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                        class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                       >
                         <option value="English">English (US)</option>
                         <option value="Spanish">Spanish (Español)</option>
@@ -1022,7 +1022,7 @@
                       >
                       <select
                         id="cutsceneSpeed"
-                        class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                        class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
                       >
                         <option value="1">1x (Normal Speed)</option>
                         <option value="2">2x Speed</option>
@@ -1105,12 +1105,12 @@
                       type="text"
                       id="gameDataRoot"
                       value="game-data"
-                      class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
+                      class="flex-1 h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none font-mono truncate"
                     />
                     <button
                       id="btnBrowseGameData"
                       type="button"
-                      class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                      class="h-[34px] px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
                     >
                       <svg
                         class="w-3.5 h-3.5 shrink-0"
@@ -1152,13 +1152,13 @@
                       type="text"
                       id="txtIsoPath"
                       placeholder="Select .iso file..."
-                      class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
+                      class="flex-1 h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none font-mono truncate"
                       readonly
                     />
                     <button
                       id="btnBrowseIso"
                       type="button"
-                      class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                      class="h-[34px] px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
                     >
                       <svg
                         class="w-3.5 h-3.5 shrink-0"
@@ -1420,7 +1420,7 @@
                 <!-- Real-Time Build Output & Console Terminal -->
                 <section
                   id="buildProgressSection"
-                  class="bg-darkCard rounded-xl p-3.5 space-y-3 flex flex-col h-[390px] shadow-sm"
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm transition-all duration-200"
                 >
                   <div
                     class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
@@ -1458,8 +1458,33 @@
                     ></div>
                   </div>
 
-                  <!-- Console Terminal Output -->
-                  <div class="flex-1 flex flex-col min-h-0 space-y-1">
+                  <!-- Toggle Button to Expand/Collapse Log -->
+                  <div class="flex items-center justify-between pt-0.5">
+                    <button
+                      id="btnToggleLog"
+                      type="button"
+                      class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors focus:outline-none cursor-pointer py-1 select-none"
+                    >
+                      <svg
+                        id="toggleLogIcon"
+                        class="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path
+                          fill="currentColor"
+                          fill-rule="evenodd"
+                          d="M12 15.5a1 1 0 0 1-.707-.293l-5-5a1 1 0 1 1 1.414-1.414L12 13.086l4.293-4.293a1 1 0 0 1 1.414 1.414l-5 5A1 1 0 0 1 12 15.5Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      <span id="toggleLogText">Show Terminal Log</span>
+                    </button>
+                  </div>
+
+                  <!-- Collapsible Console Terminal Output -->
+                  <div id="terminalLogContainer" class="hidden flex flex-col space-y-2 pt-2 border-t border-darkBorder/40">
                     <div
                       class="flex items-center justify-between text-[11px] text-slate-400"
                     >
@@ -1500,7 +1525,7 @@
                     </div>
                     <div
                       id="buildConsole"
-                      class="flex-1 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
+                      class="h-64 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
                     >
                       <div class="text-slate-500">
                         [Launcher Ready] Select an ISO to start extraction and

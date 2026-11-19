@@ -5,7 +5,7 @@
 // and `change` events keep working for the rest of the code.
 
 const BTN_CLASS =
-  "w-full flex items-center justify-between gap-2 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none cursor-pointer transition-colors duration-150 hover:bg-slate-800/80";
+  "w-full h-[34px] flex items-center justify-between gap-2 bg-darkControl rounded-lg px-3 text-xs text-slate-200 text-left focus:outline-none cursor-pointer transition-colors duration-150 hover:bg-slate-800/80";
 const LIST_CLASS =
   "fixed z-[9999] overflow-y-auto bg-darkCard/95 backdrop-blur-md rounded-xl shadow-2xl py-1 text-xs select-none";
 

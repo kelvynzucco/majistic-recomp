@@ -245,6 +245,10 @@ const elements = {
   buildPercentText: document.getElementById("buildPercentText"),
   buildProgressBar: document.getElementById("buildProgressBar"),
   buildConsole: document.getElementById("buildConsole"),
+  btnToggleLog: document.getElementById("btnToggleLog"),
+  toggleLogText: document.getElementById("toggleLogText"),
+  toggleLogIcon: document.getElementById("toggleLogIcon"),
+  terminalLogContainer: document.getElementById("terminalLogContainer"),
   btnCopyLog: document.getElementById("btnCopyLog"),
   btnCopyLogText: document.getElementById("btnCopyLogText"),
   btnClearLog: document.getElementById("btnClearLog"),
@@ -691,9 +695,30 @@ async function updateGameStatus() {
 // ==========================================
 // Build / Extraction Logic
 // ==========================================
+function setTerminalLogOpen(open) {
+  if (!elements.terminalLogContainer) return;
+  if (open) {
+    elements.terminalLogContainer.classList.remove("hidden");
+    if (elements.toggleLogText) elements.toggleLogText.textContent = "Hide Terminal Log";
+    if (elements.toggleLogIcon) elements.toggleLogIcon.classList.add("rotate-180");
+  } else {
+    elements.terminalLogContainer.classList.add("hidden");
+    if (elements.toggleLogText) elements.toggleLogText.textContent = "Show Terminal Log";
+    if (elements.toggleLogIcon) elements.toggleLogIcon.classList.remove("rotate-180");
+  }
+}
+
+if (elements.btnToggleLog) {
+  elements.btnToggleLog.addEventListener("click", () => {
+    const isHidden = elements.terminalLogContainer?.classList.contains("hidden");
+    setTerminalLogOpen(isHidden);
+  });
+}
+
 function appendConsoleLog(line) {
+  const isErr = line.startsWith("ERROR") || line.startsWith("[stderr]");
   const lineDiv = document.createElement("div");
-  lineDiv.className = line.startsWith("ERROR") || line.startsWith("[stderr]")
+  lineDiv.className = isErr
     ? "text-rose-400 font-semibold"
     : line.startsWith("===")
     ? "text-sky-300 font-bold border-t border-slate-800 pt-1 mt-1"
@@ -701,6 +726,10 @@ function appendConsoleLog(line) {
   lineDiv.textContent = line;
   elements.buildConsole.appendChild(lineDiv);
   elements.buildConsole.scrollTop = elements.buildConsole.scrollHeight;
+
+  if (isErr) {
+    setTerminalLogOpen(true);
+  }
 }
 
 elements.btnClearLog.addEventListener("click", () => {
@@ -792,7 +821,9 @@ elements.btnStartBuild.addEventListener("click", async () => {
   elements.buildProgressBar.style.width = "5%";
   elements.buildPercentText.textContent = "5%";
   elements.buildStageText.textContent = "Starting pipeline...";
+  elements.buildStageText.className = "text-xs font-semibold text-white";
   elements.buildSpinner.classList.remove("hidden");
+  setTerminalLogOpen(false);
 
   appendConsoleLog(`[Setup] Target ISO: ${isoPath}`);
   appendConsoleLog(`[Setup] Compile Native Executable: ${compileBinary ? "YES" : "NO"}`);
@@ -808,6 +839,7 @@ elements.btnStartBuild.addEventListener("click", async () => {
     elements.btnStartBuild.classList.remove("opacity-50");
     elements.btnBrowseIso.disabled = false;
     elements.buildSpinner.classList.add("hidden");
+    setTerminalLogOpen(true);
   }
 });
 
@@ -844,6 +876,7 @@ listen("build-error", async (event) => {
   elements.btnStartBuild.classList.remove("opacity-50");
   elements.btnBrowseIso.disabled = false;
 
+  setTerminalLogOpen(true);
   await updateGameStatus();
 });
 

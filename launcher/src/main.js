@@ -290,9 +290,9 @@ const elements = {
 // ==========================================
 function switchTab(tab) {
   const activeClass =
-    "px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2";
+    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold bg-[#6da712]/20 text-[#b5de63] transition-all cursor-pointer shadow-sm text-left";
   const inactiveClass =
-    "px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2";
+    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all cursor-pointer text-left";
 
   const target = tab === "settings" ? "graphics" : tab;
 

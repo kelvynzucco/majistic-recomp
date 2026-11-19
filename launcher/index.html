@@ -15,261 +15,67 @@
       class="flex-1 flex flex-col bg-darkBg text-slate-100 select-none overflow-hidden rounded-xl border border-darkBorder/80"
     >
       <!-- Custom Application Top Bar / Titlebar -->
-    <header
-      id="appHeader"
-      class="h-16 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default rounded-t-xl"
-    >
-      <!-- Left: Logo, Version & Update Button (Draggable) -->
-      <div class="flex items-center gap-3 select-none">
-        <img
-          src="/logo.png"
-          alt="Majistic Recomp"
-          class="h-12 w-auto object-contain pointer-events-none select-none"
-        />
-        <span
-          id="appVersionBadge"
-          class="h-6 inline-flex items-center px-2 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
-          >v0.1.3</span
-        >
-
-        <button
-          id="btnCheckUpdates"
-          type="button"
-          title="Check for updates"
-          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none"
-        >
-          <svg
-            id="updateBtnIcon"
-            class="w-3 h-3 text-slate-400 shrink-0"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 256 256"
-            fill="currentColor"
-          >
-            <path
-              d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
-            />
-          </svg>
-          <span id="btnCheckUpdatesText">Check for Updates</span>
-        </button>
-      </div>
-
-      <!-- Right: Status Badge, Donation & Window Controls -->
-      <div class="flex items-center gap-3">
-        <!-- Status Badge (Game Ready / Setup Required) -->
-        <div
-          id="gameStatusBadge"
-          class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg text-[11px] font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
-        >
+      <header
+        id="appHeader"
+        class="h-16 px-4 border-b border-darkBorder flex items-center justify-between bg-darkCard/80 backdrop-blur-sm shrink-0 select-none cursor-default rounded-t-xl"
+      >
+        <!-- Left: Logo, Version & Update Button (Draggable) -->
+        <div class="flex items-center gap-3 select-none">
+          <img
+            src="/logo.png"
+            alt="Majistic Recomp"
+            class="h-12 w-auto object-contain pointer-events-none select-none"
+          />
           <span
-            class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
-          ></span>
-          <span id="gameStatusBadgeText">Checking Status...</span>
-        </div>
-
-        <!-- Buy Me a Coffee Button (Right of Game Ready Status) -->
-        <a
-          id="btnBuyMeCoffee"
-          href="https://buymeacoffee.com/majistic"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Buy Me a Coffee"
-          aria-label="Buy Me a Coffee"
-          class="h-6 inline-flex items-center justify-center px-2 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 transition-all select-none cursor-pointer focus:outline-none"
-        >
-          <svg
-            class="w-3.5 h-3.5 shrink-0"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 256 256"
-            fill="currentColor"
+            id="appVersionBadge"
+            class="h-6 inline-flex items-center px-2 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 font-mono text-[11px] font-semibold select-none"
+            >v0.1.3</span
           >
-            <path
-              d="M208,80H32a8,8,0,0,0-8,8v48a96.3,96.3,0,0,0,32.54,72H32a8,8,0,0,0,0,16H208a8,8,0,0,0,0-16H183.46a96.59,96.59,0,0,0,27-40.09A40,40,0,0,0,248,128v-8A40,40,0,0,0,208,80Zm24,48a24,24,0,0,1-17.2,23,95.78,95.78,0,0,0,1.2-15V97.38A24,24,0,0,1,232,120ZM112,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Zm32,0V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0ZM80,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Z"
-            />
-          </svg>
-        </a>
 
-        <!-- Window Control Buttons (Min, Max, Close) -->
-        <div
-          class="flex items-center space-x-0.5 pl-2 border-l border-darkBorder/60"
-        >
-          <!-- Minimize -->
           <button
-            id="btnWindowMinimize"
+            id="btnCheckUpdates"
             type="button"
-            title="Minimize"
-            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Check for updates"
+            class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-[11px] font-medium transition-all select-none cursor-pointer focus:outline-none"
           >
             <svg
-              class="w-3.5 h-3.5"
+              id="updateBtnIcon"
+              class="w-3 h-3 text-slate-400 shrink-0"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 256 256"
               fill="currentColor"
             >
               <path
-                d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"
+                d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
               />
             </svg>
-          </button>
-
-          <!-- Maximize / Restore -->
-          <button
-            id="btnWindowMaximize"
-            type="button"
-            title="Maximize"
-            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <svg
-              id="iconMaximize"
-              class="w-3.5 h-3.5"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"
-              />
-            </svg>
-            <svg
-              id="iconRestore"
-              class="w-3.5 h-3.5 hidden"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M152,96V48a8,8,0,0,1,16,0V88h40a8,8,0,0,1,0,16H160A8,8,0,0,1,152,96ZM96,152H48a8,8,0,0,0,0,16H88v40a8,8,0,0,0,16,0V160A8,8,0,0,0,96,152Zm112,0H160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168h40a8,8,0,0,0,0-16ZM96,40a8,8,0,0,0-8,8V88H48a8,8,0,0,0,0,16H96a8,8,0,0,0,8-8V48A8,8,0,0,0,96,40Z"
-              />
-            </svg>
-          </button>
-
-          <!-- Close -->
-          <button
-            id="btnWindowClose"
-            type="button"
-            title="Close"
-            class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
-          >
-            <svg
-              class="w-3.5 h-3.5"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              />
-            </svg>
+            <span id="btnCheckUpdatesText">Check for Updates</span>
           </button>
         </div>
-      </div>
-    </header>
 
-    <!-- Navigation Tabs -->
-    <nav
-      class="flex border-b border-darkBorder bg-darkCard/30 shrink-0 px-6 gap-2 pt-2"
-    >
-      <button
-        id="tabBtnGraphics"
-        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-accent text-accent bg-darkCard transition-all flex items-center gap-2"
-      >
-        <svg
-          class="w-3.5 h-3.5 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 256 256"
-          fill="currentColor"
-        >
-          <path
-            d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"
-          />
-        </svg>
-        <span>Graphics</span>
-      </button>
-      <button
-        id="tabBtnControls"
-        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
-      >
-        <svg
-          class="w-3.5 h-3.5 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 256 256"
-          fill="currentColor"
-        >
-          <path
-            d="M176,112H152a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM104,96H96V88a8,8,0,0,0-16,0v8H72a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM241.48,200.65a36,36,0,0,1-54.94,4.81c-.12-.12-.24-.24-.35-.37L146.48,160h-37L69.81,205.09l-.35.37A36.08,36.08,0,0,1,44,216,36,36,0,0,1,8.56,173.75a.68.68,0,0,1,0-.14L24.93,89.52A59.88,59.88,0,0,1,83.89,40H172a60.08,60.08,0,0,1,59,49.25c0,.06,0,.12,0,.18l16.37,84.17a.68.68,0,0,1,0,.14A35.74,35.74,0,0,1,241.48,200.65ZM172,144a44,44,0,0,0,0-88H83.89A43.9,43.9,0,0,0,40.68,92.37l0,.13L24.3,176.59A20,20,0,0,0,58,194.3l41.92-47.59a8,8,0,0,1,6-2.71Zm59.7,32.59-8.74-45A60,60,0,0,1,172,160h-4.2L198,194.31a20.09,20.09,0,0,0,17.46,5.39,20,20,0,0,0,16.23-23.11Z"
-          />
-        </svg>
-        <span>Controls</span>
-      </button>
-      <button
-        id="tabBtnFixes"
-        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
-      >
-        <svg
-          class="w-3.5 h-3.5 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 256 256"
-          fill="currentColor"
-        >
-          <path
-            d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"
-          />
-        </svg>
-        <span>Fixes & Patches</span>
-      </button>
-      <button
-        id="tabBtnBuild"
-        class="px-5 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-darkCard/50 transition-all flex items-center gap-2"
-      >
-        <svg
-          class="w-3.5 h-3.5 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 256 256"
-          fill="currentColor"
-        >
-          <path
-            d="M226.76,69a8,8,0,0,0-12.84-2.88l-40.3,37.19-17.23-3.7-3.7-17.23,37.19-40.3A8,8,0,0,0,187,29.24,72,72,0,0,0,88,96,72.34,72.34,0,0,0,94,124.94L33.79,177c-.15.12-.29.26-.43.39a32,32,0,0,0,45.26,45.26c.13-.13.27-.28.39-.42L131.06,162A72,72,0,0,0,232,96,71.56,71.56,0,0,0,226.76,69ZM160,152a56.14,56.14,0,0,1-27.07-7,8,8,0,0,0-9.92,1.77L67.11,211.51a16,16,0,0,1-22.62-22.62L109.18,133a8,8,0,0,0,1.77-9.93,56,56,0,0,1,58.36-82.31l-31.2,33.81a8,8,0,0,0-1.94,7.1L141.83,108a8,8,0,0,0,6.14,6.14l26.35,5.66a8,8,0,0,0,7.1-1.94l33.81-31.2A56.06,56.06,0,0,1,160,152Z"
-          />
-        </svg>
-        <span>Setup Game</span>
-        <span
-          id="tabBuildIndicator"
-          class="hidden w-2 h-2 rounded-full bg-amber-400"
-        ></span>
-      </button>
-    </nav>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 overflow-y-auto p-4">
-      <!-- ========================================== -->
-      <!-- TAB 1: GRAPHICS                            -->
-      <!-- ========================================== -->
-      <div id="tabGraphics" class="space-y-3.5">
-        <!-- Missing Game Data Warning Banner -->
-        <div
-          id="setupWarningBanner"
-          class="hidden p-3 rounded-xl bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
-        >
-          <div class="flex items-center gap-2.5">
-            <svg
-              class="w-4 h-4 text-amber-400 shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"
-              />
-            </svg>
+        <!-- Right: Status Badge, Donation & Window Controls -->
+        <div class="flex items-center gap-3">
+          <!-- Status Badge (Game Ready / Setup Required) -->
+          <div
+            id="gameStatusBadge"
+            class="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-lg text-[11px] font-medium border bg-amber-950/60 text-amber-300 border-amber-800/80 select-none"
+          >
             <span
-              >Game assets or executable are missing. Extract your legally owned
-              game disc to play!</span
-            >
+              class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"
+            ></span>
+            <span id="gameStatusBadgeText">Checking Status...</span>
           </div>
-          <button
-            id="btnGoToSetup"
-            class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold whitespace-nowrap text-xs transition-colors flex items-center gap-1.5"
+
+          <!-- Buy Me a Coffee Button (Right of Game Ready Status) -->
+          <a
+            id="btnBuyMeCoffee"
+            href="https://buymeacoffee.com/majistic"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Buy Me a Coffee"
+            aria-label="Buy Me a Coffee"
+            class="h-6 inline-flex items-center justify-center px-2 rounded-lg bg-amber-950/50 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 border border-amber-800/60 hover:border-amber-600 transition-all select-none cursor-pointer focus:outline-none"
           >
-            <span>Setup Game</span>
             <svg
               class="w-3.5 h-3.5 shrink-0"
               xmlns="http://www.w3.org/2000/svg"
@@ -277,1276 +83,1206 @@
               fill="currentColor"
             >
               <path
-                d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"
+                d="M208,80H32a8,8,0,0,0-8,8v48a96.3,96.3,0,0,0,32.54,72H32a8,8,0,0,0,0,16H208a8,8,0,0,0,0-16H183.46a96.59,96.59,0,0,0,27-40.09A40,40,0,0,0,248,128v-8A40,40,0,0,0,208,80Zm24,48a24,24,0,0,1-17.2,23,95.78,95.78,0,0,0,1.2-15V97.38A24,24,0,0,1,232,120ZM112,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Zm32,0V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0ZM80,56V24a8,8,0,0,1,16,0V56a8,8,0,0,1-16,0Z"
               />
             </svg>
-          </button>
-        </div>
+          </a>
 
-        <div class="grid grid-cols-2 gap-4 items-start">
-          <!-- Column 1: Display & Resolution -->
-          <section
-            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-            >
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-              >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"
-                  />
-                </svg>
-                <span>Display &amp; Resolution</span>
-              </h2>
-              <span class="text-[10px] text-slate-400 font-mono"
-                >D3D12 / VULKAN</span
-              >
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Window Size</label
-                >
-                <select
-                  id="windowSize"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="1280x720" selected>
-                    1280x720 (720p - Native)
-                  </option>
-                  <option value="1920x1080">1920x1080 (1080p)</option>
-                  <option value="2560x1440">2560x1440 (1440p)</option>
-                  <option value="3840x2160">3840x2160 (4K)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Display Mode</label
-                >
-                <select
-                  id="fullscreen"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="false" selected>Windowed</option>
-                  <option value="true">Fullscreen</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Internal Render Scale</label
-                >
-                <select
-                  id="renderScale"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="1" selected>1x - 720p (Native)</option>
-                  <option value="2">2x - 1440p</option>
-                  <option value="3">3x - 4K</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Frame Rate Limit</label
-                >
-                <select
-                  id="frameRateMode"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="30" selected>30 FPS (Native)</option>
-                  <option value="60">60 FPS (Patched)</option>
-                  <option value="Uncapped" data-dev-only>
-                    Uncapped (Experimental)
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Render Path</label
-                >
-                <select
-                  id="renderingPath"
-                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="Vulkan" selected>Vulkan (Recommended)</option>
-                  <option value="Default">D3D12</option>
-                  <option value="ROV" data-dev-only>
-                    D3D12 (ROV Interlock)
-                  </option>
-                  <option value="RTV" data-dev-only>D3D12 (RTV Direct)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Upscaler</label
-                >
-                <select
-                  id="upscaler"
-                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="bilinear" selected>Bilinear (Native)</option>
-                  <option value="fsr">FSR 1.0</option>
-                  <option value="cas">
-                    Contrast Adaptive Sharpening (CAS)
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Anti-Aliasing &amp; De-Dither</label
-                >
-                <select
-                  id="postEffect"
-                  class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="none">Off (Native)</option>
-                  <option value="fxaa">FXAA 3.11 Default</option>
-                  <option value="fxaa_extreme">FXAA 3.11 Quality</option>
-                  <option value="dedither" data-dev-only>De-Dither</option>
-                  <option value="dedither_fxaa" selected>
-                    De-Dither + FXAA Fast (Recommended)
-                  </option>
-                  <option value="dedither_fxaa_extreme">
-                    De-Dither + FXAA High
-                  </option>
-                  <option value="dedither_debug" data-dev-only>
-                    De-Dither Debug Heatmap
-                  </option>
-                </select>
-              </div>
-            </div>
-
-            <!-- De-Dither & Upscaler Sharpening Sliders -->
-            <div id="postProcessingSlidersRow" class="space-y-2.5">
-              <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
-              <div
-                id="deDitherStrengthContainer"
-                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
-              >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <label
-                      for="deDitherStrength"
-                      class="text-xs font-semibold text-slate-300"
-                    >
-                      De-Dither Intensity
-                    </label>
-                    <span
-                      id="deDitherDisabledBadge"
-                      class="hidden text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 font-mono"
-                      >Requires De-Dither</span
-                    >
-                  </div>
-                  <span
-                    id="deDitherStrengthVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >0.85</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="deDitherStrength"
-                  min="0.00"
-                  max="1.00"
-                  step="0.05"
-                  value="0.85"
-                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  Controls foliage cross-blend strength (0.00 = off, 1.00 = max
-                  smoothing).
-                </p>
-              </div>
-
-              <!-- Upscaler Sharpening Controls -->
-              <div
-                id="upscalerSharpeningContainer"
-                class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
-              >
-                <!-- CAS Additional Sharpness -->
-                <div id="casSharpnessBlock" class="hidden space-y-1">
-                  <div class="flex items-center justify-between">
-                    <label
-                      for="casSharpness"
-                      class="text-xs font-semibold text-slate-300"
-                    >
-                      CAS Sharp
-                    </label>
-                    <span
-                      id="casSharpnessVal"
-                      class="text-xs font-mono text-accent font-semibold"
-                      >0.00</span
-                    >
-                  </div>
-                  <input
-                    type="range"
-                    id="casSharpness"
-                    min="0.00"
-                    max="1.00"
-                    step="0.05"
-                    value="0.00"
-                    class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                  />
-                  <p class="text-[10px] text-slate-400 leading-tight">
-                    Contrast Adaptive Sharpening intensity (0.00 = default, 1.00
-                    = max).
-                  </p>
-                </div>
-
-                <!-- FSR RCAS Sharpness Reduction -->
-                <div id="fsrReductionBlock" class="hidden space-y-1">
-                  <div class="flex items-center justify-between">
-                    <label
-                      for="fsrReduction"
-                      class="text-xs font-semibold text-slate-300"
-                    >
-                      FSR RCAS Sharp
-                    </label>
-                    <span
-                      id="fsrReductionVal"
-                      class="text-xs font-mono text-accent font-semibold"
-                      >0.00 stops</span
-                    >
-                  </div>
-                  <input
-                    type="range"
-                    id="fsrReduction"
-                    min="0.00"
-                    max="2.00"
-                    step="0.05"
-                    value="0.00"
-                    class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                  />
-                  <p class="text-[10px] text-slate-400 leading-tight">
-                    0.00 = max sharpness; higher values reduce RCAS sharpening
-                    strength.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <!-- Column 2: Camera & Visual Effects -->
-          <section
-            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-            >
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-              >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.44l13.62,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"
-                  />
-                </svg>
-                <span>Camera &amp; Visual Effects</span>
-              </h2>
-              <span class="text-[10px] text-slate-400 font-mono"
-                >SHADERS &amp; POST</span
-              >
-            </div>
-
-            <!-- Camera FOV & Draw Distance Sliders (Standardized with In-Game) -->
-            <div class="space-y-2.5">
-              <!-- Camera FOV Slider -->
-              <div
-                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
-              >
-                <div class="flex items-center justify-between">
-                  <label
-                    for="fovScale"
-                    class="text-xs font-semibold text-slate-300"
-                  >
-                    FOV
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                      >Experimental</span
-                    >
-                  </label>
-                  <span
-                    id="fovScaleVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >1.00x</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="fovScale"
-                  min="0.80"
-                  max="1.50"
-                  step="0.05"
-                  value="1.00"
-                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  <strong class="text-amber-300"
-                    >A wider FOV may cause parts of the environment to remain
-                    unrendered or appear missing</strong
-                  >
-                  (default: 1.00x).
-                </p>
-              </div>
-
-              <!-- Draw Distance Slider -->
-              <div
-                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
-              >
-                <div class="flex items-center justify-between">
-                  <label
-                    for="drawDistanceScale"
-                    class="text-xs font-semibold text-slate-300"
-                  >
-                    Draw Distance &amp; LOD Multiplier
-                  </label>
-                  <span
-                    id="drawDistanceScaleVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >3.00x</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="drawDistanceScale"
-                  min="0.50"
-                  max="3.00"
-                  step="0.05"
-                  value="3.00"
-                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  Scales far clip planes and object draw distance (default:
-                  1.00x).
-                </p>
-              </div>
-            </div>
-
-            <!-- In-Engine Shaders & Effects (DoF, Pause Distortion, Glare & Bloom) -->
-            <div class="space-y-2 pt-1 border-t border-darkBorder/40">
-              <span
-                class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400"
-                >In-Engine Shaders &amp; Effects</span
-              >
-              <div class="grid grid-cols-2 gap-3">
-                <label
-                  for="depthOfField"
-                  class="flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="depthOfField"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span
-                    class="text-[11px] text-slate-300 truncate"
-                    title="Cinematic background distance blur"
-                    >Depth of Field (Native)</span
-                  >
-                </label>
-                <label
-                  for="pauseDistortion"
-                  class="flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="pauseDistortion"
-                    checked
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span
-                    class="text-[11px] text-slate-300 truncate"
-                    title="Pause &amp; Map screen background effect"
-                    >Pause Background</span
-                  >
-                </label>
-              </div>
-
-              <!-- Glare & Specular Bloom Slider -->
-              <div
-                class="p-2.5 rounded-lg bg-darkControl/60 space-y-1"
-              >
-                <div class="flex items-center justify-between">
-                  <label
-                    for="bloomIntensity"
-                    class="text-xs font-semibold text-slate-300"
-                  >
-                    Glare &amp; Specular Bloom
-                  </label>
-                  <span
-                    id="bloomIntensityVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >1.00</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="bloomIntensity"
-                  min="0.00"
-                  max="2.00"
-                  step="0.05"
-                  value="1.00"
-                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  Controls glare and specular light intensity (0.00 = disabled,
-                  1.00 = default, 2.00 = 2x glow).
-                </p>
-              </div>
-            </div>
-
-            <!-- Display & Swapchain (VSync, Output Dithering, Live Window FPS) -->
-            <div class="space-y-1.5 pt-1 border-t border-darkBorder/40">
-              <span
-                class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400"
-                >Display</span
-              >
-              <div class="grid grid-cols-3 gap-2">
-                <label
-                  for="vsync"
-                  class="flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="vsync"
-                    checked
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span
-                    class="text-[11px] text-slate-300 truncate"
-                    title="Enable Vertical Synchronization (VSync)"
-                    >VSync</span
-                  >
-                </label>
-                <label
-                  for="presentDither"
-                  class="flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="presentDither"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span
-                    class="text-[11px] text-slate-300 truncate"
-                    title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise."
-                    >Output Dithering</span
-                  >
-                </label>
-                <label
-                  for="windowFps"
-                  class="flex items-center space-x-1.5 cursor-pointer"
-                  data-dev-only
-                >
-                  <input
-                    type="checkbox"
-                    id="windowFps"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                  />
-                  <span
-                    class="text-[11px] text-slate-300 truncate"
-                    title="Show Live Guest FPS in Window Title (majin_window_fps)"
-                    >Window Title FPS</span
-                  >
-                </label>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <!-- ========================================== -->
-      <!-- TAB 2: CONTROLS                            -->
-      <!-- ========================================== -->
-      <div id="tabControls" class="hidden space-y-3.5">
-        <div class="grid grid-cols-2 gap-4 items-start">
-          <!-- Left Column: Input & Controls -->
-          <section
-            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-            >
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-              >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M176,112H152a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM104,96H96V88a8,8,0,0,0-16,0v8H72a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM241.48,200.65a36,36,0,0,1-54.94,4.81c-.12-.12-.24-.24-.35-.37L146.48,160h-37L69.81,205.09l-.35.37A36.08,36.08,0,0,1,44,216,36,36,0,0,1,8.56,173.75a.68.68,0,0,1,0-.14L24.93,89.52A59.88,59.88,0,0,1,83.89,40H172a60.08,60.08,0,0,1,59,49.25c0,.06,0,.12,0,.18l16.37,84.17a.68.68,0,0,1,0,.14A35.74,35.74,0,0,1,241.48,200.65ZM172,144a44,44,0,0,0,0-88H83.89A43.9,43.9,0,0,0,40.68,92.37l0,.13L24.3,176.59A20,20,0,0,0,58,194.3l41.92-47.59a8,8,0,0,1,6-2.71Zm59.7,32.59-8.74-45A60,60,0,0,1,172,160h-4.2L198,194.31a20.09,20.09,0,0,0,17.46,5.39,20,20,0,0,0,16.23-23.11Z"
-                  />
-                </svg>
-                <span>Input &amp; Controller</span>
-              </h2>
-              <span class="text-[10px] text-slate-400 font-mono"
-                >XINPUT / KBM</span
-              >
-            </div>
-
-            <div class="space-y-3">
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Input Device</label
-                >
-                <select
-                  id="inputMode"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="Controller">Gamepad / Controller</option>
-                  <option value="KeyboardMouse">Keyboard &amp; Mouse</option>
-                </select>
-              </div>
-
-              <div
-                id="mouseSensitivityContainer"
-                class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
-              >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-1.5">
-                    <label
-                      for="mouseSensitivity"
-                      class="text-xs font-semibold text-slate-300"
-                      >Mouse Sensitivity</label
-                    >
-                    <span
-                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                      >Experimental</span
-                    >
-                  </div>
-                  <span
-                    id="mouseSensitivityVal"
-                    class="text-xs font-mono text-accent font-semibold"
-                    >1.0x</span
-                  >
-                </div>
-                <input
-                  type="range"
-                  id="mouseSensitivity"
-                  min="0.1"
-                  max="10.0"
-                  step="0.1"
-                  value="1.0"
-                  class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
-                />
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  Camera look sensitivity when playing with Keyboard &amp;
-                  Mouse.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Right Column: Gameplay & Preferences -->
-          <section
-            class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-            >
-              <h2
-                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-              >
-                <svg
-                  class="w-3.5 h-3.5 text-accent shrink-0"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 256 256"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a40,40,0,0,1-40,40,8,8,0,0,1,0-16,24,24,0,0,0,24-24,8,8,0,0,1,16,0Z"
-                  />
-                </svg>
-                <span>Game Preferences</span>
-              </h2>
-              <span class="text-[10px] text-slate-400 font-mono">GAMEPLAY</span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Game Language</label
-                >
-                <select
-                  id="language"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="English">English (US)</option>
-                  <option value="Spanish">Spanish (Español)</option>
-                  <option value="French">French (Français)</option>
-                  <option value="German">German (Deutsch)</option>
-                  <option value="Italian">Italian (Italiano)</option>
-                  <option value="Korean">Korean (한국어)</option>
-                  <option value="Japanese">Japanese (日本語)</option>
-                  <option value="Portuguese">Portuguese (Português)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-xs text-slate-300 mb-1"
-                  >Cutscene Speed</label
-                >
-                <select
-                  id="cutsceneSpeed"
-                  class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-                >
-                  <option value="1">1x (Normal Speed)</option>
-                  <option value="2">2x Speed</option>
-                  <option value="4">4x Fast-Forward</option>
-                  <option value="8">8x Hyper Speed</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="space-y-2 pt-2 border-t border-darkBorder/40">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="skipCutscenes"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                  />
-                  <label
-                    for="skipCutscenes"
-                    class="text-xs text-slate-300 cursor-pointer"
-                    title="Hold [Select/Back] or [Tab] to speed through cutscenes"
-                    >Allow Fast-Forwarding In-Game Cutscenes</label
-                  >
-                </div>
-                <span
-                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                  >Experimental</span
-                >
-              </div>
-
-              <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="skipIntroLogos"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                  />
-                  <label
-                    for="skipIntroLogos"
-                    class="text-xs text-slate-300 cursor-pointer"
-                    >Skip Intro Logos</label
-                  >
-                </div>
-                <span
-                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                  >Experimental</span
-                >
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-
-      <!-- ========================================== -->
-      <!-- TAB 3: FIXES & PATCHES                     -->
-      <!-- ========================================== -->
-      <div id="tabFixes" class="hidden space-y-3.5">
-        <!-- Collision & Movement Fixes -->
-        <section
-          class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
-        >
-          <h2
-            class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-          >
-            <svg
-              class="w-3.5 h-3.5 text-accent shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
-              />
-            </svg>
-            <span>Physics &amp; Movement</span>
-          </h2>
-
-          <!-- Step Fix Toggle -->
+          <!-- Window Control Buttons (Min, Max, Close) -->
           <div
-            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
+            class="flex items-center space-x-0.5 pl-2 border-l border-darkBorder/60"
           >
-            <div class="flex items-center justify-between">
-              <label
-                for="stepFix"
-                class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
-              >
-                <input
-                  type="checkbox"
-                  id="stepFix"
-                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                />
-                <span>High FPS Edge Climbing (Step Fix)</span>
-              </label>
-              <span
-                class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                >Experimental</span
-              >
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-              Scales movement step when blocked on small edges for &gt;80 FPS.
-              <strong class="text-amber-300"
-                >Keep disabled if you feel your character being pushed away or
-                repelled when close to walls, enemies, or Majin at 30-60
-                FPS.</strong
-              >
-            </p>
-          </div>
-
-          <!-- Frame-Time Smoothing -->
-          <div
-            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
-          >
-            <div class="flex items-center justify-between">
-              <label
-                for="dtSmoothing"
-                class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
-              >
-                <input
-                  type="checkbox"
-                  id="dtSmoothing"
-                  checked
-                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                />
-                <span>Engine Delta-Time Smoothing (dt_smooth)</span>
-              </label>
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-              Replaces guest frame delta-time with a smoothed moving average.
-              Leave off for purest vanilla console physics pacing.
-            </p>
-          </div>
-        </section>
-
-        <!-- Animation Timing Fixes -->
-        <section
-          class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
-        >
-          <h2
-            class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-          >
-            <svg
-              class="w-3.5 h-3.5 text-accent shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"
-              />
-            </svg>
-            <span>Animation &amp; Timing</span>
-          </h2>
-
-          <!-- Sub-Motion Speed Fix -->
-          <div
-            class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5"
-          >
-            <div class="flex items-center justify-between">
-              <label
-                for="animSpeedFix"
-                class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
-              >
-                <input
-                  type="checkbox"
-                  id="animSpeedFix"
-                  class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
-                />
-                <span>Sub-Motion Animation Normalization</span>
-              </label>
-              <span
-                class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
-                >Experimental</span
-              >
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
-              Normalizes facial expressions and world object animations above 30
-              FPS.
-              <strong class="text-amber-300"
-                >Keep disabled if you experience interaction timing or dialogue
-                delay issues with Majin.</strong
-              >
-            </p>
-          </div>
-        </section>
-      </div>
-
-      <!-- ========================================== -->
-      <!-- TAB 4: SETUP GAME                          -->
-      <!-- ========================================== -->
-      <div id="tabBuild" class="hidden">
-        <div class="grid grid-cols-2 gap-4 items-start">
-          <!-- Left Column: Game Data Folder, Disc Selection, Build Action, Shader Precompilation -->
-          <div class="space-y-3">
-            <!-- Game Data Folder (PLACED ABOVE ISO OPTIONS) -->
-            <section
-              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-            >
-              <div
-                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-              >
-                <h2
-                  class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 text-accent shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"
-                    />
-                  </svg>
-                  <span>Game Data Folder</span>
-                </h2>
-                <span class="text-[10px] text-slate-400 font-mono"
-                  >ASSET DIR</span
-                >
-              </div>
-
-              <p class="text-[11px] text-slate-300 leading-normal">
-                Directory containing extracted game assets and default.xex.
-              </p>
-
-              <div class="flex items-center gap-2">
-                <input
-                  type="text"
-                  id="gameDataRoot"
-                  value="game-data"
-                  class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
-                />
-                <button
-                  id="btnBrowseGameData"
-                  type="button"
-                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z"
-                    />
-                  </svg>
-                  <span>Browse...</span>
-                </button>
-              </div>
-            </section>
-
-            <!-- Step 1: ISO Selection Card -->
-            <section
-              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-            >
-              <div
-                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-              >
-                <h2
-                  class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 text-accent shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm39.2,96a39.77,39.77,0,0,0-5.84-14l34.23-34.24a87.54,87.54,0,0,1,20,48.28ZM152,128a24,24,0,1,1-24-24A24,24,0,0,1,152,128Zm-24,88A88,88,0,1,1,184.28,60.4L150,94.64A40,40,0,1,0,167.2,136h48.43A88.11,88.11,0,0,1,128,216Z"
-                    />
-                  </svg>
-                  <span>Select Game Disc Image</span>
-                </h2>
-                <span class="text-[10px] text-slate-400 font-mono">.ISO</span>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <input
-                  type="text"
-                  id="txtIsoPath"
-                  placeholder="Select .iso file..."
-                  class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
-                  readonly
-                />
-                <button
-                  id="btnBrowseIso"
-                  type="button"
-                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm39.2,96a39.77,39.77,0,0,0-5.84-14l34.23-34.24a87.54,87.54,0,0,1,20,48.28ZM152,128a24,24,0,1,1-24-24A24,24,0,0,1,152,128Zm-24,88A88,88,0,1,1,184.28,60.4L150,94.64A40,40,0,1,0,167.2,136h48.43A88.11,88.11,0,0,1,128,216Z"
-                    />
-                  </svg>
-                  <span>Browse...</span>
-                </button>
-              </div>
-
-              <div
-                data-dev-only
-                class="pt-1 flex items-center justify-between border-t border-darkBorder/40"
-              >
-                <div class="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="chkCompileBinary"
-                    class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
-                  />
-                  <label for="chkCompileBinary" class="text-xs text-slate-300">
-                    Recompile binary from C++ source (<span
-                      class="text-amber-400 font-mono text-[10px]"
-                      >Dev only: requires Visual Studio 2022</span
-                    >)
-                  </label>
-                </div>
-                <span
-                  class="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/60 font-mono"
-                  >Dev Tool</span
-                >
-              </div>
-            </section>
-
-            <!-- Step 2: Build Action Button -->
+            <!-- Minimize -->
             <button
-              id="btnStartBuild"
+              id="btnWindowMinimize"
               type="button"
-              class="w-full py-2.5 px-4 rounded-xl bg-[#6da712] hover:bg-[#7cb818] disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-md"
+              title="Minimize"
+              class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
             >
               <svg
-                class="w-3.5 h-3.5 shrink-0"
+                class="w-3.5 h-3.5"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 256 256"
                 fill="currentColor"
               >
                 <path
-                  d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"
+                  d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"
                 />
               </svg>
-              <span>EXTRACT &amp; BUILD GAME FROM .ISO</span>
             </button>
 
-            <!-- Step 3: Vulkan Shader Precompilation (Dev Mode Only) -->
-            <div data-dev-only class="pt-1 space-y-2">
-              <div class="flex items-center gap-2">
-                <button
-                  id="btnPrecompile"
-                  type="button"
-                  title="Precompile all Vulkan pipeline shaders to eliminate in-game stuttering"
-                  class="flex-1 py-2.5 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-100 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
-                >
-                  <span
-                    id="precompileStatusIcon"
-                    class="flex items-center justify-center"
-                  ></span>
-                  <span id="btnPrecompileText">PRECOMPILE SHADERS</span>
-                </button>
-
-                <button
-                  id="btnCleanShaders"
-                  type="button"
-                  title="Purge compiled Vulkan driver cache (.vkpc) to allow a clean re-compilation"
-                  class="py-2.5 px-3.5 rounded-xl bg-darkControl hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
-                >
-                  <svg
-                    class="w-3.5 h-3.5 text-rose-400 shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"
-                    />
-                  </svg>
-                  <span>CLEAN</span>
-                </button>
-              </div>
-
-              <!-- Shader Precompilation WIP Notice -->
-              <p
-                class="text-[11px] text-slate-400 flex items-start gap-1.5 px-0.5 leading-snug"
+            <!-- Maximize / Restore -->
+            <button
+              id="btnWindowMaximize"
+              type="button"
+              title="Maximize"
+              class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <svg
+                id="iconMaximize"
+                class="w-3.5 h-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
               >
+                <path
+                  d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"
+                />
+              </svg>
+              <svg
+                id="iconRestore"
+                class="w-3.5 h-3.5 hidden"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M152,96V48a8,8,0,0,1,16,0V88h40a8,8,0,0,1,0,16H160A8,8,0,0,1,152,96ZM96,152H48a8,8,0,0,0,0,16H88v40a8,8,0,0,0,16,0V160A8,8,0,0,0,96,152Zm112,0H160a8,8,0,0,0-8,8v48a8,8,0,0,0,16,0V168h40a8,8,0,0,0,0-16ZM96,40a8,8,0,0,0-8,8V88H48a8,8,0,0,0,0,16H96a8,8,0,0,0,8-8V48A8,8,0,0,0,96,40Z"
+                />
+              </svg>
+            </button>
+
+            <!-- Close -->
+            <button
+              id="btnWindowClose"
+              type="button"
+              title="Close"
+              class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition-colors"
+            >
+              <svg
+                class="w-3.5 h-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Middle Workspace: Vertical Sidebar Navigation + Main Content Area -->
+      <div class="flex-1 flex min-h-0 overflow-hidden">
+        <!-- Vertical Sidebar Tabs -->
+        <aside
+          class="w-56 shrink-0 border-r border-darkBorder bg-darkCard/30 flex flex-col p-3 gap-2 select-none overflow-y-auto"
+        >
+          <button
+            id="tabBtnGraphics"
+            type="button"
+            class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold bg-[#6da712]/20 text-[#b5de63] transition-all cursor-pointer shadow-sm text-left"
+          >
+            <svg
+              class="w-4 h-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 256 256"
+              fill="currentColor"
+            >
+              <path
+                d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"
+              />
+            </svg>
+            <span>Graphics</span>
+          </button>
+          <button
+            id="tabBtnControls"
+            type="button"
+            class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all cursor-pointer text-left"
+          >
+            <svg
+              class="w-4 h-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 256 256"
+              fill="currentColor"
+            >
+              <path
+                d="M176,112H152a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM104,96H96V88a8,8,0,0,0-16,0v8H72a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM241.48,200.65a36,36,0,0,1-54.94,4.81c-.12-.12-.24-.24-.35-.37L146.48,160h-37L69.81,205.09l-.35.37A36.08,36.08,0,0,1,44,216,36,36,0,0,1,8.56,173.75a.68.68,0,0,1,0-.14L24.93,89.52A59.88,59.88,0,0,1,83.89,40H172a60.08,60.08,0,0,1,59,49.25c0,.06,0,.12,0,.18l16.37,84.17a.68.68,0,0,1,0,.14A35.74,35.74,0,0,1,241.48,200.65ZM172,144a44,44,0,0,0,0-88H83.89A43.9,43.9,0,0,0,40.68,92.37l0,.13L24.3,176.59A20,20,0,0,0,58,194.3l41.92-47.59a8,8,0,0,1,6-2.71Zm59.7,32.59-8.74-45A60,60,0,0,1,172,160h-4.2L198,194.31a20.09,20.09,0,0,0,17.46,5.39,20,20,0,0,0,16.23-23.11Z"
+              />
+            </svg>
+            <span>Controls</span>
+          </button>
+          <button
+            id="tabBtnFixes"
+            type="button"
+            class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all cursor-pointer text-left"
+          >
+            <svg
+              class="w-4 h-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 256 256"
+              fill="currentColor"
+            >
+              <path
+                d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"
+              />
+            </svg>
+            <span>Fixes &amp; Patches</span>
+          </button>
+          <button
+            id="tabBtnBuild"
+            type="button"
+            class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all cursor-pointer text-left"
+          >
+            <svg
+              class="w-4 h-4 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 256 256"
+              fill="currentColor"
+            >
+              <path
+                d="M226.76,69a8,8,0,0,0-12.84-2.88l-40.3,37.19-17.23-3.7-3.7-17.23,37.19-40.3A8,8,0,0,0,187,29.24,72,72,0,0,0,88,96,72.34,72.34,0,0,0,94,124.94L33.79,177c-.15.12-.29.26-.43.39a32,32,0,0,0,45.26,45.26c.13-.13.27-.28.39-.42L131.06,162A72,72,0,0,0,232,96,71.56,71.56,0,0,0,226.76,69ZM160,152a56.14,56.14,0,0,1-27.07-7,8,8,0,0,0-9.92,1.77L67.11,211.51a16,16,0,0,1-22.62-22.62L109.18,133a8,8,0,0,0,1.77-9.93,56,56,0,0,1,58.36-82.31l-31.2,33.81a8,8,0,0,0-1.94,7.1L141.83,108a8,8,0,0,0,6.14,6.14l26.35,5.66a8,8,0,0,0,7.1-1.94l33.81-31.2A56.06,56.06,0,0,1,160,152Z"
+              />
+            </svg>
+            <span class="flex-1">Setup Game</span>
+            <span
+              id="tabBuildIndicator"
+              class="hidden w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0"
+            ></span>
+          </button>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto p-4">
+          <!-- ========================================== -->
+          <!-- TAB 1: GRAPHICS                            -->
+          <!-- ========================================== -->
+          <div id="tabGraphics" class="space-y-3.5">
+            <!-- Missing Game Data Warning Banner -->
+            <div
+              id="setupWarningBanner"
+              class="hidden p-3 rounded-xl bg-amber-950/30 flex items-center justify-between gap-3 text-xs text-amber-200"
+            >
+              <div class="flex items-center gap-2.5">
                 <svg
-                  class="w-3.5 h-3.5 text-amber-400/90 shrink-0 mt-0.5"
+                  class="w-4 h-4 text-amber-400 shrink-0"
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 256 256"
                   fill="currentColor"
                 >
                   <path
-                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"
+                    d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"
                   />
                 </svg>
                 <span
-                  ><span class="text-amber-300 font-medium"
-                    >Work in progress:</span
-                  >
-                  Pipeline precompilation is still expanding. Not all in-game
-                  pipelines have been discovered yet.</span
+                  >Game assets or executable are missing. Extract your legally
+                  owned game disc to play!</span
                 >
-              </p>
-
-              <!-- Dev Only: Shader Cache Monitor Card -->
-              <div
-                data-dev-only
-                id="devShaderCacheCard"
-                class="p-2.5 rounded-xl bg-amber-950/20 text-xs space-y-2 shadow-sm"
-              >
-                <div class="flex items-center justify-between border-b border-amber-800/30 pb-1.5">
-                  <div class="flex items-center gap-1.5">
-                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <span
-                      class="font-bold text-amber-200 text-[11px] uppercase tracking-wider"
-                      >Shader Cache Monitor</span
-                    >
-                    <span
-                      class="text-[9px] px-1 py-0.2 rounded-md bg-amber-900/60 text-amber-300 font-mono"
-                      >Dev Only</span
-                    >
-                  </div>
-                  <button
-                    id="btnRefreshShaderCache"
-                    type="button"
-                    title="Refresh shader cache sizes"
-                    class="text-[10px] text-amber-400 hover:text-amber-200 underline cursor-pointer"
-                  >
-                    Refresh
-                  </button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
-                  <div class="bg-black/40 p-2 rounded-lg">
-                    <span
-                      class="text-slate-400 block text-[9px] uppercase tracking-wider"
-                      >Total Cache Size</span
-                    >
-                    <span
-                      id="devShaderTotalSize"
-                      class="font-bold text-amber-300 text-xs"
-                      >--</span
-                    >
-                  </div>
-                  <div class="bg-black/40 p-2 rounded-lg">
-                    <span
-                      class="text-slate-400 block text-[9px] uppercase tracking-wider"
-                      >Target Pipelines</span
-                    >
-                    <span
-                      id="devShaderPipelineCount"
-                      class="font-bold text-slate-200 text-xs flex items-baseline flex-wrap gap-1"
-                      >--</span
-                    >
-                  </div>
-                  <div class="bg-black/40 p-2 rounded-lg">
-                    <span
-                      class="text-slate-400 block text-[9px] uppercase tracking-wider"
-                      >Driver Cache (.vkpc)</span
-                    >
-                    <span id="devShaderVkpcSize" class="text-slate-300"
-                      >--</span
-                    >
-                  </div>
-                  <div class="bg-black/40 p-2 rounded-lg">
-                    <span
-                      class="text-slate-400 block text-[9px] uppercase tracking-wider"
-                      >Shaders Store (.xsh)</span
-                    >
-                    <span id="devShaderXshSize" class="text-slate-300">--</span>
-                  </div>
-                </div>
-
-                <div
-                  class="flex items-center justify-between text-[10px] text-slate-400 pt-0.5"
-                >
-                  <span>Last cache sync:</span>
-                  <span
-                    id="devShaderLastUpdated"
-                    class="font-mono text-slate-300"
-                    >--</span
-                  >
-                </div>
               </div>
+              <button
+                id="btnGoToSetup"
+                class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold whitespace-nowrap text-xs transition-colors flex items-center gap-1.5"
+              >
+                <span>Setup Game</span>
+                <svg
+                  class="w-3.5 h-3.5 shrink-0"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M221.66,133.66l-72,72a8,8,0,0,1-11.32-11.32L196.69,136H40a8,8,0,0,1,0-16H196.69L138.34,61.66a8,8,0,0,1,11.32-11.32l72,72A8,8,0,0,1,221.66,133.66Z"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <!-- Column 1: Display & Resolution -->
+              <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                >
+                  <h2
+                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H208a8,8,0,0,1,8,8Zm-48,48a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,224Z"
+                      />
+                    </svg>
+                    <span>Display &amp; Resolution</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >D3D12 / VULKAN</span
+                  >
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Window Size</label
+                    >
+                    <select
+                      id="windowSize"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="1280x720" selected>
+                        1280x720 (720p - Native)
+                      </option>
+                      <option value="1920x1080">1920x1080 (1080p)</option>
+                      <option value="2560x1440">2560x1440 (1440p)</option>
+                      <option value="3840x2160">3840x2160 (4K)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Display Mode</label
+                    >
+                    <select
+                      id="fullscreen"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="false" selected>Windowed</option>
+                      <option value="true">Fullscreen</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Internal Render Scale</label
+                    >
+                    <select
+                      id="renderScale"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="1" selected>1x - 720p (Native)</option>
+                      <option value="2">2x - 1440p</option>
+                      <option value="3">3x - 4K</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Frame Rate Limit</label
+                    >
+                    <select
+                      id="frameRateMode"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="30" selected>30 FPS (Native)</option>
+                      <option value="60">60 FPS (Patched)</option>
+                      <option value="Uncapped" data-dev-only>
+                        Uncapped (Experimental)
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Render Path</label
+                    >
+                    <select
+                      id="renderingPath"
+                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="Vulkan" selected>
+                        Vulkan (Recommended)
+                      </option>
+                      <option value="Default">D3D12</option>
+                      <option value="ROV" data-dev-only>
+                        D3D12 (ROV Interlock)
+                      </option>
+                      <option value="RTV" data-dev-only>
+                        D3D12 (RTV Direct)
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Upscaler</label
+                    >
+                    <select
+                      id="upscaler"
+                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="bilinear" selected>
+                        Bilinear (Native)
+                      </option>
+                      <option value="fsr">FSR 1.0</option>
+                      <option value="cas">
+                        Contrast Adaptive Sharpening (CAS)
+                      </option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Anti-Aliasing</label
+                    >
+                    <select
+                      id="postEffect"
+                      class="w-full bg-darkControl rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="none">Off (Native)</option>
+                      <option value="fxaa">FXAA 3.11 Default</option>
+                      <option value="fxaa_extreme">FXAA 3.11 Quality</option>
+                      <option value="dedither" data-dev-only>De-Dither</option>
+                      <option value="dedither_fxaa" selected>
+                        De-Dither + FXAA Fast (Recommended)
+                      </option>
+                      <option value="dedither_fxaa_extreme">
+                        De-Dither + FXAA High
+                      </option>
+                      <option value="dedither_debug" data-dev-only>
+                        De-Dither Debug Heatmap
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- De-Dither & Upscaler Sharpening Sliders -->
+                <div id="postProcessingSlidersRow" class="space-y-2.5">
+                  <!-- De-Dither Intensity Slider (Standardized with In-Game) -->
+                  <div
+                    id="deDitherStrengthContainer"
+                    class="p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <label
+                          for="deDitherStrength"
+                          class="text-xs font-semibold text-slate-300"
+                        >
+                          De-Dither Intensity
+                        </label>
+                        <span
+                          id="deDitherDisabledBadge"
+                          class="hidden text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 font-mono"
+                          >Requires De-Dither</span
+                        >
+                      </div>
+                      <span
+                        id="deDitherStrengthVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >0.85</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="deDitherStrength"
+                      min="0.00"
+                      max="1.00"
+                      step="0.05"
+                      value="0.85"
+                      class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Controls foliage cross-blend strength (0.00 = off, 1.00 =
+                      max smoothing).
+                    </p>
+                  </div>
+
+                  <!-- Upscaler Sharpening Controls -->
+                  <div
+                    id="upscalerSharpeningContainer"
+                    class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
+                  >
+                    <!-- CAS Additional Sharpness -->
+                    <div id="casSharpnessBlock" class="hidden space-y-1">
+                      <div class="flex items-center justify-between">
+                        <label
+                          for="casSharpness"
+                          class="text-xs font-semibold text-slate-300"
+                        >
+                          CAS Sharp
+                        </label>
+                        <span
+                          id="casSharpnessVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.00</span
+                        >
+                      </div>
+                      <input
+                        type="range"
+                        id="casSharpness"
+                        min="0.00"
+                        max="1.00"
+                        step="0.05"
+                        value="0.00"
+                        class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                      />
+                      <p class="text-[10px] text-slate-400 leading-tight">
+                        Contrast Adaptive Sharpening intensity (0.00 = default,
+                        1.00 = max).
+                      </p>
+                    </div>
+
+                    <!-- FSR RCAS Sharpness Reduction -->
+                    <div id="fsrReductionBlock" class="hidden space-y-1">
+                      <div class="flex items-center justify-between">
+                        <label
+                          for="fsrReduction"
+                          class="text-xs font-semibold text-slate-300"
+                        >
+                          FSR RCAS Sharp
+                        </label>
+                        <span
+                          id="fsrReductionVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.00 stops</span
+                        >
+                      </div>
+                      <input
+                        type="range"
+                        id="fsrReduction"
+                        min="0.00"
+                        max="2.00"
+                        step="0.05"
+                        value="0.00"
+                        class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                      />
+                      <p class="text-[10px] text-slate-400 leading-tight">
+                        0.00 = max sharpness; higher values reduce RCAS
+                        sharpening strength.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Column 2: Camera & Visual Effects -->
+              <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                >
+                  <h2
+                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.44l13.62,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"
+                      />
+                    </svg>
+                    <span>Camera &amp; Visual Effects</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >SHADERS &amp; POST</span
+                  >
+                </div>
+
+                <!-- Camera FOV & Draw Distance Sliders (Standardized with In-Game) -->
+                <div class="space-y-2.5">
+                  <!-- Camera FOV Slider -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="fovScale"
+                        class="text-xs font-semibold text-slate-300"
+                      >
+                        FOV
+                        <span
+                          class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                          >Experimental</span
+                        >
+                      </label>
+                      <span
+                        id="fovScaleVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >1.00x</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="fovScale"
+                      min="0.80"
+                      max="1.50"
+                      step="0.05"
+                      value="1.00"
+                      class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      <strong class="text-amber-300"
+                        >A wider FOV may cause parts of the environment to
+                        remain unrendered or appear missing</strong
+                      >
+                      (default: 1.00x).
+                    </p>
+                  </div>
+
+                  <!-- Draw Distance Slider -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="drawDistanceScale"
+                        class="text-xs font-semibold text-slate-300"
+                      >
+                        Draw Distance &amp; LOD Multiplier
+                      </label>
+                      <span
+                        id="drawDistanceScaleVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >3.00x</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="drawDistanceScale"
+                      min="0.50"
+                      max="3.00"
+                      step="0.05"
+                      value="3.00"
+                      class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Scales far clip planes and object draw distance (default:
+                      1.00x).
+                    </p>
+                  </div>
+                </div>
+
+                <!-- In-Engine Shaders & Effects (DoF, Pause Distortion, Glare & Bloom) -->
+                <div class="space-y-2 pt-1 border-t border-darkBorder/40">
+                  <span
+                    class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400"
+                    >In-Engine Shaders &amp; Effects</span
+                  >
+                  <div class="grid grid-cols-2 gap-3">
+                    <label
+                      for="depthOfField"
+                      class="flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        id="depthOfField"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                      />
+                      <span
+                        class="text-[11px] text-slate-300 truncate"
+                        title="Cinematic background distance blur"
+                        >Depth of Field (Native)</span
+                      >
+                    </label>
+                    <label
+                      for="pauseDistortion"
+                      class="flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        id="pauseDistortion"
+                        checked
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                      />
+                      <span
+                        class="text-[11px] text-slate-300 truncate"
+                        title="Pause &amp; Map screen background effect"
+                        >Pause Background</span
+                      >
+                    </label>
+                  </div>
+
+                  <!-- Glare & Specular Bloom Slider -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="bloomIntensity"
+                        class="text-xs font-semibold text-slate-300"
+                      >
+                        Glare &amp; Specular Bloom
+                      </label>
+                      <span
+                        id="bloomIntensityVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >1.00</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="bloomIntensity"
+                      min="0.00"
+                      max="2.00"
+                      step="0.05"
+                      value="1.00"
+                      class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Controls glare and specular light intensity (0.00 =
+                      disabled, 1.00 = default, 2.00 = 2x glow).
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Display & Swapchain (VSync, Output Dithering, Live Window FPS) -->
+                <div class="space-y-1.5 pt-1 border-t border-darkBorder/40">
+                  <span
+                    class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400"
+                    >Display</span
+                  >
+                  <div class="grid grid-cols-3 gap-2">
+                    <label
+                      for="vsync"
+                      class="flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        id="vsync"
+                        checked
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                      />
+                      <span
+                        class="text-[11px] text-slate-300 truncate"
+                        title="Enable Vertical Synchronization (VSync)"
+                        >VSync</span
+                      >
+                    </label>
+                    <label
+                      for="presentDither"
+                      class="flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        id="presentDither"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                      />
+                      <span
+                        class="text-[11px] text-slate-300 truncate"
+                        title="Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise."
+                        >Output Dithering</span
+                      >
+                    </label>
+                    <label
+                      for="windowFps"
+                      class="flex items-center space-x-1.5 cursor-pointer"
+                      data-dev-only
+                    >
+                      <input
+                        type="checkbox"
+                        id="windowFps"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
+                      />
+                      <span
+                        class="text-[11px] text-slate-300 truncate"
+                        title="Show Live Guest FPS in Window Title (majin_window_fps)"
+                        >Window Title FPS</span
+                      >
+                    </label>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
 
-          <!-- Right Column: Installation Status & Real-Time Build Output Console -->
-          <div class="space-y-3">
-            <!-- Status Overview Card -->
-            <section
-              class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
-            >
-              <div
-                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
-              >
-                <h2
-                  class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+          <!-- ========================================== -->
+          <!-- TAB 2: CONTROLS                            -->
+          <!-- ========================================== -->
+          <div id="tabControls" class="hidden space-y-3.5">
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <!-- Left Column: Input & Controls -->
+              <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
                 >
-                  <svg
-                    class="w-3.5 h-3.5 text-accent shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
+                  <h2
+                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
                   >
-                    <path
-                      d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z"
+                    <svg
+                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M176,112H152a8,8,0,0,1,0-16h24a8,8,0,0,1,0,16ZM104,96H96V88a8,8,0,0,0-16,0v8H72a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16ZM241.48,200.65a36,36,0,0,1-54.94,4.81c-.12-.12-.24-.24-.35-.37L146.48,160h-37L69.81,205.09l-.35.37A36.08,36.08,0,0,1,44,216,36,36,0,0,1,8.56,173.75a.68.68,0,0,1,0-.14L24.93,89.52A59.88,59.88,0,0,1,83.89,40H172a60.08,60.08,0,0,1,59,49.25c0,.06,0,.12,0,.18l16.37,84.17a.68.68,0,0,1,0,.14A35.74,35.74,0,0,1,241.48,200.65ZM172,144a44,44,0,0,0,0-88H83.89A43.9,43.9,0,0,0,40.68,92.37l0,.13L24.3,176.59A20,20,0,0,0,58,194.3l41.92-47.59a8,8,0,0,1,6-2.71Zm59.7,32.59-8.74-45A60,60,0,0,1,172,160h-4.2L198,194.31a20.09,20.09,0,0,0,17.46,5.39,20,20,0,0,0,16.23-23.11Z"
+                      />
+                    </svg>
+                    <span>Input &amp; Controller</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >XINPUT / KBM</span
+                  >
+                </div>
+
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Input Device</label
+                    >
+                    <select
+                      id="inputMode"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="Controller">Gamepad / Controller</option>
+                      <option value="KeyboardMouse">
+                        Keyboard &amp; Mouse
+                      </option>
+                    </select>
+                  </div>
+
+                  <div
+                    id="mouseSensitivityContainer"
+                    class="hidden p-2.5 rounded-lg bg-darkControl/60 space-y-1 transition-all duration-150"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-1.5">
+                        <label
+                          for="mouseSensitivity"
+                          class="text-xs font-semibold text-slate-300"
+                          >Mouse Sensitivity</label
+                        >
+                        <span
+                          class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                          >Experimental</span
+                        >
+                      </div>
+                      <span
+                        id="mouseSensitivityVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >1.0x</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="mouseSensitivity"
+                      min="0.1"
+                      max="10.0"
+                      step="0.1"
+                      value="1.0"
+                      class="w-full accent-accent bg-darkControl cursor-pointer h-2 rounded-lg"
                     />
-                  </svg>
-                  <span>Game Installation Status</span>
-                </h2>
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Camera look sensitivity when playing with Keyboard &amp;
+                      Mouse.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Right Column: Gameplay & Preferences -->
+              <section class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm">
+                <div
+                  class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                >
+                  <h2
+                    class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm40-88a40,40,0,0,1-40,40,8,8,0,0,1,0-16,24,24,0,0,0,24-24,8,8,0,0,1,16,0Z"
+                      />
+                    </svg>
+                    <span>Game Preferences</span>
+                  </h2>
+                  <span class="text-[10px] text-slate-400 font-mono"
+                    >GAMEPLAY</span
+                  >
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Game Language</label
+                    >
+                    <select
+                      id="language"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="English">English (US)</option>
+                      <option value="Spanish">Spanish (Español)</option>
+                      <option value="French">French (Français)</option>
+                      <option value="German">German (Deutsch)</option>
+                      <option value="Italian">Italian (Italiano)</option>
+                      <option value="Korean">Korean (한국어)</option>
+                      <option value="Japanese">Japanese (日本語)</option>
+                      <option value="Portuguese">Portuguese (Português)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Cutscene Speed</label
+                    >
+                    <select
+                      id="cutsceneSpeed"
+                      class="w-full bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="1">1x (Normal Speed)</option>
+                      <option value="2">2x Speed</option>
+                      <option value="4">4x Fast-Forward</option>
+                      <option value="8">8x Hyper Speed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="space-y-2 pt-2 border-t border-darkBorder/40">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="skipCutscenes"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                      />
+                      <label
+                        for="skipCutscenes"
+                        class="text-xs text-slate-300 cursor-pointer"
+                        title="Hold [Select/Back] or [Tab] to speed through cutscenes"
+                        >Allow Fast-Forwarding In-Game Cutscenes</label
+                      >
+                    </div>
+                    <span
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      >Experimental</span
+                    >
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="skipIntroLogos"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                      />
+                      <label
+                        for="skipIntroLogos"
+                        class="text-xs text-slate-300 cursor-pointer"
+                        >Skip Intro Logos</label
+                      >
+                    </div>
+                    <span
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                      >Experimental</span
+                    >
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <!-- ========================================== -->
+          <!-- TAB 3: FIXES & PATCHES                     -->
+          <!-- ========================================== -->
+          <div id="tabFixes" class="hidden space-y-3.5">
+            <!-- Collision & Movement Fixes -->
+            <section class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm">
+              <h2
+                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+              >
+                <svg
+                  class="w-3.5 h-3.5 text-accent shrink-0"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
+                  />
+                </svg>
+                <span>Physics &amp; Movement</span>
+              </h2>
+
+              <!-- Step Fix Toggle -->
+              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label
+                    for="stepFix"
+                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
+                  >
+                    <input
+                      type="checkbox"
+                      id="stepFix"
+                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                    />
+                    <span>High FPS Edge Climbing (Step Fix)</span>
+                  </label>
+                  <span
+                    class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                    >Experimental</span
+                  >
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                  Scales movement step when blocked on small edges for &gt;80
+                  FPS.
+                  <strong class="text-amber-300"
+                    >Keep disabled if you feel your character being pushed away
+                    or repelled when close to walls, enemies, or Majin at 30-60
+                    FPS.</strong
+                  >
+                </p>
               </div>
 
-              <div class="grid grid-cols-3 gap-2 text-xs">
-                <div
-                  class="bg-darkControl/60 p-2 rounded-lg"
-                >
-                  <span
-                    class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
-                    >1. Assets</span
+              <!-- Frame-Time Smoothing -->
+              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label
+                    for="dtSmoothing"
+                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
                   >
-                  <span
-                    id="statusAssets"
-                    class="font-bold text-xs text-amber-400"
-                    >Checking...</span
-                  >
+                    <input
+                      type="checkbox"
+                      id="dtSmoothing"
+                      checked
+                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Engine Delta-Time Smoothing (dt_smooth)</span>
+                  </label>
                 </div>
-                <div
-                  class="bg-darkControl/60 p-2 rounded-lg"
-                >
-                  <span
-                    class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
-                    >2. Decrypted XEX</span
-                  >
-                  <span
-                    id="statusImage"
-                    class="font-bold text-xs text-amber-400"
-                    >Checking...</span
-                  >
-                </div>
-                <div
-                  class="bg-darkControl/60 p-2 rounded-lg"
-                >
-                  <span
-                    class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
-                    >3. Game Binary</span
-                  >
-                  <span
-                    id="statusBinary"
-                    class="font-bold text-xs text-amber-400"
-                    >Checking...</span
-                  >
-                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                  Replaces guest frame delta-time with a smoothed moving
+                  average. Leave off for purest vanilla console physics pacing.
+                </p>
               </div>
             </section>
 
-            <!-- Real-Time Build Output & Console Terminal -->
-            <section
-              id="buildProgressSection"
-              class="bg-darkCard rounded-xl p-3.5 space-y-3 flex flex-col h-[390px] shadow-sm"
-            >
-              <div
-                class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+            <!-- Animation Timing Fixes -->
+            <section class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm">
+              <h2
+                class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
               >
-                <div class="flex items-center gap-2">
-                  <svg
-                    id="buildSpinner"
-                    class="hidden animate-spin text-accent w-3.5 h-3.5 shrink-0"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 256 256"
-                    fill="currentColor"
+                <svg
+                  class="w-3.5 h-3.5 text-accent shrink-0"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"
+                  />
+                </svg>
+                <span>Animation &amp; Timing</span>
+              </h2>
+
+              <!-- Sub-Motion Speed Fix -->
+              <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label
+                    for="animSpeedFix"
+                    class="text-xs font-semibold text-slate-200 cursor-pointer flex items-center gap-2"
                   >
-                    <path
-                      d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z"
+                    <input
+                      type="checkbox"
+                      id="animSpeedFix"
+                      class="rounded-md border-darkBorder bg-darkBg text-accent focus:ring-0 focus:ring-offset-0 w-4 h-4 cursor-pointer"
                     />
-                  </svg>
+                    <span>Sub-Motion Animation Normalization</span>
+                  </label>
                   <span
-                    id="buildStageText"
-                    class="text-xs font-semibold text-white"
-                    >Ready to extract and build</span
+                    class="text-[9px] px-1.5 py-0.5 rounded-md bg-rose-950/70 text-rose-300 border border-rose-800/60 font-mono"
+                    >Experimental</span
                   >
                 </div>
-                <span
-                  id="buildPercentText"
-                  class="text-xs font-mono text-accent"
-                  >0%</span
-                >
+                <p class="text-[11px] text-slate-400 leading-relaxed pl-6">
+                  Normalizes facial expressions and world object animations
+                  above 30 FPS.
+                  <strong class="text-amber-300"
+                    >Keep disabled if you experience interaction timing or
+                    dialogue delay issues with Majin.</strong
+                  >
+                </p>
               </div>
+            </section>
+          </div>
 
-              <!-- Progress Bar -->
-              <div
-                class="w-full bg-darkControl h-2 rounded-md overflow-hidden"
-              >
-                <div
-                  id="buildProgressBar"
-                  class="bg-gradient-to-r from-sky-500 to-[#6da712] h-full w-0 transition-all duration-300"
-                ></div>
-              </div>
-
-              <!-- Console Terminal Output -->
-              <div class="flex-1 flex flex-col min-h-0 space-y-1">
-                <div
-                  class="flex items-center justify-between text-[11px] text-slate-400"
+          <!-- ========================================== -->
+          <!-- TAB 4: SETUP GAME                          -->
+          <!-- ========================================== -->
+          <div id="tabBuild" class="hidden">
+            <div class="grid grid-cols-2 gap-4 items-start">
+              <!-- Left Column: Game Data Folder, Disc Selection, Build Action, Shader Precompilation -->
+              <div class="space-y-3">
+                <!-- Game Data Folder (PLACED ABOVE ISO OPTIONS) -->
+                <section
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
                 >
-                  <span class="font-mono font-semibold">TERMINAL LOG</span>
-                  <div class="flex items-center gap-3">
-                    <button
-                      id="btnCopyLog"
-                      type="button"
-                      class="hover:text-slate-200 text-[10px] flex items-center gap-1 transition-colors text-slate-400"
-                      title="Copy all logs to clipboard"
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <h2
+                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
                     >
                       <svg
-                        class="w-3 h-3 shrink-0"
+                        class="w-3.5 h-3.5 text-accent shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"
                       >
                         <path
-                          d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"
+                          d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"
                         />
                       </svg>
-                      <span id="btnCopyLogText">Copy Log</span>
-                    </button>
+                      <span>Game Data Folder</span>
+                    </h2>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      >ASSET DIR</span
+                    >
+                  </div>
+
+                  <p class="text-[11px] text-slate-300 leading-normal">
+                    Directory containing extracted game assets and default.xex.
+                  </p>
+
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="text"
+                      id="gameDataRoot"
+                      value="game-data"
+                      class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
+                    />
                     <button
-                      id="btnClearLog"
+                      id="btnBrowseGameData"
                       type="button"
-                      class="hover:text-slate-200 text-[10px] flex items-center gap-1 transition-colors"
+                      class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
                     >
                       <svg
-                        class="w-3 h-3 shrink-0"
+                        class="w-3.5 h-3.5 shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z"
+                        />
+                      </svg>
+                      <span>Browse...</span>
+                    </button>
+                  </div>
+                </section>
+
+                <!-- Step 1: ISO Selection Card -->
+                <section
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
+                >
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <h2
+                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm39.2,96a39.77,39.77,0,0,0-5.84-14l34.23-34.24a87.54,87.54,0,0,1,20,48.28ZM152,128a24,24,0,1,1-24-24A24,24,0,0,1,152,128Zm-24,88A88,88,0,1,1,184.28,60.4L150,94.64A40,40,0,1,0,167.2,136h48.43A88.11,88.11,0,0,1,128,216Z"
+                        />
+                      </svg>
+                      <span>Select Game Disc Image</span>
+                    </h2>
+                    <span class="text-[10px] text-slate-400 font-mono"
+                      >.ISO</span
+                    >
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="text"
+                      id="txtIsoPath"
+                      placeholder="Select .iso file..."
+                      class="flex-1 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none font-mono truncate"
+                      readonly
+                    />
+                    <button
+                      id="btnBrowseIso"
+                      type="button"
+                      class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5 shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm39.2,96a39.77,39.77,0,0,0-5.84-14l34.23-34.24a87.54,87.54,0,0,1,20,48.28ZM152,128a24,24,0,1,1-24-24A24,24,0,0,1,152,128Zm-24,88A88,88,0,1,1,184.28,60.4L150,94.64A40,40,0,1,0,167.2,136h48.43A88.11,88.11,0,0,1,128,216Z"
+                        />
+                      </svg>
+                      <span>Browse...</span>
+                    </button>
+                  </div>
+
+                  <div
+                    data-dev-only
+                    class="pt-1 flex items-center justify-between border-t border-darkBorder/40"
+                  >
+                    <div class="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="chkCompileBinary"
+                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+                      />
+                      <label
+                        for="chkCompileBinary"
+                        class="text-xs text-slate-300"
+                      >
+                        Recompile binary from C++ source (<span
+                          class="text-amber-400 font-mono text-[10px]"
+                          >Dev only: requires Visual Studio 2022</span
+                        >)
+                      </label>
+                    </div>
+                    <span
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-800/60 font-mono"
+                      >Dev Tool</span
+                    >
+                  </div>
+                </section>
+
+                <!-- Step 2: Build Action Button -->
+                <button
+                  id="btnStartBuild"
+                  type="button"
+                  class="w-full py-2.5 px-4 rounded-xl bg-[#6da712] hover:bg-[#7cb818] disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all shadow-md"
+                >
+                  <svg
+                    class="w-3.5 h-3.5 shrink-0"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 256 256"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"
+                    />
+                  </svg>
+                  <span>EXTRACT &amp; BUILD GAME FROM .ISO</span>
+                </button>
+
+                <!-- Step 3: Vulkan Shader Precompilation (Dev Mode Only) -->
+                <div data-dev-only class="pt-1 space-y-2">
+                  <div class="flex items-center gap-2">
+                    <button
+                      id="btnPrecompile"
+                      type="button"
+                      title="Precompile all Vulkan pipeline shaders to eliminate in-game stuttering"
+                      class="flex-1 py-2.5 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-100 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                    >
+                      <span
+                        id="precompileStatusIcon"
+                        class="flex items-center justify-center"
+                      ></span>
+                      <span id="btnPrecompileText">PRECOMPILE SHADERS</span>
+                    </button>
+
+                    <button
+                      id="btnCleanShaders"
+                      type="button"
+                      title="Purge compiled Vulkan driver cache (.vkpc) to allow a clean re-compilation"
+                      class="py-2.5 px-3.5 rounded-xl bg-darkControl hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 text-xs font-bold tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none select-none shadow-sm"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5 text-rose-400 shrink-0"
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 256 256"
                         fill="currentColor"
@@ -1555,285 +1291,543 @@
                           d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"
                         />
                       </svg>
-                      <span>Clear</span>
+                      <span>CLEAN</span>
                     </button>
                   </div>
-                </div>
-                <div
-                  id="buildConsole"
-                  class="flex-1 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
-                >
-                  <div class="text-slate-500">
-                    [Launcher Ready] Select an ISO to start extraction and
-                    compilation.
+
+                  <!-- Shader Precompilation WIP Notice -->
+                  <p
+                    class="text-[11px] text-slate-400 flex items-start gap-1.5 px-0.5 leading-snug"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5 text-amber-400/90 shrink-0 mt-0.5"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 256 256"
+                      fill="currentColor"
+                    >
+                      <path
+                        d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"
+                      />
+                    </svg>
+                    <span
+                      ><span class="text-amber-300 font-medium"
+                        >Work in progress:</span
+                      >
+                      Pipeline precompilation is still expanding. Not all
+                      in-game pipelines have been discovered yet.</span
+                    >
+                  </p>
+
+                  <!-- Dev Only: Shader Cache Monitor Card -->
+                  <div
+                    data-dev-only
+                    id="devShaderCacheCard"
+                    class="p-2.5 rounded-xl bg-amber-950/20 text-xs space-y-2 shadow-sm"
+                  >
+                    <div
+                      class="flex items-center justify-between border-b border-amber-800/30 pb-1.5"
+                    >
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <span
+                          class="font-bold text-amber-200 text-[11px] uppercase tracking-wider"
+                          >Shader Cache Monitor</span
+                        >
+                        <span
+                          class="text-[9px] px-1 py-0.2 rounded-md bg-amber-900/60 text-amber-300 font-mono"
+                          >Dev Only</span
+                        >
+                      </div>
+                      <button
+                        id="btnRefreshShaderCache"
+                        type="button"
+                        title="Refresh shader cache sizes"
+                        class="text-[10px] text-amber-400 hover:text-amber-200 underline cursor-pointer"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                      <div class="bg-black/40 p-2 rounded-lg">
+                        <span
+                          class="text-slate-400 block text-[9px] uppercase tracking-wider"
+                          >Total Cache Size</span
+                        >
+                        <span
+                          id="devShaderTotalSize"
+                          class="font-bold text-amber-300 text-xs"
+                          >--</span
+                        >
+                      </div>
+                      <div class="bg-black/40 p-2 rounded-lg">
+                        <span
+                          class="text-slate-400 block text-[9px] uppercase tracking-wider"
+                          >Target Pipelines</span
+                        >
+                        <span
+                          id="devShaderPipelineCount"
+                          class="font-bold text-slate-200 text-xs flex items-baseline flex-wrap gap-1"
+                          >--</span
+                        >
+                      </div>
+                      <div class="bg-black/40 p-2 rounded-lg">
+                        <span
+                          class="text-slate-400 block text-[9px] uppercase tracking-wider"
+                          >Driver Cache (.vkpc)</span
+                        >
+                        <span id="devShaderVkpcSize" class="text-slate-300"
+                          >--</span
+                        >
+                      </div>
+                      <div class="bg-black/40 p-2 rounded-lg">
+                        <span
+                          class="text-slate-400 block text-[9px] uppercase tracking-wider"
+                          >Shaders Store (.xsh)</span
+                        >
+                        <span id="devShaderXshSize" class="text-slate-300"
+                          >--</span
+                        >
+                      </div>
+                    </div>
+
+                    <div
+                      class="flex items-center justify-between text-[10px] text-slate-400 pt-0.5"
+                    >
+                      <span>Last cache sync:</span>
+                      <span
+                        id="devShaderLastUpdated"
+                        class="font-mono text-slate-300"
+                        >--</span
+                      >
+                    </div>
                   </div>
                 </div>
               </div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </main>
 
-    <!-- Footer Controls (Centered Launch Button) -->
-    <footer
-      id="appFooter"
-      class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
-    >
-      <button
-        id="btnLaunch"
-        type="button"
-        class="w-full max-w-sm py-2.5 px-8 rounded-xl bg-[#6da712] hover:bg-[#7cb818] text-white text-xs font-bold tracking-wider flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none shadow-lg"
-      >
-        <svg
-          class="w-3.5 h-3.5 shrink-0"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 256 256"
-          fill="currentColor"
-        >
-          <path
-            d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"
-          />
-        </svg>
-        <span id="btnLaunchText">LAUNCH GAME</span>
-      </button>
-    </footer>
+              <!-- Right Column: Installation Status & Real-Time Build Output Console -->
+              <div class="space-y-3">
+                <!-- Status Overview Card -->
+                <section
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 shadow-sm"
+                >
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <h2
+                      class="text-xs font-bold tracking-wider text-accent uppercase flex items-center gap-1.5"
+                    >
+                      <svg
+                        class="w-3.5 h-3.5 text-accent shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z"
+                        />
+                      </svg>
+                      <span>Game Installation Status</span>
+                    </h2>
+                  </div>
 
-    <!-- Shader Precompilation Modal (Dev Mode Only) -->
-    <div
-      data-dev-only
-      id="precompileModal"
-      class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
-    >
-      <div
-        class="bg-darkCard rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl animate-fade-in"
-      >
-        <div
-          class="flex items-center justify-between pb-3 border-b border-darkBorder"
-        >
-          <div class="flex items-center gap-2">
-            <svg
-              class="w-5 h-5 text-accent shrink-0"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"
-              />
-            </svg>
-            <div>
-              <h3 class="text-sm font-bold text-white">
-                Vulkan Shader Precompilation
-              </h3>
-              <p class="text-[11px] text-slate-400">
-                Compiling graphics pipeline caches to eliminate runtime stutter
-              </p>
+                  <div class="grid grid-cols-3 gap-2 text-xs">
+                    <div class="bg-darkControl/60 p-2 rounded-lg">
+                      <span
+                        class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
+                        >1. Assets</span
+                      >
+                      <span
+                        id="statusAssets"
+                        class="font-bold text-xs text-amber-400"
+                        >Checking...</span
+                      >
+                    </div>
+                    <div class="bg-darkControl/60 p-2 rounded-lg">
+                      <span
+                        class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
+                        >2. Decrypted XEX</span
+                      >
+                      <span
+                        id="statusImage"
+                        class="font-bold text-xs text-amber-400"
+                        >Checking...</span
+                      >
+                    </div>
+                    <div class="bg-darkControl/60 p-2 rounded-lg">
+                      <span
+                        class="text-slate-400 block text-[9px] uppercase font-semibold tracking-wider"
+                        >3. Game Binary</span
+                      >
+                      <span
+                        id="statusBinary"
+                        class="font-bold text-xs text-amber-400"
+                        >Checking...</span
+                      >
+                    </div>
+                  </div>
+                </section>
+
+                <!-- Real-Time Build Output & Console Terminal -->
+                <section
+                  id="buildProgressSection"
+                  class="bg-darkCard rounded-xl p-3.5 space-y-3 flex flex-col h-[390px] shadow-sm"
+                >
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <div class="flex items-center gap-2">
+                      <svg
+                        id="buildSpinner"
+                        class="hidden animate-spin text-accent w-3.5 h-3.5 shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        fill="currentColor"
+                      >
+                        <path
+                          d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z"
+                        />
+                      </svg>
+                      <span
+                        id="buildStageText"
+                        class="text-xs font-semibold text-white"
+                        >Ready to extract and build</span
+                      >
+                    </div>
+                    <span
+                      id="buildPercentText"
+                      class="text-xs font-mono text-accent"
+                      >0%</span
+                    >
+                  </div>
+
+                  <!-- Progress Bar -->
+                  <div
+                    class="w-full bg-darkControl h-2 rounded-md overflow-hidden"
+                  >
+                    <div
+                      id="buildProgressBar"
+                      class="bg-gradient-to-r from-sky-500 to-[#6da712] h-full w-0 transition-all duration-300"
+                    ></div>
+                  </div>
+
+                  <!-- Console Terminal Output -->
+                  <div class="flex-1 flex flex-col min-h-0 space-y-1">
+                    <div
+                      class="flex items-center justify-between text-[11px] text-slate-400"
+                    >
+                      <span class="font-mono font-semibold">TERMINAL LOG</span>
+                      <div class="flex items-center gap-3">
+                        <button
+                          id="btnCopyLog"
+                          type="button"
+                          class="hover:text-slate-200 text-[10px] flex items-center gap-1 transition-colors text-slate-400"
+                          title="Copy all logs to clipboard"
+                        >
+                          <svg
+                            class="w-3 h-3 shrink-0"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 256 256"
+                            fill="currentColor"
+                          >
+                            <path
+                              d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"
+                            />
+                          </svg>
+                          <span id="btnCopyLogText">Copy Log</span>
+                        </button>
+                        <button
+                          id="btnClearLog"
+                          type="button"
+                          class="hover:text-slate-200 text-[10px] flex items-center gap-1 transition-colors"
+                        >
+                          <svg
+                            class="w-3 h-3 shrink-0"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 256 256"
+                            fill="currentColor"
+                          >
+                            <path
+                              d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"
+                            />
+                          </svg>
+                          <span>Clear</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      id="buildConsole"
+                      class="flex-1 bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl overflow-y-auto space-y-0.5 leading-relaxed selection:bg-[#6da712]/40 selection:text-white select-text cursor-text"
+                    >
+                      <div class="text-slate-500">
+                        [Launcher Ready] Select an ISO to start extraction and
+                        compilation.
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
             </div>
           </div>
-          <button
-            id="btnClosePrecompileModal"
-            type="button"
-            class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
-          >
-            <svg
-              class="w-4 h-4"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              />
-            </svg>
-          </button>
-        </div>
+        </main>
+      </div>
 
-        <!-- Status & Progress -->
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between text-xs">
+      <!-- Footer Controls (Centered Launch Button) -->
+      <footer
+        id="appFooter"
+        class="px-6 py-3 border-t border-darkBorder bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
+      >
+        <button
+          id="btnLaunch"
+          type="button"
+          class="w-full max-w-sm h-11 py-3 px-8 rounded-xl bg-[#6da712] hover:bg-[#7cb818] text-white text-sm font-bold tracking-wider flex items-center justify-center space-x-2 transition-all disabled:opacity-50 disabled:pointer-events-none shadow-lg"
+        >
+          <svg
+            class="w-4 h-4 shrink-0"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 256 256"
+            fill="currentColor"
+          >
+            <path
+              d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"
+            />
+          </svg>
+          <span id="btnLaunchText">LAUNCH GAME</span>
+        </button>
+      </footer>
+
+      <!-- Shader Precompilation Modal (Dev Mode Only) -->
+      <div
+        data-dev-only
+        id="precompileModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div
+          class="bg-darkCard rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl animate-fade-in"
+        >
+          <div
+            class="flex items-center justify-between pb-3 border-b border-darkBorder"
+          >
             <div class="flex items-center gap-2">
               <svg
-                id="precompileSpinner"
-                class="animate-spin text-accent w-3.5 h-3.5 shrink-0"
+                class="w-5 h-5 text-accent shrink-0"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 256 256"
                 fill="currentColor"
               >
                 <path
-                  d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z"
+                  d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"
                 />
               </svg>
-              <span
-                id="precompileStatusText"
-                class="font-semibold text-slate-200"
-                >Initializing shader precompiler...</span
-              >
+              <div>
+                <h3 class="text-sm font-bold text-white">
+                  Vulkan Shader Precompilation
+                </h3>
+                <p class="text-[11px] text-slate-400">
+                  Compiling graphics pipeline caches to eliminate runtime
+                  stutter
+                </p>
+              </div>
             </div>
-            <span
-              id="precompilePercentText"
-              class="font-mono text-accent font-semibold"
-              >0%</span
-            >
-          </div>
-          <div
-            class="w-full bg-darkControl h-2.5 rounded-md overflow-hidden"
-          >
-            <div
-              id="precompileProgressBar"
-              class="h-full bg-gradient-to-r from-sky-500 to-[#6da712] transition-all duration-200"
-              style="width: 0%"
-            ></div>
-          </div>
-        </div>
-
-        <!-- Terminal log -->
-        <div class="space-y-1">
-          <div
-            class="flex items-center justify-between text-[11px] text-slate-400"
-          >
-            <span class="font-mono font-semibold">PRECOMPILER LOG</span>
             <button
-              id="btnClearPrecompileLog"
+              id="btnClosePrecompileModal"
               type="button"
-              class="hover:text-slate-200 text-[10px] transition-colors"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
             >
-              Clear
+              <svg
+                class="w-4 h-4"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+                />
+              </svg>
             </button>
           </div>
-          <div
-            id="precompileConsole"
-            class="bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl h-36 overflow-y-auto space-y-0.5 leading-relaxed select-text cursor-text"
-          >
-            <div class="text-slate-500">
-              [Precompiler Ready] Initializing Vulkan pipelines...
+
+          <!-- Status & Progress -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <svg
+                  id="precompileSpinner"
+                  class="animate-spin text-accent w-3.5 h-3.5 shrink-0"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 256 256"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z"
+                  />
+                </svg>
+                <span
+                  id="precompileStatusText"
+                  class="font-semibold text-slate-200"
+                  >Initializing shader precompiler...</span
+                >
+              </div>
+              <span
+                id="precompilePercentText"
+                class="font-mono text-accent font-semibold"
+                >0%</span
+              >
+            </div>
+            <div class="w-full bg-darkControl h-2.5 rounded-md overflow-hidden">
+              <div
+                id="precompileProgressBar"
+                class="h-full bg-gradient-to-r from-sky-500 to-[#6da712] transition-all duration-200"
+                style="width: 0%"
+              ></div>
             </div>
           </div>
-        </div>
 
-        <!-- Modal Action -->
-        <div class="flex justify-end gap-2 pt-1 border-t border-darkBorder">
-          <button
-            id="btnPrecompileDone"
-            type="button"
-            class="px-5 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:pointer-events-none"
-          >
-            Close
-          </button>
+          <!-- Terminal log -->
+          <div class="space-y-1">
+            <div
+              class="flex items-center justify-between text-[11px] text-slate-400"
+            >
+              <span class="font-mono font-semibold">PRECOMPILER LOG</span>
+              <button
+                id="btnClearPrecompileLog"
+                type="button"
+                class="hover:text-slate-200 text-[10px] transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div
+              id="precompileConsole"
+              class="bg-black/90 font-mono text-[11px] text-[#a3cc54] p-2.5 rounded-xl h-36 overflow-y-auto space-y-0.5 leading-relaxed select-text cursor-text"
+            >
+              <div class="text-slate-500">
+                [Precompiler Ready] Initializing Vulkan pipelines...
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Action -->
+          <div class="flex justify-end gap-2 pt-1 border-t border-darkBorder">
+            <button
+              id="btnPrecompileDone"
+              type="button"
+              class="px-5 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Software Update Modal -->
-    <div
-      id="updateModal"
-      class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
-    >
+      <!-- Software Update Modal -->
       <div
-        class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fade-in"
+        id="updateModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
       >
         <div
-          class="flex items-center justify-between pb-3 border-b border-darkBorder"
+          class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fade-in"
         >
-          <div class="flex items-center gap-2">
-            <svg
-              class="w-5 h-5 text-accent"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
-              />
-            </svg>
-            <h3 class="text-sm font-bold text-white">
-              Software Update Available
-            </h3>
-          </div>
-          <button
-            id="btnCloseUpdateModal"
-            type="button"
-            class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
-          >
-            <svg
-              class="w-4 h-4"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
-            >
-              <path
-                d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div class="space-y-2 text-xs text-slate-300 leading-relaxed">
-          <p>
-            A new version of
-            <strong class="text-white">Majistic Recomp</strong> is available:
-            <span
-              id="updateModalVersion"
-              class="font-mono text-accent font-semibold ml-1"
-              >v0.2.0</span
-            >
-          </p>
           <div
-            id="updateModalNotesContainer"
-            class="hidden bg-darkBg/90 rounded-xl p-3 text-[11px] font-mono text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap"
-          ></div>
-        </div>
-
-        <!-- Progress bar (shown while downloading) -->
-        <div id="updateProgressContainer" class="hidden space-y-1.5 pt-1">
-          <div class="flex justify-between text-[11px] text-slate-300">
-            <span id="updateProgressStatus">Downloading update...</span>
-            <span
-              id="updateProgressPercent"
-              class="font-mono text-accent font-semibold"
-              >0%</span
-            >
-          </div>
-          <div
-            class="w-full bg-darkControl h-2 rounded-md overflow-hidden"
+            class="flex items-center justify-between pb-3 border-b border-darkBorder"
           >
+            <div class="flex items-center gap-2">
+              <svg
+                class="w-5 h-5 text-accent"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
+                />
+              </svg>
+              <h3 class="text-sm font-bold text-white">
+                Software Update Available
+              </h3>
+            </div>
+            <button
+              id="btnCloseUpdateModal"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              <svg
+                class="w-4 h-4"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-300 leading-relaxed">
+            <p>
+              A new version of
+              <strong class="text-white">Majistic Recomp</strong> is available:
+              <span
+                id="updateModalVersion"
+                class="font-mono text-accent font-semibold ml-1"
+                >v0.2.0</span
+              >
+            </p>
             <div
-              id="updateProgressBar"
-              class="h-full bg-accent transition-all duration-150"
-              style="width: 0%"
+              id="updateModalNotesContainer"
+              class="hidden bg-darkBg/90 rounded-xl p-3 text-[11px] font-mono text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap"
             ></div>
           </div>
-        </div>
 
-        <!-- Actions -->
-        <div id="updateModalActions" class="flex justify-end gap-2 pt-2">
-          <button
-            id="btnUpdateLater"
-            type="button"
-            class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
-          >
-            Later
-          </button>
-          <button
-            id="btnUpdateNow"
-            type="button"
-            class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-          >
-            <svg
-              class="w-3.5 h-3.5 text-white"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 256 256"
-              fill="currentColor"
+          <!-- Progress bar (shown while downloading) -->
+          <div id="updateProgressContainer" class="hidden space-y-1.5 pt-1">
+            <div class="flex justify-between text-[11px] text-slate-300">
+              <span id="updateProgressStatus">Downloading update...</span>
+              <span
+                id="updateProgressPercent"
+                class="font-mono text-accent font-semibold"
+                >0%</span
+              >
+            </div>
+            <div class="w-full bg-darkControl h-2 rounded-md overflow-hidden">
+              <div
+                id="updateProgressBar"
+                class="h-full bg-accent transition-all duration-150"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div id="updateModalActions" class="flex justify-end gap-2 pt-2">
+            <button
+              id="btnUpdateLater"
+              type="button"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
             >
-              <path
-                d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
-              />
-            </svg>
-            <span>Update Now</span>
-          </button>
+              Later
+            </button>
+            <button
+              id="btnUpdateNow"
+              type="button"
+              class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <svg
+                class="w-3.5 h-3.5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 256 256"
+                fill="currentColor"
+              >
+                <path
+                  d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"
+                />
+              </svg>
+              <span>Update Now</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>

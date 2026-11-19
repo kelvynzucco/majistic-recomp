@@ -388,10 +388,31 @@ function updateUpscalerVisibility() {
   updatePostProcessingVisibility();
 }
 
+function updateSliderFill(slider) {
+  if (!slider) return;
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  const val = parseFloat(slider.value);
+  const minVal = isNaN(min) ? 0 : min;
+  const maxVal = isNaN(max) ? 100 : max;
+  const currentVal = isNaN(val) ? minVal : val;
+  const range = maxVal - minVal;
+  const pct = range > 0 ? Math.max(0, Math.min(100, ((currentVal - minVal) / range) * 100)) : 0;
+  slider.style.setProperty("--slider-pct", `${pct}%`);
+  slider.style.background = `linear-gradient(to right, #38bdf8 0%, #38bdf8 ${pct}%, #232734 ${pct}%, #232734 100%)`;
+}
+
+function updateAllSliderFills() {
+  document.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
+}
+
 function updateInputModeVisibility() {
   if (!elements.inputMode || !elements.mouseSensitivityContainer) return;
   const isKbm = elements.inputMode.value === "KeyboardMouse";
   elements.mouseSensitivityContainer.classList.toggle("hidden", !isKbm);
+  if (isKbm && elements.mouseSensitivity) {
+    updateSliderFill(elements.mouseSensitivity);
+  }
 }
 
 let lastConnectedGamepadsKey = null;
@@ -564,6 +585,8 @@ function populateForm(settings) {
       elements.bloomIntensityVal.textContent = clamped <= 0.001 ? "Off" : clamped.toFixed(2);
     }
   }
+
+  updateAllSliderFills();
 }
 
 function readForm() {
@@ -980,9 +1003,9 @@ if (elements.btnClearPrecompileLog) {
 // ==========================================
 // Shader Cache & Precompilation Status
 // ==========================================
-const ICON_CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M173.66,98.34a8,8,0,0,1,0,11.32l-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35A8,8,0,0,1,173.66,98.34ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+const ICON_CHECK_SVG = `<svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/></svg>`;
 
-const ICON_UNCHECK_SVG = `<svg class="w-3.5 h-3.5 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z"/></svg>`;
+const ICON_UNCHECK_SVG = `<svg class="w-3.5 h-3.5 text-rose-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM8.96963 8.96965C9.26252 8.67676 9.73739 8.67676 10.0303 8.96965L12 10.9393L13.9696 8.96967C14.2625 8.67678 14.7374 8.67678 15.0303 8.96967C15.3232 9.26256 15.3232 9.73744 15.0303 10.0303L13.0606 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73742 15.3232 9.26254 15.3232 8.96965 15.0303C8.67676 14.7374 8.67676 14.2625 8.96965 13.9697L10.9393 12L8.96963 10.0303C8.67673 9.73742 8.67673 9.26254 8.96963 8.96965Z" clip-rule="evenodd"/></svg>`;
 
 async function updateShaderCacheInfo() {
   try {
@@ -1222,6 +1245,13 @@ if (elements.bloomIntensity) {
   });
 }
 
+// Global delegated listener to ensure live progress fill on all sliders
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.type === "range") {
+    updateSliderFill(e.target);
+  }
+});
+
 if (elements.upscaler) {
   elements.upscaler.addEventListener("change", () => {
     updateUpscalerVisibility();
@@ -1304,7 +1334,7 @@ function setUpdateBtnState(state, text) {
     btnText.textContent = text || "Checking...";
     if (btnIcon) {
       btnIcon.classList.add("animate-spin");
-      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+      btnIcon.innerHTML = `<path fill="currentColor" d="M12.0789 2.25C7.28537 2.25 3.34474 5.913 2.96052 10.5833H1.99999C1.69611 10.5833 1.42226 10.7667 1.30652 11.0477C1.19078 11.3287 1.25603 11.6517 1.47175 11.8657L3.15156 13.5324C3.44397 13.8225 3.91564 13.8225 4.20805 13.5324L5.88786 11.8657C6.10358 11.6517 6.16883 11.3287 6.05309 11.0477C5.93735 10.7667 5.6635 10.5833 5.35961 10.5833H4.46677C4.84649 6.75167 8.10476 3.75 12.0789 3.75C14.8484 3.75 17.2727 5.20845 18.6156 7.39279C18.8325 7.74565 19.2944 7.85585 19.6473 7.63892C20.0001 7.42199 20.1103 6.96007 19.8934 6.60721C18.287 3.99427 15.3873 2.25 12.0789 2.25Z"/><path fill="currentColor" d="M20.8411 10.4666C20.5489 10.1778 20.0788 10.1778 19.7867 10.4666L18.1004 12.1333C17.8841 12.3471 17.8183 12.6703 17.9339 12.9517C18.0495 13.233 18.3235 13.4167 18.6277 13.4167H19.5268C19.1455 17.2462 15.8759 20.25 11.8827 20.25C9.10023 20.25 6.66583 18.7903 5.31793 16.6061C5.10039 16.2536 4.6383 16.1442 4.2858 16.3618C3.93331 16.5793 3.8239 17.0414 4.04143 17.3939C5.65404 20.007 8.56403 21.75 11.8827 21.75C16.6906 21.75 20.6474 18.0892 21.0331 13.4167H22.0001C22.3043 13.4167 22.5783 13.233 22.6939 12.9517C22.8094 12.6703 22.7437 12.3471 22.5273 12.1333L20.8411 10.4666Z"/>`;
     }
     btn.disabled = true;
     btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-darkControl/60 bg-darkControl/50 text-slate-400 text-xs font-normal select-none cursor-wait focus:outline-none";
@@ -1312,7 +1342,7 @@ function setUpdateBtnState(state, text) {
     btnText.textContent = text || "Up to Date";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
-      btnIcon.innerHTML = `<path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/>`;
+      btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
     btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-800/60 bg-emerald-950/40 text-emerald-400 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
@@ -1320,7 +1350,7 @@ function setUpdateBtnState(state, text) {
     btnText.textContent = text || "Update Available";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
-      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+      btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V12.1893L14.4697 10.4697C14.7626 10.1768 15.2374 10.1768 15.5303 10.4697C15.8232 10.7626 15.8232 11.2374 15.5303 11.5303L12.5303 14.5303C12.3897 14.671 12.1989 14.75 12 14.75C11.8011 14.75 11.6103 14.671 11.4697 14.5303L8.46967 11.5303C8.17678 11.2374 8.17678 10.7626 8.46967 10.4697C8.76256 10.1768 9.23744 10.1768 9.53033 10.4697L11.25 12.1893V7C11.25 6.58579 11.5858 6.25 12 6.25ZM8 16.25C7.58579 16.25 7.25 16.5858 7.25 17C7.25 17.4142 7.58579 17.75 8 17.75H16C16.4142 17.75 16.75 17.4142 16.75 17C16.75 16.5858 16.4142 16.25 16 16.25H8Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
     btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-accent/50 bg-accent/20 hover:bg-accent/30 text-accent hover:text-white text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
@@ -1328,6 +1358,7 @@ function setUpdateBtnState(state, text) {
     btnText.textContent = text || "Check Failed";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
+      btnIcon.innerHTML = `<path fill="currentColor" fill-rule="evenodd" d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25ZM12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" clip-rule="evenodd"/>`;
     }
     btn.disabled = false;
     btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-rose-800/60 bg-rose-950/40 text-rose-400 text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";
@@ -1336,7 +1367,7 @@ function setUpdateBtnState(state, text) {
     btnText.textContent = "Check for Updates";
     if (btnIcon) {
       btnIcon.classList.remove("animate-spin");
-      btnIcon.innerHTML = `<path d="M224,128a96,96,0,0,1-144,83.14V224a8,8,0,0,1-16,0V192a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H84.62A80,80,0,1,0,80,68.9V80a8,8,0,0,1-16,0V48a8,8,0,0,1,8-8h32a8,8,0,0,1,0,16H83.14A96,96,0,0,1,224,128Z"/>`;
+      btnIcon.innerHTML = `<path fill="currentColor" d="M12.0789 2.25C7.28537 2.25 3.34474 5.913 2.96052 10.5833H1.99999C1.69611 10.5833 1.42226 10.7667 1.30652 11.0477C1.19078 11.3287 1.25603 11.6517 1.47175 11.8657L3.15156 13.5324C3.44397 13.8225 3.91564 13.8225 4.20805 13.5324L5.88786 11.8657C6.10358 11.6517 6.16883 11.3287 6.05309 11.0477C5.93735 10.7667 5.6635 10.5833 5.35961 10.5833H4.46677C4.84649 6.75167 8.10476 3.75 12.0789 3.75C14.8484 3.75 17.2727 5.20845 18.6156 7.39279C18.8325 7.74565 19.2944 7.85585 19.6473 7.63892C20.0001 7.42199 20.1103 6.96007 19.8934 6.60721C18.287 3.99427 15.3873 2.25 12.0789 2.25Z"/><path fill="currentColor" d="M20.8411 10.4666C20.5489 10.1778 20.0788 10.1778 19.7867 10.4666L18.1004 12.1333C17.8841 12.3471 17.8183 12.6703 17.9339 12.9517C18.0495 13.233 18.3235 13.4167 18.6277 13.4167H19.5268C19.1455 17.2462 15.8759 20.25 11.8827 20.25C9.10023 20.25 6.66583 18.7903 5.31793 16.6061C5.10039 16.2536 4.6383 16.1442 4.2858 16.3618C3.93331 16.5793 3.8239 17.0414 4.04143 17.3939C5.65404 20.007 8.56403 21.75 11.8827 21.75C16.6906 21.75 20.6474 18.0892 21.0331 13.4167H22.0001C22.3043 13.4167 22.5783 13.233 22.6939 12.9517C22.8094 12.6703 22.7437 12.3471 22.5273 12.1333L20.8411 10.4666Z"/>`;
     }
     btn.disabled = false;
     btn.className = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-darkBorder/60 bg-darkControl/80 hover:bg-darkControl text-slate-300 hover:text-white text-xs font-normal transition-all select-none cursor-pointer focus:outline-none";

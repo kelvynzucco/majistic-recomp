@@ -16,6 +16,7 @@
     "@tauri-apps/plugin-updater": "^2.14.1"
   },
   "devDependencies": {
+    "@iconify-json/solar": "^1.2.16",
     "@phosphor-icons/core": "^2.1.1",
     "@tauri-apps/cli": "^2.2.0",
     "autoprefixer": "^10.4.20",

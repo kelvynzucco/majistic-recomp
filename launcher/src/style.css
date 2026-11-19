@@ -27,3 +27,76 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* ========================================== */
+/* Tab Transitions                            */
+/* ========================================== */
+@keyframes tabFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-content-active {
+  animation: tabFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+/* ========================================== */
+/* Dropdown Transitions                       */
+/* ========================================== */
+@keyframes dropdownEnterDown {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dropdownEnterUp {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dropdownExit {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+}
+
+.dropdown-anim-down {
+  transform-origin: top center;
+  animation: dropdownEnterDown 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.dropdown-anim-up {
+  transform-origin: bottom center;
+  animation: dropdownEnterUp 140ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.dropdown-anim-exit {
+  animation: dropdownExit 100ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+  will-change: opacity, transform;
+}

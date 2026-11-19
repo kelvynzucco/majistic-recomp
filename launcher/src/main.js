@@ -290,9 +290,9 @@ const elements = {
 // ==========================================
 function switchTab(tab) {
   const activeClass =
-    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold bg-[#6da712]/20 text-[#b5de63] transition-all cursor-pointer shadow-sm text-left";
+    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold bg-[#6da712]/20 text-[#b5de63] transition-all duration-200 cursor-pointer shadow-sm text-left";
   const inactiveClass =
-    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all cursor-pointer text-left";
+    "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all duration-200 cursor-pointer text-left";
 
   const target = tab === "settings" ? "graphics" : tab;
 
@@ -306,10 +306,17 @@ function switchTab(tab) {
   tabList.forEach(({ key, el, btn }) => {
     if (!el || !btn) return;
     if (key === target) {
+      const wasHidden = el.classList.contains("hidden");
       el.classList.remove("hidden");
+      if (wasHidden) {
+        el.classList.remove("tab-content-active");
+        void el.offsetWidth;
+        el.classList.add("tab-content-active");
+      }
       btn.className = activeClass;
     } else {
       el.classList.add("hidden");
+      el.classList.remove("tab-content-active");
       btn.className = inactiveClass;
     }
   });

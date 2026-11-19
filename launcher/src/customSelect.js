@@ -5,15 +5,26 @@
 // and `change` events keep working for the rest of the code.
 
 const BTN_CLASS =
-  "w-full flex items-center justify-between gap-2 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none cursor-pointer transition-colors hover:bg-slate-800/80";
+  "w-full flex items-center justify-between gap-2 bg-darkControl rounded-lg px-2.5 py-1.5 text-xs text-slate-200 text-left focus:outline-none cursor-pointer transition-colors duration-150 hover:bg-slate-800/80";
 const LIST_CLASS =
-  "fixed z-[9999] overflow-y-auto bg-darkCard rounded-xl shadow-2xl py-1 text-xs select-none";
+  "fixed z-[9999] overflow-y-auto bg-darkCard/95 backdrop-blur-md rounded-xl shadow-2xl py-1 text-xs select-none";
 
 let openInstance = null;
+let exitingList = null;
 
-function closeOpen() {
+function cleanupExitingList() {
+  if (exitingList) {
+    exitingList.remove();
+    exitingList = null;
+  }
+}
+
+function closeOpen(immediate = false) {
+  if (immediate) {
+    cleanupExitingList();
+  }
   if (openInstance) {
-    openInstance.close();
+    openInstance.close(immediate);
     openInstance = null;
   }
 }
@@ -34,7 +45,8 @@ function enhance(select) {
   const label = document.createElement("span");
   label.className = "truncate";
   const arrow = document.createElement("span");
-  arrow.className = "text-slate-400 text-[9px]";
+  arrow.className =
+    "text-slate-400 text-[9px] transition-transform duration-200 shrink-0 inline-block pointer-events-none";
   arrow.textContent = "▼";
   btn.append(label, arrow);
   wrapper.appendChild(btn);
@@ -46,10 +58,23 @@ function enhance(select) {
     label.textContent = opt ? opt.textContent : "";
   }
 
-  function close() {
-    if (list) {
-      list.remove();
-      list = null;
+  function close(immediate = false) {
+    arrow.style.transform = "rotate(0deg)";
+    if (!list) return;
+    cleanupExitingList();
+    const currentList = list;
+    list = null;
+    if (immediate) {
+      currentList.remove();
+    } else {
+      exitingList = currentList;
+      currentList.classList.remove("dropdown-anim-down", "dropdown-anim-up");
+      currentList.classList.add("dropdown-anim-exit");
+      setTimeout(() => {
+        if (exitingList === currentList) {
+          cleanupExitingList();
+        }
+      }, 100);
     }
   }
 
@@ -63,14 +88,14 @@ function enhance(select) {
   }
 
   function open() {
-    closeOpen();
+    closeOpen(true);
     list = document.createElement("div");
     list.className = LIST_CLASS;
     Array.from(select.options).forEach((o, i) => {
       const item = document.createElement("div");
       const active = i === select.selectedIndex;
       item.className =
-        "px-2.5 py-1.5 cursor-pointer hover:bg-darkControl rounded-lg mx-1 my-0.5 transition-colors " +
+        "px-2.5 py-1.5 cursor-pointer hover:bg-darkControl/80 rounded-lg mx-1 my-0.5 transition-colors duration-150 " +
         (active ? "text-accent font-semibold" : "text-slate-200");
       item.textContent = o.textContent;
       item.addEventListener("mousedown", (e) => {
@@ -90,8 +115,15 @@ function enhance(select) {
     list.style.left = r.left + "px";
     list.style.width = r.width + "px";
     list.style.maxHeight = Math.min(maxH, openUp ? above : below) + "px";
-    if (openUp) list.style.bottom = window.innerHeight - r.top + 2 + "px";
-    else list.style.top = r.bottom + 2 + "px";
+    if (openUp) {
+      list.style.bottom = window.innerHeight - r.top + 2 + "px";
+      list.classList.add("dropdown-anim-up");
+    } else {
+      list.style.top = r.bottom + 2 + "px";
+      list.classList.add("dropdown-anim-down");
+    }
+
+    arrow.style.transform = "rotate(180deg)";
 
     openInstance = { close, list, btn };
   }

@@ -28,8 +28,8 @@ Early Prototype (WIP) · Native C++23 · Direct3D 12 & Vulkan · 60 FPS Target �
 
 > [!IMPORTANT]
 > **STRICT ZERO-ASSET DISTRIBUTION POLICY:**
-> This repository distributes **NO game assets, ISO disk images, executables, textures, audio, dialogue, video, or precompiled game binaries**.  
-> Users and testers **MUST** provide their own legally acquired physical disc copy of the original Xbox 360 game (**Majin and the Forsaken Kingdom**). All executable unpacking, symbol mapping, code generation, and static recompilation steps are executed **strictly locally on the user's computer** using the automated scripts provided in this repository.
+> This repository distributes **NO game assets, ISO disk images, executables, proprietary shader microcode, textures, audio, dialogue, video, or copyrighted game binaries**.  
+> Users and testers **MUST** provide their own legally acquired physical disc copy of the original Xbox 360 game (**Majin and the Forsaken Kingdom**). All executable unpacking, symbol mapping, local shader reconstruction, code generation, and static recompilation steps are executed **strictly locally on the user's computer** using the automated scripts and launcher tools provided in this repository.
 
 > [!NOTE]
 > **NO AFFILIATION DISCLAIMER:**
@@ -76,9 +76,10 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **UI Presenter Loop Fix:** Resolved an architectural regression where toast dialogs kept the presenter trapped in uncapped UI repaints, restoring true cadence presentation (`PaintMode::kGuestOutputThreadImmediately`).
 - **GPU Bandwidth Tuning:** Emulates gamma render targets with 32bpp (`R8G8B8A8_UNORM`) saving 50% VRAM bandwidth over 64bpp, restored native anisotropic filtering, and disabled synchronous GPU-to-CPU memexport readbacks.
 
-### 2. Multi-Threaded Startup Pipeline Pre-Compilation
-- Compiles Direct3D 12 graphics pipeline state objects (PSOs) across background worker threads during engine initialization.
-- Substantially reduces in-game shader compilation stuttering during gameplay.
+### 2. Clean-Room Shader Pre-Compilation & Multi-Threaded Pipeline Warm-Up
+- **100% Clean-Room Shader Distribution:** No original shader microcode (`.xsh`) or proprietary game assets are distributed in the repository or release packages. Instead, the release includes only a portable pipeline state description list (`4E4D0816.fbo.vk.xpl`, containing 64-bit `XXH3` hashes and render state bitfields) and a reconstruction recipe map (`shader_recipes.json`).
+- **Local Reconstruction & GPU Warm-Up:** During ISO Setup (or when clicking **Precompile Shaders** in the launcher), the launcher reconstructs the Xenos shader cache locally on the user's machine directly from the files extracted from their own game disc (`static.pak`, `eff.pak`, `HexaEngineXbox.knl`), verifies every shader via `XXH3_64bits`, and pre-compiles a monolithic Vulkan driver pipeline cache (`.monolithic.vkpc`) tailored to the user's specific GPU.
+- **Asynchronous Fallback:** Any remaining uncataloged pipelines (such as 2D UI blits or rare effect permutations) are compiled asynchronously on background worker threads to prevent main-thread traversal stuttering.
 
 ### 3. Synchronized Cutscene & Dialogue Fast-Forward
 - Holding `Select`/`Back` (controller) or `Tab` (keyboard) during in-game cutscenes and dialogues triggers clean fast-forward (`2x`, `4x`, `6x`, `8x`).

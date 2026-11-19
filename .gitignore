@@ -17,6 +17,9 @@ assets/
 *.log
 *.xpso
 *.xsh
+*.vkpc
+*.knl
+*.bak
 __pycache__/
 !prototype/generated/
 prototype/generated/*

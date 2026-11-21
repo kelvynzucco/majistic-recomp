@@ -400,10 +400,10 @@
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-3 gap-2">
                   <div>
                     <label class="block text-xs text-slate-300 mb-1"
-                      >Internal Render Scale</label
+                      >Render Scale</label
                     >
                     <select
                       id="renderScale"
@@ -412,6 +412,20 @@
                       <option value="1" selected>1x - 720p (Native)</option>
                       <option value="2">2x - 1440p</option>
                       <option value="3">3x - 4K</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-xs text-slate-300 mb-1"
+                      >Shadow Quality</label
+                    >
+                    <select
+                      id="shadowScale"
+                      class="w-full h-[34px] bg-darkControl rounded-lg px-3 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="1">1x - Native</option>
+                      <option value="2" selected>2x - Enhanced</option>
+                      <option value="4">4x - Ultra Clean</option>
                     </select>
                   </div>
 

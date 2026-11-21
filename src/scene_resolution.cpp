@@ -18,6 +18,11 @@ REXCVAR_DEFINE_INT32(majin_scene_scale, 0, "Majin/Graphics",
     .range(0, 8)
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_INT32(majin_shadow_scale, 1, "Majin/Graphics",
+                     "Shadow map resolution multiplier (1 = 1x/1024, 2 = 2x/2048, 4 = 4x/4096)")
+    .range(1, 4)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(majin_native_ui, true, "Majin/Graphics",
                     "Keep 2D UI and HUD passes at native 1280x720 coordinate space while scaling 3D")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
@@ -26,9 +31,10 @@ namespace majin {
 
 void InitSceneResolution() {
   const int32_t scene_scale = REXCVAR_GET(majin_scene_scale);
+  const int32_t shadow_scale = GetEffectiveShadowScale();
   const bool native_ui = REXCVAR_GET(majin_native_ui);
-  REXLOG_INFO("majin: Scene resolution initialized (majin_scene_scale={}, majin_native_ui={}, edition={})",
-              scene_scale, native_ui, MAJIN_EDITION_NAME);
+  REXLOG_INFO("majin: Scene resolution initialized (majin_scene_scale={}, majin_shadow_scale={}, majin_native_ui={}, edition={})",
+              scene_scale, shadow_scale, native_ui, MAJIN_EDITION_NAME);
 }
 
 int32_t GetEffectiveSceneScale() {
@@ -42,6 +48,17 @@ int32_t GetEffectiveSceneScale() {
     if (draw_scale > 0) {
       return draw_scale;
     }
+  }
+  return 1;
+}
+
+int32_t GetEffectiveShadowScale() {
+  const int32_t shadow_scale = REXCVAR_GET(majin_shadow_scale);
+  if (shadow_scale >= 4) {
+    return 4;
+  }
+  if (shadow_scale >= 2) {
+    return 2;
   }
   return 1;
 }

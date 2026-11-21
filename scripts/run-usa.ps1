@@ -4,6 +4,7 @@ param(
     $Fullscreen = $false,
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
+    [ValidateRange(1,4)][int]$ShadowScale = 1,
     [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
     [ValidateRange(0.0, 1.0)][double]$DeDitherStrength = 0.85,
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
@@ -50,6 +51,17 @@ $isVSync = ConvertTo-Bool $VSync
 $isRecordPerf = ConvertTo-Bool $RecordPerformance
 
 $projectRoot = Split-Path $PSScriptRoot -Parent
+if (-not $PSBoundParameters.ContainsKey('ShadowScale')) {
+    $cfgFile = Join-Path $projectRoot 'private\launcher-usa.json'
+    if (Test-Path $cfgFile) {
+        try {
+            $jsonCfg = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
+            if ($jsonCfg.ShadowScale -in @(1, 2, 4)) {
+                $ShadowScale = [int]$jsonCfg.ShadowScale
+            }
+        } catch {}
+    }
+}
 if (-not $DisableLogging) {
     New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
 }
@@ -97,14 +109,18 @@ $buildUsa = Join-Path $projectRoot ('prototype-usa\out\build\win-amd64-' + $Conf
 $buildEdition = if ($isPal) { Join-Path $buildPal 'majin.exe' } else { Join-Path $buildUsa 'majin.exe' }
 $build = if ($isPal) { $buildPal } else { $buildUsa }
 
-if (Test-Path $editionExe) {
+if (Test-Path $buildEdition) {
+    if (-not (Test-Path $targetExe) -or ((Get-Item $buildEdition).LastWriteTime -gt (Get-Item $targetExe).LastWriteTime)) {
+        Copy-Item -LiteralPath $buildEdition -Destination $targetExe -Force
+        Write-Output "Deployed newly built game binary ($buildEdition -> majin.exe)"
+    }
+    $exe = $targetExe
+} elseif (Test-Path $editionExe) {
     if (-not (Test-Path $targetExe) -or ((Get-Item $targetExe).Length -ne (Get-Item $editionExe).Length)) {
         Copy-Item -LiteralPath $editionExe -Destination $targetExe -Force
         Write-Output "Deployed precompiled game binary for $editionName (majin-$editionSuffix.exe -> majin.exe)"
     }
     $exe = $targetExe
-} elseif (Test-Path $buildEdition) {
-    $exe = $buildEdition
 } elseif (Test-Path $targetExe) {
     $exe = $targetExe
 } else {
@@ -154,6 +170,7 @@ $launchArgs += @(
     "--fullscreen=$($isFullscreen.ToString().ToLowerInvariant())",
     "--vsync=$($isVSync.ToString().ToLowerInvariant())",
     "--resolution_scale=$RenderScale",
+    "--majin_shadow_scale=$ShadowScale",
     "--swap_post_effect=$PostEffect",
     "--swap_dedither_strength=$($DeDitherStrength.ToString([Globalization.CultureInfo]::InvariantCulture))",
     "--present_effect=$Upscaler",

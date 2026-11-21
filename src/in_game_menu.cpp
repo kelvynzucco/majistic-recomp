@@ -59,10 +59,12 @@ void ReplaceJsonField(std::string& json, const std::string& key, const std::stri
 
 InGameMenuDialog::InGameMenuDialog(rex::ui::ImGuiDrawer* imgui_drawer,
                                    std::function<void()> on_resume,
-                                   std::function<void()> on_quit)
+                                   std::function<void()> on_quit,
+                                   std::function<void()> on_clear_caches)
     : rex::ui::ImGuiDialog(imgui_drawer),
       on_resume_(std::move(on_resume)),
-      on_quit_(std::move(on_quit)) {
+      on_quit_(std::move(on_quit)),
+      on_clear_caches_(std::move(on_clear_caches)) {
   rex::input::mnk::SetMouseLookActive(false);
   REXLOG_INFO("[InGameMenu] Opened in-game settings overlay.");
 }
@@ -107,6 +109,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double cas_sharp = rex::cvar::Query<double>("present_cas_additional_sharpness");
   const double fsr_reduction = rex::cvar::Query<double>("present_fsr_sharpness_reduction");
   const bool window_fps = rex::cvar::Query<bool>("majin_window_fps");
+  const int32_t shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
 
   char sens_buf[32];
   snprintf(sens_buf, sizeof(sens_buf), "%.1f", mouse_sens);
@@ -143,6 +146,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "DtSmoothing", dt_smoothing ? "true" : "false");
   ReplaceJsonField(json, "SkipCutscenes", skip_cutscenes ? "true" : "false");
   ReplaceJsonField(json, "CutsceneSpeed", std::to_string(cutscene_speed));
+  ReplaceJsonField(json, "ShadowScale", std::to_string(shadow_scale <= 1 ? 1 : (shadow_scale >= 4 ? 4 : 2)));
 
   std::ofstream outfile(config_path, std::ios::trunc);
   if (!outfile.is_open()) return false;
@@ -465,6 +469,41 @@ void InGameMenuDialog::DrawVisualsTab() {
   ImGui::Separator();
   ImGui::Spacing();
 
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadows & Lighting:");
+
+  // Shadow Map Resolution Scale
+  const int32_t current_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
+  const char* shadow_scale_labels[] = {
+      "1x Native (Vanilla 512-1024)",
+      "2x Enhanced (Crisp 1024-2048)",
+      "4x Ultra Clean (Sharp 2048-4096)",
+  };
+  const int shadow_scale_values[] = {1, 2, 4};
+
+  int shadow_idx = 0;
+  if (current_shadow_scale >= 4) {
+    shadow_idx = 2;
+  } else if (current_shadow_scale >= 2) {
+    shadow_idx = 1;
+  } else {
+    shadow_idx = 0;
+  }
+
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Map Resolution Scale (majin_shadow_scale):");
+  ImGui::SetNextItemWidth(340.0f);
+  if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
+    const int new_val = shadow_scale_values[shadow_idx];
+    rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
+    if (on_clear_caches_) {
+      on_clear_caches_();
+    }
+  }
+  ImGui::TextDisabled("Scales depth-only shadow passes in real-time, eliminating staircasing/pixelation on characters and geometry.");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
   ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Display & Swapchain:");
 
   // Output Dithering
@@ -524,9 +563,11 @@ void InGameMenuDialog::DrawSystemTab() {
   const std::string res_scale = rex::cvar::GetFlagByName("resolution_scale");
   const std::string upscaler = rex::cvar::GetFlagByName("present_effect");
   const std::string aa = rex::cvar::GetFlagByName("swap_post_effect");
+  const int32_t active_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
 
   ImGui::BulletText("Active Graphics Backend: %s", backend.empty() ? "vulkan" : backend.c_str());
   ImGui::BulletText("Internal Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
+  ImGui::BulletText("Shadow Map Resolution Scale: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));
   ImGui::BulletText("Presenter Upscaler: %s", upscaler.empty() ? "bilinear" : upscaler.c_str());
   ImGui::BulletText("Anti-Aliasing Pass: %s", aa.empty() ? "none" : aa.c_str());
 

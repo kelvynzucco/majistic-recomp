@@ -379,6 +379,7 @@ $play.Add_Click({
             Fullscreen        = ($mode.SelectedIndex -eq 1)
             VSync             = ($sync.SelectedIndex -eq 1)
             RenderScale       = ($scale.SelectedIndex + 1)
+            ShadowScale       = if ($saved.ShadowScale -in @(1, 2, 4)) { [int]$saved.ShadowScale } else { 2 }
             PostEffect        = $script:postEffectValues[$effect.SelectedIndex]
             DeDitherStrength  = if ($saved.DeDitherStrength -is [ValueType]) { [double]$saved.DeDitherStrength } else { 0.85 }
             Upscaler          = (@('fsr','cas','bilinear')[$upscaler.SelectedIndex])

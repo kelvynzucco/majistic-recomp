@@ -188,6 +188,7 @@ const elements = {
   windowSize: document.getElementById("windowSize"),
   fullscreen: document.getElementById("fullscreen"),
   renderScale: document.getElementById("renderScale"),
+  shadowScale: document.getElementById("shadowScale"),
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
@@ -512,6 +513,7 @@ function populateForm(settings) {
   if (elements.windowSize) elements.windowSize.value = settings.WindowSize || "1280x720";
   if (elements.fullscreen) elements.fullscreen.value = String(!!settings.Fullscreen);
   if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
+  if (elements.shadowScale) elements.shadowScale.value = String(settings.ShadowScale !== undefined ? settings.ShadowScale : 2);
   if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "30";
   if (elements.renderingPath) {
     const rp = settings.RenderingPath || "Vulkan";
@@ -598,6 +600,7 @@ function readForm() {
     WindowSize: elements.windowSize?.value || "1280x720",
     Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
     RenderScale: safeInt(elements.renderScale?.value, 1),
+    ShadowScale: safeInt(elements.shadowScale?.value, 2),
     RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : true,

@@ -249,4 +249,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan de-dither post-processing patch application'
 }
 
-Write-Host "[1.1 - 1.17] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.18: Apply Vulkan shadow map resolution scaling (1x/2x/4x) patch
+$vulkanShadowScalePatch = Join-Path $patchRoot 'vulkan-shadow-map-scale.patch'
+git -C $source apply --reverse --check $vulkanShadowScalePatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanShadowScalePatch
+    Check-Native 'Vulkan shadow map resolution scaling patch check'
+    git -C $source apply $vulkanShadowScalePatch
+    Check-Native 'Vulkan shadow map resolution scaling patch application'
+}
+
+Write-Host "[1.1 - 1.18] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

@@ -16,7 +16,8 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
  public:
   InGameMenuDialog(rex::ui::ImGuiDrawer* imgui_drawer,
                    std::function<void()> on_resume,
-                   std::function<void()> on_quit);
+                   std::function<void()> on_quit,
+                   std::function<void()> on_clear_caches = nullptr);
   ~InGameMenuDialog() override;
 
  protected:
@@ -33,6 +34,7 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
 
   std::function<void()> on_resume_;
   std::function<void()> on_quit_;
+  std::function<void()> on_clear_caches_;
 
   bool show_quit_confirm_ = false;
   std::string save_status_msg_;

@@ -103,6 +103,18 @@ where
     Ok(opt.unwrap_or(4))
 }
 
+fn default_shadow_scale() -> u32 {
+    2
+}
+
+fn deserialize_nullable_u32_shadow_scale<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<u32>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(1))
+}
+
 fn deserialize_nullable_u32_render_scale<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -136,6 +148,8 @@ pub struct Settings {
     pub fullscreen: bool,
     #[serde(default = "default_render_scale", deserialize_with = "deserialize_nullable_u32_render_scale")]
     pub render_scale: u32,
+    #[serde(rename = "ShadowScale", default = "default_shadow_scale", deserialize_with = "deserialize_nullable_u32_shadow_scale")]
+    pub shadow_scale: u32,
     #[serde(default = "default_rendering_path")]
     pub rendering_path: String,
     #[serde(default = "default_frame_rate_mode")]
@@ -202,6 +216,7 @@ impl Default for Settings {
             window_size: "1280x720".into(),
             fullscreen: false,
             render_scale: 1,
+            shadow_scale: 2,
             rendering_path: "Vulkan".into(),
             frame_rate_mode: "30".into(),
             vsync: true,
@@ -1058,6 +1073,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         format!("-VSync:${}", settings.vsync),
         "-RenderScale".to_string(),
         settings.render_scale.to_string(),
+        "-ShadowScale".to_string(),
+        settings.shadow_scale.to_string(),
         "-PostEffect".to_string(),
         settings.post_effect,
         "-DeDitherStrength".to_string(),

@@ -1,0 +1,1829 @@
+diff --git a/include/rex/graphics/d3d12/texture_cache.h b/include/rex/graphics/d3d12/texture_cache.h
+index 4d845c7..c60060f 100644
+--- a/include/rex/graphics/d3d12/texture_cache.h
++++ b/include/rex/graphics/d3d12/texture_cache.h
+@@ -121,7 +121,8 @@ class D3D12TextureCache final : public TextureCache {
+                                                      const ui::d3d12::D3D12Provider& provider);
+   // Ensures the tiles backing the range in the buffers are allocated.
+   bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
+-                                          uint32_t length_scaled_alignment_log2 = 0) override;
++                                          uint32_t length_scaled_alignment_log2 = 0,
++                                          bool is_shadow_depth = false) override;
+   // Makes the specified range of up to 1-2 GB currently accessible on the GPU.
+   // One draw call can access only at most one range - the same memory is
+   // accessible through different buffers based on the range needed, so aliasing
+diff --git a/include/rex/graphics/graphics_system.h b/include/rex/graphics/graphics_system.h
+index ac6b056..1e70113 100644
+--- a/include/rex/graphics/graphics_system.h
++++ b/include/rex/graphics/graphics_system.h
+@@ -77,7 +77,7 @@ class GraphicsSystem : public system::IGraphicsSystem {
+   void SetInterruptCallback(uint32_t callback, uint32_t user_data) override;
+   void DispatchInterruptCallback(uint32_t source, uint32_t cpu);
+ 
+-  virtual void ClearCaches();
++  void ClearCaches() override;
+   virtual void InvalidateGpuMemory();
+ 
+   void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
+diff --git a/include/rex/graphics/pipeline/render_target/cache.h b/include/rex/graphics/pipeline/render_target/cache.h
+index 21af8a9..589b471 100644
+--- a/include/rex/graphics/pipeline/render_target/cache.h
++++ b/include/rex/graphics/pipeline/render_target/cache.h
+@@ -162,8 +162,10 @@ class RenderTargetCache {
+   // to be discarded.
+   uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
+   uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
++  uint32_t shadow_resolution_scale() const;
+   bool IsDrawResolutionScaled() const {
+-    return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1;
++    return draw_resolution_scale_x() > 1 || draw_resolution_scale_y() > 1 ||
++           shadow_resolution_scale() > 1;
+   }
+ 
+   // Virtual (both the common code and the implementation may do something
+@@ -293,6 +295,22 @@ class RenderTargetCache {
+              (xenos::kEdramTileWidthSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
+     }
+     uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
++    bool IsShadowMapDepthTarget() const {
++      if (!is_depth) {
++        return false;
++      }
++      const xenos::DepthRenderTargetFormat fmt = GetDepthFormat();
++      if (fmt != xenos::DepthRenderTargetFormat::kD24S8 &&
++          fmt != xenos::DepthRenderTargetFormat::kD24FS8) {
++        return false;
++      }
++      const uint32_t w = GetWidth();
++      return (w == 800 || w == 400 || w == 768 || w == 1040 || w == 560 || w == 520 || w == 1024 || w == 512) &&
++             (pitch_tiles_at_32bpp == 10 || pitch_tiles_at_32bpp == 13 || pitch_tiles_at_32bpp == 26 || pitch_tiles_at_32bpp == 7);
++    }
++    static bool IsShadowMapDepthTarget(const RenderTargetKey& k) {
++      return k.IsShadowMapDepthTarget();
++    }
+ 
+     std::string GetDebugName() const {
+       return fmt::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
+@@ -300,6 +318,10 @@ class RenderTargetCache {
+     }
+   };
+ 
++  static bool IsShadowMapDepthTarget(RenderTargetKey key) {
++    return key.IsShadowMapDepthTarget();
++  }
++
+   class RenderTarget {
+    public:
+     virtual ~RenderTarget() = default;
+diff --git a/include/rex/graphics/pipeline/texture/cache.h b/include/rex/graphics/pipeline/texture/cache.h
+index f59ab37..b34341a 100644
+--- a/include/rex/graphics/pipeline/texture/cache.h
++++ b/include/rex/graphics/pipeline/texture/cache.h
+@@ -73,10 +73,11 @@ class TextureCache {
+ 
+   // Returns whether the actual scale is not smaller than the requested one.
+   static bool GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out);
++  uint32_t shadow_resolution_scale() const;
+   uint32_t draw_resolution_scale_x() const { return draw_resolution_scale_x_; }
+   uint32_t draw_resolution_scale_y() const { return draw_resolution_scale_y_; }
+   bool IsDrawResolutionScaled() const {
+-    return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
++    return draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1 || shadow_resolution_scale() > 1;
+   }
+ 
+   virtual void ClearCache();
+@@ -86,6 +87,9 @@ class TextureCache {
+   virtual void BeginFrame();
+ 
+   void MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
++  void UnmarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
++  void MarkShadowMapRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled);
++  bool IsShadowMapResolvedRange(uint32_t address) const;
+   bool HasScaledResolveRange(uint32_t address, uint32_t length) {
+     return IsRangeScaledResolved(address, length);
+   }
+@@ -93,7 +97,8 @@ class TextureCache {
+   // allocated and returns whether it is.
+   virtual bool EnsureScaledResolveMemoryCommitted(uint32_t /*start_unscaled*/,
+                                                   uint32_t /*length_unscaled*/,
+-                                                  uint32_t /*length_scaled_alignment_log2*/ = 0) {
++                                                  uint32_t /*length_scaled_alignment_log2*/ = 0,
++                                                  bool /*is_shadow_depth*/ = false) {
+     return false;
+   }
+ 
+@@ -216,6 +221,22 @@ class TextureCache {
+     uint32_t GetHeight() const { return height_minus_1 + 1; }
+     uint32_t GetDepthOrArraySize() const { return depth_or_array_size_minus_1 + 1; }
+ 
++    static bool IsShadowMapTexture(const TextureKey& k) {
++      if (k.format != xenos::TextureFormat::k_24_8_FLOAT &&
++          k.format != xenos::TextureFormat::k_24_8) {
++        return false;
++      }
++      const uint32_t w = k.GetWidth();
++      const uint32_t h = k.GetHeight();
++      if (w >= 1280 && h >= 720) {
++        return false;
++      }
++      return (w == 768 && h == 768) || (w == 800 && h == 800) ||
++             (w == 512 && h == 512) || (w == 1024 && h == 1024) ||
++             (w <= 1024 && h <= 1024 && (w == 768 || w == 800 || w == 512 || w == 1024));
++    }
++    bool IsShadowMapTexture() const { return IsShadowMapTexture(*this); }
++
+     texture_util::TextureGuestLayout GetGuestLayout() const {
+       return texture_util::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
+                                                  GetDepthOrArraySize(), tiled, format, packed_mips,
+@@ -658,6 +679,7 @@ class TextureCache {
+   // resolve data. uint32_t rather than uint64_t because parts of it can be sent
+   // to shaders.
+   std::unique_ptr<uint32_t[]> scaled_resolve_pages_;
++  std::unique_ptr<uint32_t[]> shadow_resolve_pages_;
+   // Second level of the bit vector for faster rejection of non-scaled textures.
+   // >> 12 for 4 KB pages, >> 5 for uint32_t level 1 bits, >> 6 for uint64_t
+   // level 2 bits.
+diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
+index 8100c5c..91c65d8 100644
+--- a/include/rex/graphics/vulkan/render_target_cache.h
++++ b/include/rex/graphics/vulkan/render_target_cache.h
+@@ -166,6 +166,17 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+                             uint32_t normalized_color_mask, RenderPassKey& key_out) const;
+   // Binding information for the last successful update.
+   RenderPassKey last_update_render_pass_key() const { return last_update_render_pass_key_; }
++  bool IsLastUpdateShadowMapDepth() const {
++    if (last_update_render_pass_key_.depth_and_color_used != 1) {
++      return false;
++    }
++    const uint32_t pass_key = last_update_render_pass_key_.key;
++    if (pass_key != 0x0084 && pass_key != 0x0086 && pass_key != 0x0006 && pass_key != 0x0004) {
++      return false;
++    }
++    const auto* const* rts = last_update_accumulated_render_targets();
++    return rts && rts[0] && IsShadowMapDepthTarget(rts[0]->key());
++  }
+   VkRenderPass last_update_render_pass() const { return last_update_render_pass_; }
+   const Framebuffer* last_update_framebuffer() const { return last_update_framebuffer_; }
+   void GetLastUpdateRenderingAttachments(VkRenderingAttachmentInfo* color_attachments,
+@@ -320,7 +331,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   static const ResolveCopyShaderCode
+       kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
+   std::array<VkPipeline, size_t(draw_util::ResolveCopyShaderIndex::kCount)>
+-      resolve_copy_pipelines_{};
++      resolve_copy_pipelines_unscaled_{};
++  std::array<VkPipeline, size_t(draw_util::ResolveCopyShaderIndex::kCount)>
++      resolve_copy_pipelines_scaled_{};
++  VkPipeline GetResolveCopyPipeline(draw_util::ResolveCopyShaderIndex index, bool scaled) const {
++    size_t idx = size_t(index);
++    assert_true(idx < size_t(draw_util::ResolveCopyShaderIndex::kCount));
++    return scaled ? resolve_copy_pipelines_scaled_[idx] : resolve_copy_pipelines_unscaled_[idx];
++  }
+ 
+   // On the fragment shader interlock path, the render pass key is used purely
+   // for passing parameters to pipeline setup - there's always only one render
+@@ -608,6 +626,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+       // additional stencil texture.
+       static_assert(size_t(TransferMode::kCount) <= (size_t(1) << 4));
+       TransferMode mode : 4;
++      uint32_t shadow_scale : 3;
+     };
+ 
+     TransferShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+@@ -716,6 +735,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+       // Last bit because this affects the pipeline - after sorting, only change
+       // it at most once. Depth buffers have an additional stencil SRV.
+       uint32_t is_depth : 1;
++      uint32_t is_shadow_depth : 1;
++      uint32_t shadow_scale : 3;
+     };
+ 
+     DumpPipelineKey() : key(0) { static_assert_size(*this, sizeof(key)); }
+diff --git a/include/rex/graphics/vulkan/texture_cache.h b/include/rex/graphics/vulkan/texture_cache.h
+index 8b45eb1..083b6da 100644
+--- a/include/rex/graphics/vulkan/texture_cache.h
++++ b/include/rex/graphics/vulkan/texture_cache.h
+@@ -123,18 +123,22 @@ class VulkanTextureCache final : public TextureCache {
+                                  uint32_t* height_unscaled_out = nullptr,
+                                  bool* swap_source_needs_rb_swap_out = nullptr);
+ 
++  static constexpr uint64_t kShadowMapScaledBufferOffset = 0x200000000ULL;
++
+   bool GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+                              uint32_t length_scaled_alignment_log2, uint64_t& start_scaled_out,
+-                             uint64_t& length_scaled_out) const;
++                             uint64_t& length_scaled_out, bool is_shadow_depth = false) const;
+   bool CommitScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+-                                uint32_t length_scaled_alignment_log2 = 0) {
++                                uint32_t length_scaled_alignment_log2 = 0,
++                                bool is_shadow_depth = false) {
+     return EnsureScaledResolveMemoryCommitted(start_unscaled, length_unscaled,
+-                                              length_scaled_alignment_log2);
++                                              length_scaled_alignment_log2, is_shadow_depth);
+   }
+   VkBuffer scaled_resolve_buffer() const { return scaled_resolve_buffer_; }
+   void UseScaledResolveBufferForRead();
+   void UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
+                                       uint64_t written_length_scaled);
++  void ClearCache() override;
+ 
+  protected:
+   bool IsSignedVersionSeparateForFormat(TextureKey key) const override;
+@@ -147,7 +151,8 @@ class VulkanTextureCache final : public TextureCache {
+   std::unique_ptr<Texture> CreateTexture(TextureKey key) override;
+ 
+   bool EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled, uint32_t length_unscaled,
+-                                          uint32_t length_scaled_alignment_log2 = 0) override;
++                                          uint32_t length_scaled_alignment_log2 = 0,
++                                          bool is_shadow_depth = false) override;
+ 
+   bool LoadTextureDataFromResidentMemoryImpl(Texture& texture, bool load_base,
+                                              bool load_mips) override;
+@@ -212,6 +217,12 @@ class VulkanTextureCache final : public TextureCache {
+     VkImage image() const { return image_; }
+     VkImageView storage_view() const { return storage_view_; }
+     void set_storage_view(VkImageView view) { storage_view_ = view; }
++    uint32_t host_width() const { return host_width_; }
++    uint32_t host_height() const { return host_height_; }
++    void set_host_extent(uint32_t width, uint32_t height) {
++      host_width_ = width;
++      host_height_ = height;
++    }
+ 
+     VulkanTexture* upload_texture() { return cube_upload_ ? cube_upload_.get() : this; }
+     void SetCubeUpload(std::unique_ptr<VulkanTexture> texture) {
+@@ -280,6 +291,8 @@ class VulkanTextureCache final : public TextureCache {
+     VkImageView storage_view_ = VK_NULL_HANDLE;
+     VkImage image_;
+     VmaAllocation allocation_;
++    uint32_t host_width_ = 0;
++    uint32_t host_height_ = 0;
+ 
+     Usage usage_ = Usage::kUndefined;
+ 
+diff --git a/include/rex/system/interfaces/graphics.h b/include/rex/system/interfaces/graphics.h
+index d54df86..2aa1128 100644
+--- a/include/rex/system/interfaces/graphics.h
++++ b/include/rex/system/interfaces/graphics.h
+@@ -79,6 +79,9 @@ class IGraphicsSystem {
+     (void)blocking;
+   }
+ 
++  // Clear transient texture, render target, uniform and primitive caches.
++  virtual void ClearCaches() {}
++
+   // One-shot convenience for callers that don't care about the split.
+   X_STATUS Setup(runtime::FunctionDispatcher* function_dispatcher, KernelState* kernel_state,
+                  ui::WindowedAppContext* app_context, bool with_presentation) {
+diff --git a/include/rex/ui/vulkan/functions/device_1_0.inc b/include/rex/ui/vulkan/functions/device_1_0.inc
+index aa55a4a..db6632a 100644
+--- a/include/rex/ui/vulkan/functions/device_1_0.inc
++++ b/include/rex/ui/vulkan/functions/device_1_0.inc
+@@ -65,6 +65,7 @@ XE_UI_VULKAN_FUNCTION(vkDestroyRenderPass)
+ XE_UI_VULKAN_FUNCTION(vkDestroySampler)
+ XE_UI_VULKAN_FUNCTION(vkDestroySemaphore)
+ XE_UI_VULKAN_FUNCTION(vkDestroyShaderModule)
++XE_UI_VULKAN_FUNCTION(vkDeviceWaitIdle)
+ XE_UI_VULKAN_FUNCTION(vkEndCommandBuffer)
+ XE_UI_VULKAN_FUNCTION(vkFlushMappedMemoryRanges)
+ XE_UI_VULKAN_FUNCTION(vkFreeMemory)
+@@ -79,6 +80,7 @@ XE_UI_VULKAN_FUNCTION(vkResetDescriptorPool)
+ XE_UI_VULKAN_FUNCTION(vkResetFences)
+ XE_UI_VULKAN_FUNCTION(vkQueueBindSparse)
+ XE_UI_VULKAN_FUNCTION(vkQueueSubmit)
++XE_UI_VULKAN_FUNCTION(vkQueueWaitIdle)
+ XE_UI_VULKAN_FUNCTION(vkUnmapMemory)
+ XE_UI_VULKAN_FUNCTION(vkUpdateDescriptorSets)
+ XE_UI_VULKAN_FUNCTION(vkWaitForFences)
+diff --git a/src/graphics/d3d12/render_target_cache.cpp b/src/graphics/d3d12/render_target_cache.cpp
+index dd24163..e866920 100644
+--- a/src/graphics/d3d12/render_target_cache.cpp
++++ b/src/graphics/d3d12/render_target_cache.cpp
+@@ -1562,9 +1562,15 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
+   D3D12_RESOURCE_DESC resource_desc;
+   resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+   resource_desc.Alignment = 0;
+-  resource_desc.Width = key.GetWidth() * draw_resolution_scale_x();
++  uint32_t rt_scale_x = draw_resolution_scale_x();
++  uint32_t rt_scale_y = draw_resolution_scale_y();
++  if (IsShadowMapDepthTarget(key)) {
++    rt_scale_x = shadow_resolution_scale();
++    rt_scale_y = shadow_resolution_scale();
++  }
++  resource_desc.Width = key.GetWidth() * rt_scale_x;
+   resource_desc.Height =
+-      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * draw_resolution_scale_y();
++      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * rt_scale_y;
+   resource_desc.DepthOrArraySize = 1;
+   resource_desc.MipLevels = 1;
+   if (key.is_depth) {
+@@ -3814,19 +3820,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+   DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
+ 
+   bool resolve_clear_needed = render_target_resolve_clear_values && resolve_clear_rectangle;
+-  D3D12_RECT clear_rect;
+-  if (resolve_clear_needed) {
+-    // Assuming the rectangle is already clamped by the setup function from the
+-    // common render target cache.
+-    clear_rect.left = LONG(resolve_clear_rectangle->x_pixels * draw_resolution_scale_x());
+-    clear_rect.top = LONG(resolve_clear_rectangle->y_pixels * draw_resolution_scale_y());
+-    clear_rect.right =
+-        LONG((resolve_clear_rectangle->x_pixels + resolve_clear_rectangle->width_pixels) *
+-             draw_resolution_scale_x());
+-    clear_rect.bottom =
+-        LONG((resolve_clear_rectangle->y_pixels + resolve_clear_rectangle->height_pixels) *
+-             draw_resolution_scale_y());
+-  }
++  D3D12_RECT clear_rect = {};
+ 
+   // Do host depth storing for the depth destination (assuming there can be only
+   // one depth destination) where depth destination == host depth source.
+@@ -4081,8 +4075,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+ 
+   bool transfer_viewport_set = false;
+   float pixels_to_ndc_unscaled = 2.0f / float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+-  float pixels_to_ndc_x = pixels_to_ndc_unscaled * draw_resolution_scale_x();
+-  float pixels_to_ndc_y = pixels_to_ndc_unscaled * draw_resolution_scale_y();
+ 
+   TransferRootSignatureIndex last_transfer_root_signature_index =
+       TransferRootSignatureIndex::kCount;
+@@ -4109,6 +4101,25 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+     auto& dest_d3d12_rt = *static_cast<D3D12RenderTarget*>(dest_rt);
+     RenderTargetKey dest_rt_key = dest_d3d12_rt.key();
+ 
++    uint32_t dest_scale_x = draw_resolution_scale_x();
++    uint32_t dest_scale_y = draw_resolution_scale_y();
++    if (dest_rt_key.is_depth && IsShadowMapDepthTarget(dest_rt_key)) {
++      dest_scale_x = shadow_resolution_scale();
++      dest_scale_y = shadow_resolution_scale();
++    }
++    float pixels_to_ndc_x = pixels_to_ndc_unscaled * dest_scale_x;
++    float pixels_to_ndc_y = pixels_to_ndc_unscaled * dest_scale_y;
++    if (resolve_clear_needed) {
++      clear_rect.left = LONG(resolve_clear_rectangle->x_pixels * dest_scale_x);
++      clear_rect.top = LONG(resolve_clear_rectangle->y_pixels * dest_scale_y);
++      clear_rect.right =
++          LONG((resolve_clear_rectangle->x_pixels + resolve_clear_rectangle->width_pixels) *
++               dest_scale_x);
++      clear_rect.bottom =
++          LONG((resolve_clear_rectangle->y_pixels + resolve_clear_rectangle->height_pixels) *
++               dest_scale_y);
++    }
++
+     // Late barrier in case there was cross-copying that prevented merging of
+     // barriers.
+     D3D12_RESOURCE_STATES dest_state = dest_rt_key.is_depth ? D3D12_RESOURCE_STATE_DEPTH_WRITE
+@@ -4233,15 +4244,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+             const Transfer::Rectangle& stencil_clear_rectangle =
+                 transfer_stencil_clear_rectangles[j];
+             stencil_clear_rect_write_ptr->left =
+-                LONG(stencil_clear_rectangle.x_pixels * draw_resolution_scale_x());
++                LONG(stencil_clear_rectangle.x_pixels * dest_scale_x);
+             stencil_clear_rect_write_ptr->top =
+-                LONG(stencil_clear_rectangle.y_pixels * draw_resolution_scale_y());
++                LONG(stencil_clear_rectangle.y_pixels * dest_scale_y);
+             stencil_clear_rect_write_ptr->right =
+                 LONG((stencil_clear_rectangle.x_pixels + stencil_clear_rectangle.width_pixels) *
+-                     draw_resolution_scale_x());
++                     dest_scale_x);
+             stencil_clear_rect_write_ptr->bottom =
+                 LONG((stencil_clear_rectangle.y_pixels + stencil_clear_rectangle.height_pixels) *
+-                     draw_resolution_scale_y());
++                     dest_scale_y);
+             ++stencil_clear_rect_write_ptr;
+           }
+         }
+diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
+index 2be0e8e..411447c 100644
+--- a/src/graphics/d3d12/texture_cache.cpp
++++ b/src/graphics/d3d12/texture_cache.cpp
+@@ -1113,7 +1113,9 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
+ 
+ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
+                                                            uint32_t length_unscaled,
+-                                                           uint32_t length_scaled_alignment_log2) {
++                                                           uint32_t length_scaled_alignment_log2,
++                                                           bool is_shadow_depth) {
++  (void)is_shadow_depth;
+   assert_true(IsDrawResolutionScaled());
+ 
+   if (length_unscaled == 0) {
+diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
+index e477d0a..60ed0da 100644
+--- a/src/graphics/pipeline/render_target/cache.cpp
++++ b/src/graphics/pipeline/render_target/cache.cpp
+@@ -329,6 +329,17 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
+   return rectangle_count;
+ }
+ 
++uint32_t RenderTargetCache::shadow_resolution_scale() const {
++  const std::string s = rex::cvar::GetFlagByName("majin_shadow_scale");
++  if (!s.empty()) {
++    const int val = std::atoi(s.c_str());
++    if (val >= 4) return 4u;
++    if (val >= 2) return 2u;
++    if (val >= 1) return 1u;
++  }
++  return draw_resolution_scale_x_;
++}
++
+ RenderTargetCache::~RenderTargetCache() {
+   ShutdownCommon();
+ }
+@@ -365,6 +376,24 @@ void RenderTargetCache::ShutdownCommon() {
+ void RenderTargetCache::ClearCache() {
+   ++update_state_generation_;
+   // Keep only render targets currently owning any EDRAM data.
++  // Evict shadow map depth targets from ownership ranges so that when
++  // majin_shadow_scale changes at runtime, they are destroyed and recreated
++  // at the new shadow resolution scale.
++  for (auto& ownership_range_pair : ownership_ranges_) {
++    OwnershipRange& ownership_range = ownership_range_pair.second;
++    if (!ownership_range.render_target.IsEmpty() &&
++        IsShadowMapDepthTarget(ownership_range.render_target)) {
++      ownership_range.render_target = RenderTargetKey();
++    }
++    if (!ownership_range.host_depth_render_target_unorm24.IsEmpty() &&
++        IsShadowMapDepthTarget(ownership_range.host_depth_render_target_unorm24)) {
++      ownership_range.host_depth_render_target_unorm24 = RenderTargetKey();
++    }
++    if (!ownership_range.host_depth_render_target_float24.IsEmpty() &&
++        IsShadowMapDepthTarget(ownership_range.host_depth_render_target_float24)) {
++      ownership_range.host_depth_render_target_float24 = RenderTargetKey();
++    }
++  }
+   if (!render_targets_.empty()) {
+     std::unordered_set<RenderTargetKey, RenderTargetKey::Hasher> used_render_targets;
+     for (const auto& ownership_range_pair : ownership_ranges_) {
+@@ -1520,7 +1549,11 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
+         // Only perform the copying when actually changing the latest owner, not
+         // just the latest host depth owner - the transfer source is expected to
+         // be different than the destination.
+-        if (!transfer_source.IsEmpty() && transfer_source != dest) {
++        // Skip cross-domain transfers between shadow map depth targets and
++        // non-shadow targets (such as 1280x720 scene color at base_tiles=0)
++        // which may have different resolution scales.
++        if (!transfer_source.IsEmpty() && transfer_source != dest &&
++            IsShadowMapDepthTarget(transfer_source) == IsShadowMapDepthTarget(dest)) {
+           uint32_t transfer_end_tiles = std::min(it->second.end_tiles, extent_end);
+           if (!resolve_clear_cutout ||
+               Transfer::GetRangeRectangles(it->first, transfer_end_tiles, dest.base_tiles,
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+index 6d39bcf..875ac12 100644
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -226,14 +226,25 @@ TextureCache::TextureCache(const RegisterFile& register_file, SharedMemory& shar
+   assert_true(draw_resolution_scale_y >= 1);
+   assert_true(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
+ 
+-  if (draw_resolution_scale_x > 1 || draw_resolution_scale_y > 1) {
+-    constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
+-    scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
+-    std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
+-    std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
+-    scaled_resolve_global_watch_handle_ =
+-        shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
++  constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
++  scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
++  std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
++  std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
++  shadow_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
++  std::memset(shadow_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
++  scaled_resolve_global_watch_handle_ =
++      shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
++}
++
++uint32_t TextureCache::shadow_resolution_scale() const {
++  const std::string s = rex::cvar::GetFlagByName("majin_shadow_scale");
++  if (!s.empty()) {
++    const int val = std::atoi(s.c_str());
++    if (val >= 4) return 4u;
++    if (val >= 2) return 2u;
++    if (val >= 1) return 1u;
+   }
++  return draw_resolution_scale_x_;
+ }
+ 
+ TextureCache::~TextureCache() {
+@@ -263,6 +274,10 @@ bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out
+ 
+ void TextureCache::ClearCache() {
+   DestroyAllTextures();
++  constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
++  if (shadow_resolve_pages_) {
++    std::memset(shadow_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
++  }
+ }
+ 
+ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
+@@ -373,6 +388,75 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
+   shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
+ }
+ 
++void TextureCache::UnmarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
++  if (length_unscaled == 0) {
++    return;
++  }
++  start_unscaled &= 0x1FFFFFFF;
++  length_unscaled = std::min(length_unscaled, 0x20000000 - start_unscaled);
++
++  if (IsDrawResolutionScaled()) {
++    uint32_t page_first = start_unscaled >> 12;
++    uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
++    uint32_t block_first = page_first >> 5;
++    uint32_t block_last = page_last >> 5;
++    auto global_lock = global_critical_region_.Acquire();
++    for (uint32_t i = block_first; i <= block_last; ++i) {
++      uint32_t clear_bits = UINT32_MAX;
++      if (i == block_first) {
++        clear_bits &= ~((UINT32_C(1) << (page_first & 31)) - 1);
++      }
++      if (i == block_last && (page_last & 31) != 31) {
++        clear_bits &= (UINT32_C(1) << ((page_last & 31) + 1)) - 1;
++      }
++      if (scaled_resolve_pages_) {
++        scaled_resolve_pages_[i] &= ~clear_bits;
++        if (scaled_resolve_pages_[i] == 0) {
++          scaled_resolve_pages_l2_[i >> 6] &= ~(UINT64_C(1) << (i & 63));
++        }
++      }
++      if (shadow_resolve_pages_) {
++        shadow_resolve_pages_[i] &= ~clear_bits;
++      }
++    }
++  }
++
++  shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
++}
++
++void TextureCache::MarkShadowMapRangeAsResolved(uint32_t start_unscaled, uint32_t length_unscaled) {
++  if (!shadow_resolve_pages_) {
++    return;
++  }
++  uint32_t page_first = start_unscaled >> 12;
++  uint32_t page_last = (start_unscaled + length_unscaled - 1) >> 12;
++  uint32_t block_first = page_first >> 5;
++  uint32_t block_last = page_last >> 5;
++  auto global_lock = global_critical_region_.Acquire();
++  for (uint32_t i = block_first; i <= block_last; ++i) {
++    uint32_t add_bits = UINT32_MAX;
++    if (i == block_first) {
++      add_bits &= ~((UINT32_C(1) << (page_first & 31)) - 1);
++    }
++    if (i == block_last && (page_last & 31) != 31) {
++      add_bits &= (UINT32_C(1) << ((page_last & 31) + 1)) - 1;
++    }
++    shadow_resolve_pages_[i] |= add_bits;
++  }
++}
++
++bool TextureCache::IsShadowMapResolvedRange(uint32_t address) const {
++  if (!shadow_resolve_pages_) {
++    return false;
++  }
++  uint32_t page = address >> 12;
++  uint32_t block = page >> 5;
++  if (block >= (SharedMemory::kBufferSize / 4096 / 32)) {
++    return false;
++  }
++  return (shadow_resolve_pages_[block] & (UINT32_C(1) << (page & 31))) != 0;
++}
++
+ uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle) {
+   uint32_t host_swizzle = 0;
+   for (uint32_t i = 0; i < 4; ++i) {
+@@ -460,12 +544,15 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
+     // the shader, including any possible padding that hasn't yet been touched
+     // by an actual resolve, but is still included in the texture size, so the
+     // GPU won't be trying to access unmapped memory.
+-    if (pending_load.load_base && !EnsureScaledResolveMemoryCommitted(
+-                                      texture_key.base_page << 12, texture.GetGuestBaseSize(), 4)) {
++    const bool is_shadow = TextureKey::IsShadowMapTexture(texture_key);
++    if (pending_load.load_base &&
++        !EnsureScaledResolveMemoryCommitted(texture_key.base_page << 12,
++                                            texture.GetGuestBaseSize(), 4, is_shadow)) {
+       return false;
+     }
+-    if (pending_load.load_mips && !EnsureScaledResolveMemoryCommitted(
+-                                      texture_key.mip_page << 12, texture.GetGuestMipsSize(), 4)) {
++    if (pending_load.load_mips &&
++        !EnsureScaledResolveMemoryCommitted(texture_key.mip_page << 12,
++                                            texture.GetGuestMipsSize(), 4, is_shadow)) {
+       return false;
+     }
+   }
+@@ -704,6 +791,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       if (any_sign_is_not_signed) {
+         if (key_changed || !any_sign_was_not_signed) {
+           binding.texture = FindOrCreateTexture(binding.key);
++          if (binding.texture) {
++            binding.key.scaled_resolve = binding.texture->key().scaled_resolve;
++          }
+           load_unsigned_data = true;
+         }
+       } else {
+@@ -714,6 +804,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+           TextureKey signed_key = binding.key;
+           signed_key.signed_separate = 1;
+           binding.texture_signed = FindOrCreateTexture(signed_key);
++          if (binding.texture_signed) {
++            binding.key.scaled_resolve = binding.texture_signed->key().scaled_resolve;
++          }
+           load_signed_data = true;
+         }
+       } else {
+@@ -724,6 +817,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       // be different.
+       if (key_changed) {
+         binding.texture = FindOrCreateTexture(binding.key);
++        if (binding.texture) {
++          binding.key.scaled_resolve = binding.texture->key().scaled_resolve;
++        }
+         load_unsigned_data = true;
+       }
+       binding.texture_signed = nullptr;
+@@ -967,16 +1063,25 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
+ 
+ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+   // Check if the texture is a scaled resolve texture.
+-  if (IsDrawResolutionScaled() && IsScaledResolveSupportedForFormat(key)) {
++  bool can_be_scaled = false;
++  if (TextureKey::IsShadowMapTexture(key)) {
++    can_be_scaled = shadow_resolution_scale() > 1;
++  } else {
++    can_be_scaled = draw_resolution_scale_x_ > 1 || draw_resolution_scale_y_ > 1;
++  }
++  if (can_be_scaled && IsScaledResolveSupportedForFormat(key)) {
+     texture_util::TextureGuestLayout scaled_resolve_guest_layout = key.GetGuestLayout();
+-    if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
+-         IsRangeScaledResolved(key.base_page << 12,
+-                               scaled_resolve_guest_layout.base.level_data_extent_bytes,
+-                               REXCVAR_GET(scaled_resolve_min_coverage_percent))) ||
+-        (scaled_resolve_guest_layout.mips_total_extent_bytes &&
+-         IsRangeScaledResolved(key.mip_page << 12,
+-                               scaled_resolve_guest_layout.mips_total_extent_bytes,
+-                               REXCVAR_GET(scaled_resolve_min_coverage_percent)))) {
++    const bool is_shadow = TextureKey::IsShadowMapTexture(key);
++    if (is_shadow) {
++      key.scaled_resolve = 1;
++    } else if ((scaled_resolve_guest_layout.base.level_data_extent_bytes &&
++                IsRangeScaledResolved(key.base_page << 12,
++                                      scaled_resolve_guest_layout.base.level_data_extent_bytes,
++                                      REXCVAR_GET(scaled_resolve_min_coverage_percent))) ||
++               (scaled_resolve_guest_layout.mips_total_extent_bytes &&
++                IsRangeScaledResolved(key.mip_page << 12,
++                                      scaled_resolve_guest_layout.mips_total_extent_bytes,
++                                      REXCVAR_GET(scaled_resolve_min_coverage_percent)))) {
+       key.scaled_resolve = 1;
+     }
+   }
+@@ -986,8 +1091,15 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+     host_width_out = key.GetWidth();
+     host_height_out = key.GetHeight();
+     if (key.scaled_resolve) {
+-      host_width_out *= draw_resolution_scale_x();
+-      host_height_out *= draw_resolution_scale_y();
++      uint32_t scale_x = draw_resolution_scale_x();
++      uint32_t scale_y = draw_resolution_scale_y();
++      if (TextureKey::IsShadowMapTexture(key)) {
++        const uint32_t shadow_scale = shadow_resolution_scale();
++        scale_x = shadow_scale;
++        scale_y = shadow_scale;
++      }
++      host_width_out *= scale_x;
++      host_height_out *= scale_y;
+     }
+     host_depth_or_array_size_out = key.GetDepthOrArraySize();
+   };
+@@ -1334,6 +1446,9 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
+         resolve_keep_bits |= ~((UINT32_C(1) << ((resolve_page_last & 31) + 1)) - 1);
+       }
+       scaled_resolve_pages_[resolve_block_index] &= resolve_keep_bits;
++      if (shadow_resolve_pages_) {
++        shadow_resolve_pages_[resolve_block_index] &= resolve_keep_bits;
++      }
+       if (scaled_resolve_pages_[resolve_block_index] == 0) {
+         scaled_resolve_pages_l2_[i] &= ~(UINT64_C(1) << resolve_block_relative_index);
+       }
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 7f4480c..7b0e6aa 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -274,6 +274,30 @@ bool Fh1ScreenViewport(const RegisterFile& regs) {
+                                      br.br_x - tl.tl_x, br.br_y - tl.tl_y);
+ }
+ 
++uint32_t MajinShadowScale(uint32_t base_scale) {
++  const std::string shadow_scale_str = rex::cvar::GetFlagByName("majin_shadow_scale");
++  if (!shadow_scale_str.empty()) {
++    const int s = std::atoi(shadow_scale_str.c_str());
++    if (s >= 4) {
++      return 4u;
++    }
++    if (s >= 2) {
++      return 2u;
++    }
++    if (s >= 1) {
++      return 1u;
++    }
++  }
++  return base_scale;
++}
++
++bool IsShadowMapPass(const VulkanRenderTargetCache* cache) {
++  if (!cache || cache->GetPath() != RenderTargetCache::Path::kHostRenderTargets) {
++    return false;
++  }
++  return cache->IsLastUpdateShadowMapDepth();
++}
++
+ // glslang default built-in resource limits.
+ constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
+     /* .maxLights = */ 32,
+@@ -8289,6 +8313,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+       render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets;
+   uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
+   uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
++  if (IsShadowMapPass(render_target_cache_.get())) {
++    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
++    draw_resolution_scale_x = shadow_scale;
++    draw_resolution_scale_y = shadow_scale;
++  }
+ 
+   // Get dynamic rasterizer state.
+   draw_util::ViewportInfo viewport_info;
+@@ -8341,6 +8370,25 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control,
+                      normalized_color_mask,
+                      primitive_processing_result.host_primitive_reset_enabled);
++  if (IsShadowMapPass(render_target_cache_.get())) {
++    static uint32_t last_logged_shadow_draw_scale = 0;
++    static uint32_t last_logged_shadow_pass_key = 0;
++    const uint32_t pass_key = render_target_cache_->last_update_render_pass_key().key;
++    if (last_logged_shadow_draw_scale != draw_resolution_scale_x ||
++        last_logged_shadow_pass_key != pass_key) {
++      last_logged_shadow_draw_scale = draw_resolution_scale_x;
++      last_logged_shadow_pass_key = pass_key;
++      const auto* fb = render_target_cache_->last_update_framebuffer();
++      REXGPU_INFO(
++          "Shadow Map Draw: pass_key=0x{:04X}, shadow_scale={}x, host_viewport={}x{}+{}+{}, "
++          "fb_extent={}x{}, clip_disable={}, vtx_xy_fmt={}",
++          pass_key, draw_resolution_scale_x, viewport_info.xy_extent[0], viewport_info.xy_extent[1],
++          viewport_info.xy_offset[0], viewport_info.xy_offset[1],
++          fb ? fb->host_extent.width : 0, fb ? fb->host_extent.height : 0,
++          uint32_t(regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable),
++          uint32_t(regs.Get<reg::PA_CL_VTE_CNTL>().vtx_xy_fmt));
++    }
++  }
+ 
+   auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
+ 
+@@ -10584,7 +10632,17 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+             dfn.vkQueueBindSparse(queue_acquisition.queue(), 1, &bind_sparse_info, VK_NULL_HANDLE);
+       }
+       if (bind_sparse_result != VK_SUCCESS) {
+-        REXGPU_ERROR("Failed to submit Vulkan sparse binds");
++        REXGPU_ERROR("Failed to submit Vulkan sparse binds (VkResult={})",
++                     int32_t(bind_sparse_result));
++        sparse_bind_wait_stage_mask_ = 0;
++        sparse_buffer_binds_.clear();
++        sparse_memory_binds_.clear();
++        if (bind_sparse_result == VK_ERROR_DEVICE_LOST && !device_lost_) {
++          device_lost_ = true;
++          if (graphics_system_) {
++            graphics_system_->OnHostGpuLossFromAnyThread(true);
++          }
++        }
+         return false;
+       }
+       current_submission_wait_semaphores_.push_back(bind_sparse_semaphore);
+@@ -10988,6 +11046,11 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+   const RegisterFile& regs = *register_file_;
+   uint32_t draw_resolution_scale_x = texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
+   uint32_t draw_resolution_scale_y = texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
++  if (IsShadowMapPass(render_target_cache_.get())) {
++    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
++    draw_resolution_scale_x = shadow_scale;
++    draw_resolution_scale_y = shadow_scale;
++  }
+ 
+   // Window parameters.
+   // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
+@@ -11550,6 +11613,11 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+       render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
+   uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
+   uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
++  if (IsShadowMapPass(render_target_cache_.get())) {
++    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
++    draw_resolution_scale_x = shadow_scale;
++    draw_resolution_scale_y = shadow_scale;
++  }
+ 
+   // Get the color info register values for each render target. Also, for FSI,
+   // exclude components that don't exist in the format from the write mask.
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index cb77c2b..c9602f1 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -495,12 +495,14 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
+           descriptor_set_layout_sampled_image_x2_);
+ 
+   // EDRAM contents reinterpretation buffer.
+-  // 90 MB with 9x resolution scaling - within the minimum
+-  // maxStorageBufferRange.
++  // Always allocate for up to 4x4 resolution scaling (160 MB) so runtime shadow
++  // map scale switching (1x / 2x / 4x) in the in-game menu never overflows
++  // edram_buffer_ during DumpRenderTargets.
++  uint32_t edram_scale_x = std::max(draw_resolution_scale_x(), 4u);
++  uint32_t edram_scale_y = std::max(draw_resolution_scale_y(), 4u);
+   if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(
+           vulkan_device,
+-          VkDeviceSize(xenos::kEdramSizeBytes *
+-                       (draw_resolution_scale_x() * draw_resolution_scale_y())),
++          VkDeviceSize(xenos::kEdramSizeBytes * (edram_scale_x * edram_scale_y)),
+           VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+               VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+           ui::vulkan::util::MemoryPurpose::kDeviceLocal, edram_buffer_, edram_buffer_memory_)) {
+@@ -582,11 +584,10 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
+   VkPushConstantRange resolve_copy_push_constant_range;
+   resolve_copy_push_constant_range.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+   resolve_copy_push_constant_range.offset = 0;
+-  // Potentially binding all of the shared memory at 1x resolution, but only
+-  // portions with scaled resolution.
+-  resolve_copy_push_constant_range.size =
+-      draw_resolution_scaled ? sizeof(draw_util::ResolveCopyShaderConstants::DestRelative)
+-                             : sizeof(draw_util::ResolveCopyShaderConstants);
++  // Potentially binding all of the shared memory at 1x resolution, or portions
++  // with scaled resolution. Always reserve the full push constant range so
++  // unscaled resolves can coexist with scaled shadow/scene resolves.
++  resolve_copy_push_constant_range.size = sizeof(draw_util::ResolveCopyShaderConstants);
+   VkPipelineLayoutCreateInfo resolve_copy_pipeline_layout_create_info;
+   resolve_copy_pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+   resolve_copy_pipeline_layout_create_info.pNext = nullptr;
+@@ -634,7 +635,7 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
+   create_direct_resolve_pipeline_layout(descriptor_set_layout_sampled_image_x2_,
+                                         &direct_resolve_pipeline_layout_depth_);
+ 
+-  // Resolve copy pipelines.
++  // Resolve copy pipelines (create both unscaled and scaled to support selective scaling).
+   for (size_t i = 0; i < size_t(draw_util::ResolveCopyShaderIndex::kCount); ++i) {
+     const draw_util::ResolveCopyShaderInfo& resolve_copy_shader_info =
+         draw_util::resolve_copy_shader_info[i];
+@@ -642,23 +643,35 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
+     // Somewhat verification whether resolve_copy_shaders_ is up to date.
+     assert_true(resolve_copy_shader_code.unscaled && resolve_copy_shader_code.unscaled_size_bytes &&
+                 resolve_copy_shader_code.scaled && resolve_copy_shader_code.scaled_size_bytes);
+-    VkPipeline resolve_copy_pipeline = ui::vulkan::util::CreateComputePipeline(
+-        vulkan_device, resolve_copy_pipeline_layout_,
+-        draw_resolution_scaled ? resolve_copy_shader_code.scaled
+-                               : resolve_copy_shader_code.unscaled,
+-        draw_resolution_scaled ? resolve_copy_shader_code.scaled_size_bytes
+-                               : resolve_copy_shader_code.unscaled_size_bytes);
+-    if (resolve_copy_pipeline == VK_NULL_HANDLE) {
++    VkPipeline pipeline_unscaled = ui::vulkan::util::CreateComputePipeline(
++        vulkan_device, resolve_copy_pipeline_layout_, resolve_copy_shader_code.unscaled,
++        resolve_copy_shader_code.unscaled_size_bytes);
++    if (pipeline_unscaled == VK_NULL_HANDLE) {
+       REXGPU_ERROR(
+-          "VulkanRenderTargetCache: Failed to create the resolve copy "
++          "VulkanRenderTargetCache: Failed to create the unscaled resolve copy "
+           "pipeline {}",
+           resolve_copy_shader_info.debug_name);
+       Shutdown();
+       return false;
+     }
+-    vulkan_device->SetObjectName(VK_OBJECT_TYPE_PIPELINE, resolve_copy_pipeline,
++    vulkan_device->SetObjectName(VK_OBJECT_TYPE_PIPELINE, pipeline_unscaled,
+                                  resolve_copy_shader_info.debug_name);
+-    resolve_copy_pipelines_[i] = resolve_copy_pipeline;
++    resolve_copy_pipelines_unscaled_[i] = pipeline_unscaled;
++
++    VkPipeline pipeline_scaled = ui::vulkan::util::CreateComputePipeline(
++        vulkan_device, resolve_copy_pipeline_layout_, resolve_copy_shader_code.scaled,
++        resolve_copy_shader_code.scaled_size_bytes);
++    if (pipeline_scaled == VK_NULL_HANDLE) {
++      REXGPU_ERROR(
++          "VulkanRenderTargetCache: Failed to create the scaled resolve copy "
++          "pipeline {}",
++          resolve_copy_shader_info.debug_name);
++      Shutdown();
++      return false;
++    }
++    vulkan_device->SetObjectName(VK_OBJECT_TYPE_PIPELINE, pipeline_scaled,
++                                 resolve_copy_shader_info.debug_name);
++    resolve_copy_pipelines_scaled_[i] = pipeline_scaled;
+   }
+ 
+   if (path_ == Path::kHostRenderTargets) {
+@@ -1021,12 +1034,20 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
+   dump_pipelines_.clear();
+   for (const auto& direct_resolve_pipeline_pair : direct_resolve_pipelines_) {
+     bool aliased_resolve_copy_pipeline = false;
+-    for (VkPipeline resolve_copy_pipeline : resolve_copy_pipelines_) {
++    for (VkPipeline resolve_copy_pipeline : resolve_copy_pipelines_unscaled_) {
+       if (direct_resolve_pipeline_pair.second == resolve_copy_pipeline) {
+         aliased_resolve_copy_pipeline = true;
+         break;
+       }
+     }
++    if (!aliased_resolve_copy_pipeline) {
++      for (VkPipeline resolve_copy_pipeline : resolve_copy_pipelines_scaled_) {
++        if (direct_resolve_pipeline_pair.second == resolve_copy_pipeline) {
++          aliased_resolve_copy_pipeline = true;
++          break;
++        }
++      }
++    }
+     if (direct_resolve_pipeline_pair.second != VK_NULL_HANDLE && !aliased_resolve_copy_pipeline) {
+       dfn.vkDestroyPipeline(device, direct_resolve_pipeline_pair.second, nullptr);
+     }
+@@ -1086,7 +1107,10 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
+   }
+   render_passes_.clear();
+ 
+-  for (VkPipeline& resolve_copy_pipeline : resolve_copy_pipelines_) {
++  for (VkPipeline& resolve_copy_pipeline : resolve_copy_pipelines_unscaled_) {
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, resolve_copy_pipeline);
++  }
++  for (VkPipeline& resolve_copy_pipeline : resolve_copy_pipelines_scaled_) {
+     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, resolve_copy_pipeline);
+   }
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+@@ -1126,15 +1150,10 @@ void VulkanRenderTargetCache::ClearCache() {
+   framebuffers_.clear();
+   fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
+ 
+-  last_update_render_pass_ = VK_NULL_HANDLE;
+-  for (const auto& render_pass_pair : render_passes_) {
+-    dfn.vkDestroyRenderPass(device, render_pass_pair.second, nullptr);
+-  }
+-  render_passes_.clear();
+-
+   // The accumulated bindings may point to render targets the common ClearCache deletes.
+   last_scene_depth_render_target_ = nullptr;
+   main_scene_depth_render_target_ = nullptr;
++  update_reuse_valid_ = false;
+   ResetAccumulatedRenderTargets();
+   RenderTargetCache::ClearCache();
+ }
+@@ -1152,6 +1171,7 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
+   fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
+   last_scene_depth_render_target_ = nullptr;
+   main_scene_depth_render_target_ = nullptr;
++  update_reuse_valid_ = false;
+   ResetAccumulatedRenderTargets();
+   RenderTargetCache::ClearCache();
+ }
+@@ -1175,11 +1195,24 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+   written_address_out = 0;
+   written_length_out = 0;
+ 
+-  bool draw_resolution_scaled = IsDrawResolutionScaled();
++  auto rb_copy_control = register_file().Get<reg::RB_COPY_CONTROL>();
++  auto rb_surface_info = register_file().Get<reg::RB_SURFACE_INFO>();
++  auto rb_depth_info = register_file().Get<reg::RB_DEPTH_INFO>();
++  bool is_shadow_depth =
++      (rb_copy_control.copy_src_select >= xenos::kMaxColorRenderTargets) &&
++      (rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24S8 ||
++       rb_depth_info.depth_format == xenos::DepthRenderTargetFormat::kD24FS8) &&
++      (rb_surface_info.surface_pitch == 800 || rb_surface_info.surface_pitch == 400 ||
++       rb_surface_info.surface_pitch == 768 || rb_surface_info.surface_pitch == 512 ||
++       rb_surface_info.surface_pitch == 1024 || rb_surface_info.surface_pitch == 1040 ||
++       rb_surface_info.surface_pitch == 560 || rb_surface_info.surface_pitch == 520);
++  uint32_t res_scale_x = is_shadow_depth ? shadow_resolution_scale() : draw_resolution_scale_x();
++  uint32_t res_scale_y = is_shadow_depth ? shadow_resolution_scale() : draw_resolution_scale_y();
++  bool target_scaled = res_scale_x > 1 || res_scale_y > 1;
+ 
+   draw_util::ResolveInfo resolve_info;
+-  if (!draw_util::GetResolveInfo(register_file(), memory, draw_resolution_scale_x(),
+-                                 draw_resolution_scale_y(), IsFixedRG16TruncatedToMinus1To1(),
++  if (!draw_util::GetResolveInfo(register_file(), memory, res_scale_x,
++                                 res_scale_y, IsFixedRG16TruncatedToMinus1To1(),
+                                  IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
+     return false;
+   }
+@@ -1200,7 +1233,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+     draw_util::ResolveCopyShaderConstants copy_shader_constants;
+     uint32_t copy_group_count_x, copy_group_count_y;
+     draw_util::ResolveCopyShaderIndex copy_shader =
+-        resolve_info.GetCopyShader(draw_resolution_scale_x(), draw_resolution_scale_y(),
++        resolve_info.GetCopyShader(res_scale_x, res_scale_y,
+                                    copy_shader_constants, copy_group_count_x, copy_group_count_y);
+     assert_true(copy_group_count_x && copy_group_count_y);
+     if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
+@@ -1210,7 +1243,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+       if (GetPath() == Path::kHostRenderTargets) {
+         if (REXCVAR_GET(direct_host_resolve)) {
+           direct_resolved =
+-              TryResolveCopyDirectly(resolve_info, copy_shader, draw_resolution_scaled);
++              TryResolveCopyDirectly(resolve_info, copy_shader, target_scaled);
+           if (direct_resolved) {
+             ++direct_resolve_success_count_;
+           } else {
+@@ -1239,13 +1272,15 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+       uint64_t copy_dest_range_length = copy_dest_range_unscaled;
+       uint64_t copy_dest_use_start = resolve_info.copy_dest_extent_start;
+       uint64_t copy_dest_use_length = resolve_info.copy_dest_extent_length;
+-      if (draw_resolution_scaled) {
++      if (target_scaled) {
+         if (!texture_cache.GetScaledResolveRange(
+                 resolve_info.copy_dest_base, copy_dest_range_unscaled,
+-                copy_shader_info.dest_bpe_log2, copy_dest_base, copy_dest_range_length) ||
++                copy_shader_info.dest_bpe_log2, copy_dest_base, copy_dest_range_length,
++                is_shadow_depth) ||
+             !texture_cache.GetScaledResolveRange(
+                 resolve_info.copy_dest_extent_start, resolve_info.copy_dest_extent_length,
+-                copy_shader_info.dest_bpe_log2, copy_dest_use_start, copy_dest_use_length)) {
++                copy_shader_info.dest_bpe_log2, copy_dest_use_start, copy_dest_use_length,
++                is_shadow_depth)) {
+           REXGPU_ERROR(
+               "VulkanRenderTargetCache: Failed to map scaled resolve "
+               "destination range (base={:08X}, length={:08X})",
+@@ -1256,9 +1291,10 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+ 
+       // Make sure there is memory to write to.
+       bool copy_dest_committed;
+-      if (draw_resolution_scaled) {
++      if (target_scaled) {
+         copy_dest_committed = texture_cache.CommitScaledResolveRange(
+-            resolve_info.copy_dest_base, copy_dest_range_unscaled, copy_shader_info.dest_bpe_log2);
++            resolve_info.copy_dest_base, copy_dest_range_unscaled, copy_shader_info.dest_bpe_log2,
++            is_shadow_depth);
+       } else {
+         copy_dest_committed = shared_memory.RequestRange(resolve_info.copy_dest_extent_start,
+                                                          resolve_info.copy_dest_extent_length);
+@@ -1277,7 +1313,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+         if (descriptor_set_dest != VK_NULL_HANDLE) {
+           // Write the destination descriptor.
+           VkDescriptorBufferInfo write_descriptor_set_dest_buffer_info;
+-          write_descriptor_set_dest_buffer_info.buffer = draw_resolution_scaled
++          write_descriptor_set_dest_buffer_info.buffer = target_scaled
+                                                              ? texture_cache.scaled_resolve_buffer()
+                                                              : shared_memory.buffer();
+           write_descriptor_set_dest_buffer_info.offset = copy_dest_base;
+@@ -1296,7 +1332,30 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+           dfn.vkUpdateDescriptorSets(device, 1, &write_descriptor_set_dest, 0, nullptr);
+ 
+           // Submit the resolve.
+-          if (draw_resolution_scaled) {
++          if (is_shadow_depth) {
++            static uint32_t last_logged_resolve_scale = 0;
++            static uint32_t last_logged_resolve_dest = 0;
++            if (last_logged_resolve_scale != res_scale_x ||
++                last_logged_resolve_dest != resolve_info.copy_dest_base) {
++              last_logged_resolve_scale = res_scale_x;
++              last_logged_resolve_dest = resolve_info.copy_dest_base;
++              uint32_t dumped_rt_msaa = 0;
++              uint32_t dumped_rt_w = 0;
++              if (!dump_rectangles_.empty() && dump_rectangles_[0].render_target) {
++                dumped_rt_msaa = uint32_t(1) << uint32_t(dump_rectangles_[0].render_target->key().msaa_samples);
++                dumped_rt_w = dump_rectangles_[0].render_target->key().GetWidth();
++              }
++              REXGPU_INFO(
++                  "Shadow Map Resolve: dest=0x{:08X}, shadow_scale={}x, target_scaled={}, "
++                  "scaled_offset=0x{:X}, scaled_len=0x{:X}, groups={}x{}, dumped_rects={}, "
++                  "dumped_rt={}xMSAA(W={}), clear_depth={}",
++                  resolve_info.copy_dest_base, res_scale_x, target_scaled, copy_dest_base,
++                  copy_dest_range_length, copy_group_count_x, copy_group_count_y,
++                  dump_rectangles_.size(), dumped_rt_msaa, dumped_rt_w,
++                  resolve_info.IsClearingDepth());
++            }
++          }
++          if (target_scaled) {
+             texture_cache.UseScaledResolveBufferForWrite(copy_dest_use_start, copy_dest_use_length);
+           } else {
+             shared_memory.Use(VulkanSharedMemory::Usage::kComputeWrite,
+@@ -1305,14 +1364,14 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+           }
+           UseEdramBuffer(EdramBufferUsage::kComputeRead);
+           command_processor_.BindExternalComputePipeline(
+-              resolve_copy_pipelines_[size_t(copy_shader)]);
++              GetResolveCopyPipeline(copy_shader, target_scaled));
+           VkDescriptorSet descriptor_sets[kResolveCopyDescriptorSetCount] = {};
+           descriptor_sets[kResolveCopyDescriptorSetEdram] = edram_storage_buffer_descriptor_set_;
+           descriptor_sets[kResolveCopyDescriptorSetDest] = descriptor_set_dest;
+           command_buffer.CmdVkBindDescriptorSets(
+               VK_PIPELINE_BIND_POINT_COMPUTE, resolve_copy_pipeline_layout_, 0,
+               uint32_t(rex::countof(descriptor_sets)), descriptor_sets, 0, nullptr);
+-          if (draw_resolution_scaled) {
++          if (target_scaled) {
+             command_buffer.CmdVkPushConstants(
+                 resolve_copy_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                 sizeof(copy_shader_constants.dest_relative), &copy_shader_constants.dest_relative);
+@@ -1330,8 +1389,23 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+           command_buffer.CmdVkDispatch(copy_group_count_x, copy_group_count_y, 1);
+ 
+           // Invalidate textures and mark the range as scaled if needed.
+-          texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
+-                                            resolve_info.copy_dest_extent_length);
++          if (target_scaled) {
++            if (is_shadow_depth) {
++              texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_base,
++                                                        copy_dest_range_unscaled);
++              texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_extent_start,
++                                                        resolve_info.copy_dest_extent_length);
++            }
++            texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_base,
++                                              copy_dest_range_unscaled);
++            texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
++                                              resolve_info.copy_dest_extent_length);
++          } else {
++            texture_cache.UnmarkRangeAsResolved(resolve_info.copy_dest_base,
++                                                copy_dest_range_unscaled);
++            texture_cache.UnmarkRangeAsResolved(resolve_info.copy_dest_extent_start,
++                                                resolve_info.copy_dest_extent_length);
++          }
+           written_address_out = resolve_info.copy_dest_extent_start;
+           written_length_out = resolve_info.copy_dest_extent_length;
+           copied = true;
+@@ -1470,8 +1544,20 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
+       RenderTarget* const* rts = last_update_accumulated_render_targets();
+       if (rts && rts[0]) {
+         auto* vulkan_depth_rt = static_cast<VulkanRenderTarget*>(rts[0]);
+-        last_scene_depth_render_target_ = vulkan_depth_rt;
+-        if (vulkan_depth_rt->key().GetWidth() >= 1280) {
++        draw_util::Scissor scissor;
++        draw_util::GetScissor(register_file(), scissor);
++        float vport_yscale = std::abs(register_file().Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE));
++        uint32_t vport_height = uint32_t(std::round(vport_yscale * 2.0f));
++        bool is_tiny_scratch = (scissor.extent[1] > 0 && scissor.extent[1] <= 32) ||
++                               (vport_height > 0 && vport_height <= 32);
++        bool is_depth_only_shadow = (last_update_render_pass_key_.depth_and_color_used == 1) ||
++                                    (last_update_render_pass_key_.key == 0x0084) ||
++                                    (last_update_render_pass_key_.key == 0x0086) ||
++                                    (last_update_render_pass_key_.key == 0x0006) ||
++                                    IsShadowMapDepthTarget(vulkan_depth_rt->key());
++        if (!is_depth_only_shadow && !is_tiny_scratch &&
++            vulkan_depth_rt->key().GetWidth() >= 1280) {
++          last_scene_depth_render_target_ = vulkan_depth_rt;
+           main_scene_depth_render_target_ = vulkan_depth_rt;
+         }
+       }
+@@ -1554,14 +1640,6 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+       if (depth_and_color_render_targets[0]) {
+         render_pass_key.depth_and_color_used |= 1 << 0;
+         render_pass_key.depth_format = depth_and_color_render_targets[0]->key().GetDepthFormat();
+-        if (normalized_depth_control.z_enable || normalized_depth_control.z_write_enable) {
+-          auto* vulkan_depth_rt =
+-              static_cast<VulkanRenderTarget*>(depth_and_color_render_targets[0]);
+-          last_scene_depth_render_target_ = vulkan_depth_rt;
+-          if (vulkan_depth_rt->key().GetWidth() >= 1280) {
+-            main_scene_depth_render_target_ = vulkan_depth_rt;
+-          }
+-        }
+       }
+       if (depth_and_color_render_targets[1]) {
+         render_pass_key.depth_and_color_used |= 1 << 1;
+@@ -1584,6 +1662,28 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+             depth_and_color_render_targets[4]->key().GetColorFormat();
+       }
+ 
++      if (depth_and_color_render_targets[0] &&
++          (normalized_depth_control.z_enable || normalized_depth_control.z_write_enable)) {
++        auto* vulkan_depth_rt =
++            static_cast<VulkanRenderTarget*>(depth_and_color_render_targets[0]);
++        draw_util::Scissor scissor;
++        draw_util::GetScissor(register_file(), scissor);
++        float vport_yscale = std::abs(register_file().Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE));
++        uint32_t vport_height = uint32_t(std::round(vport_yscale * 2.0f));
++        bool is_tiny_scratch = (scissor.extent[1] > 0 && scissor.extent[1] <= 32) ||
++                               (vport_height > 0 && vport_height <= 32);
++        bool is_depth_only_shadow = (render_pass_key.depth_and_color_used == 1) ||
++                                    (render_pass_key.key == 0x0084) ||
++                                    (render_pass_key.key == 0x0086) ||
++                                    (render_pass_key.key == 0x0006) ||
++                                    IsShadowMapDepthTarget(vulkan_depth_rt->key());
++        if (!is_depth_only_shadow && !is_tiny_scratch &&
++            vulkan_depth_rt->key().GetWidth() >= 1280) {
++          last_scene_depth_render_target_ = vulkan_depth_rt;
++          main_scene_depth_render_target_ = vulkan_depth_rt;
++        }
++      }
++
+       const Framebuffer* framebuffer = last_update_framebuffer_;
+       VkRenderPass render_pass = last_update_render_pass_key_ == render_pass_key
+                                      ? last_update_render_pass_
+@@ -2078,9 +2178,15 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
+   image_create_info.pNext = nullptr;
+   image_create_info.flags = 0;
+   image_create_info.imageType = VK_IMAGE_TYPE_2D;
+-  image_create_info.extent.width = key.GetWidth() * draw_resolution_scale_x();
++  uint32_t rt_scale_x = draw_resolution_scale_x();
++  uint32_t rt_scale_y = draw_resolution_scale_y();
++  if (IsShadowMapDepthTarget(key)) {
++    rt_scale_x = shadow_resolution_scale();
++    rt_scale_y = shadow_resolution_scale();
++  }
++  image_create_info.extent.width = key.GetWidth() * rt_scale_x;
+   image_create_info.extent.height =
+-      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * draw_resolution_scale_y();
++      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * rt_scale_y;
+   image_create_info.extent.depth = 1;
+   image_create_info.mipLevels = 1;
+   image_create_info.arrayLayers = 1;
+@@ -2507,12 +2613,19 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
+     host_extent.width = xenos::kTexture2DCubeMaxWidthHeight;
+     host_extent.height = xenos::kTexture2DCubeMaxWidthHeight;
+   }
++  uint32_t fb_scale_x = draw_resolution_scale_x();
++  uint32_t fb_scale_y = draw_resolution_scale_y();
++  if (depth_and_color_render_targets[0] &&
++      IsShadowMapDepthTarget(depth_and_color_render_targets[0]->key())) {
++    fb_scale_x = shadow_resolution_scale();
++    fb_scale_y = shadow_resolution_scale();
++  }
+   // Limiting to the device limit for the case of no attachments, for which
+   // there's no limit imposed by the sizes of the attachments that have been
+   // created successfully.
+-  host_extent.width = std::min(host_extent.width * draw_resolution_scale_x(),
++  host_extent.width = std::min(host_extent.width * fb_scale_x,
+                                device_properties.maxFramebufferWidth);
+-  host_extent.height = std::min(host_extent.height * draw_resolution_scale_y(),
++  host_extent.height = std::min(host_extent.height * fb_scale_y,
+                                 device_properties.maxFramebufferHeight);
+   framebuffer_create_info.width = host_extent.width;
+   framebuffer_create_info.height = host_extent.height;
+@@ -2848,8 +2961,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
+   // Working with unsigned numbers for simplicity now, bitcasting to signed will
+   // be done at texture fetch.
+ 
+-  uint32_t tile_width_samples = xenos::kEdramTileWidthSamples * draw_resolution_scale_x();
+-  uint32_t tile_height_samples = xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
++  uint32_t transfer_scale_x = key.shadow_scale ? uint32_t(key.shadow_scale) : draw_resolution_scale_x();
++  uint32_t transfer_scale_y = key.shadow_scale ? uint32_t(key.shadow_scale) : draw_resolution_scale_y();
++  uint32_t tile_width_samples = xenos::kEdramTileWidthSamples * transfer_scale_x;
++  uint32_t tile_height_samples = xenos::kEdramTileHeightSamples * transfer_scale_y;
+ 
+   // Split the destination pixel index into 32bpp tile and 32bpp-tile-relative
+   // pixel index.
+@@ -4839,16 +4954,25 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+   bool resolve_clear_needed = render_target_resolve_clear_values && resolve_clear_rectangle;
+   VkClearRect resolve_clear_rect;
+   if (resolve_clear_needed) {
++    uint32_t clear_scale_x = draw_resolution_scale_x();
++    uint32_t clear_scale_y = draw_resolution_scale_y();
++    for (uint32_t i = 0; i < render_target_count; ++i) {
++      if (render_targets[i] && IsShadowMapDepthTarget(render_targets[i]->key())) {
++        clear_scale_x = shadow_resolution_scale();
++        clear_scale_y = shadow_resolution_scale();
++        break;
++      }
++    }
+     // Assuming the rectangle is already clamped by the setup function from the
+     // common render target cache.
+     resolve_clear_rect.rect.offset.x =
+-        int32_t(resolve_clear_rectangle->x_pixels * draw_resolution_scale_x());
++        int32_t(resolve_clear_rectangle->x_pixels * clear_scale_x);
+     resolve_clear_rect.rect.offset.y =
+-        int32_t(resolve_clear_rectangle->y_pixels * draw_resolution_scale_y());
++        int32_t(resolve_clear_rectangle->y_pixels * clear_scale_y);
+     resolve_clear_rect.rect.extent.width =
+-        resolve_clear_rectangle->width_pixels * draw_resolution_scale_x();
++        resolve_clear_rectangle->width_pixels * clear_scale_x;
+     resolve_clear_rect.rect.extent.height =
+-        resolve_clear_rectangle->height_pixels * draw_resolution_scale_y();
++        resolve_clear_rectangle->height_pixels * clear_scale_y;
+     resolve_clear_rect.baseArrayLayer = 0;
+     resolve_clear_rect.layerCount = 1;
+   }
+@@ -5098,6 +5222,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+ 
+     auto& dest_vulkan_rt = *static_cast<VulkanRenderTarget*>(dest_rt);
+     RenderTargetKey dest_rt_key = dest_vulkan_rt.key();
++    uint32_t dest_scale_x = draw_resolution_scale_x();
++    uint32_t dest_scale_y = draw_resolution_scale_y();
++    if (dest_rt_key.is_depth && IsShadowMapDepthTarget(dest_rt_key)) {
++      dest_scale_x = shadow_resolution_scale();
++      dest_scale_y = shadow_resolution_scale();
++    }
+ 
+     // Late barriers in case there was cross-copying that prevented merging of
+     // barriers.
+@@ -5168,6 +5298,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+       TransferShaderKey new_transfer_shader_key;
+       new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
+       new_transfer_shader_key.dest_resource_format = dest_rt_key.resource_format;
++      if (dest_rt_key.is_depth && IsShadowMapDepthTarget(dest_rt_key)) {
++        new_transfer_shader_key.shadow_scale = shadow_resolution_scale();
++      }
+       uint32_t stencil_clear_rectangle_count = 0;
+       for (uint32_t j = 0; j <= uint32_t(need_stencil_bit_draws); ++j) {
+         // j == 0 - color or depth.
+@@ -5303,13 +5436,13 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+             const Transfer::Rectangle& stencil_clear_rectangle =
+                 transfer_stencil_clear_rectangles[j];
+             stencil_clear_rect_write_ptr->rect.offset.x =
+-                int32_t(stencil_clear_rectangle.x_pixels * draw_resolution_scale_x());
++                int32_t(stencil_clear_rectangle.x_pixels * dest_scale_x);
+             stencil_clear_rect_write_ptr->rect.offset.y =
+-                int32_t(stencil_clear_rectangle.y_pixels * draw_resolution_scale_y());
++                int32_t(stencil_clear_rectangle.y_pixels * dest_scale_y);
+             stencil_clear_rect_write_ptr->rect.extent.width =
+-                stencil_clear_rectangle.width_pixels * draw_resolution_scale_x();
++                stencil_clear_rectangle.width_pixels * dest_scale_x;
+             stencil_clear_rect_write_ptr->rect.extent.height =
+-                stencil_clear_rectangle.height_pixels * draw_resolution_scale_y();
++                stencil_clear_rectangle.height_pixels * dest_scale_y;
+             stencil_clear_rect_write_ptr->baseArrayLayer = 0;
+             stencil_clear_rect_write_ptr->layerCount = 1;
+             ++stencil_clear_rect_write_ptr;
+@@ -5331,8 +5464,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+       transfer_viewport.minDepth = 0.0f;
+       transfer_viewport.maxDepth = 1.0f;
+       command_processor_.SetViewport(transfer_viewport);
+-      float pixels_to_ndc_x = (2.0f / transfer_viewport.width) * float(draw_resolution_scale_x());
+-      float pixels_to_ndc_y = (2.0f / transfer_viewport.height) * float(draw_resolution_scale_y());
++      float pixels_to_ndc_x = (2.0f / transfer_viewport.width) * float(dest_scale_x);
++      float pixels_to_ndc_y = (2.0f / transfer_viewport.height) * float(dest_scale_y);
+       VkRect2D transfer_scissor;
+       transfer_scissor.offset.x = 0;
+       transfer_scissor.offset.y = 0;
+@@ -5719,6 +5852,16 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+           } break;
+         }
+       }
++      if (resolve_clear_needed) {
++        resolve_clear_rect.rect.offset.x =
++            int32_t(resolve_clear_rectangle->x_pixels * dest_scale_x);
++        resolve_clear_rect.rect.offset.y =
++            int32_t(resolve_clear_rectangle->y_pixels * dest_scale_y);
++        resolve_clear_rect.rect.extent.width =
++            resolve_clear_rectangle->width_pixels * dest_scale_x;
++        resolve_clear_rect.rect.extent.height =
++            resolve_clear_rectangle->height_pixels * dest_scale_y;
++      }
+       command_buffer.CmdVkClearAttachments(1, &resolve_clear_attachment, 1, &resolve_clear_rect);
+     }
+   }
+@@ -5726,6 +5869,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+ }
+ 
+ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
++  if (key.is_depth && key.is_shadow_depth) {
++    key.shadow_scale = shadow_resolution_scale();
++  }
+   auto pipeline_it = dump_pipelines_.find(key);
+   if (pipeline_it != dump_pipelines_.end()) {
+     return pipeline_it->second;
+@@ -5840,17 +5986,23 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
+   // case when the position has upper bits set, for some reason, the code for it
+   // is not eliminated when compiling the shader for AMD via RenderDoc on
+   // Windows, as of June 2022.
++  uint32_t dump_scale_x = draw_resolution_scale_x();
++  uint32_t dump_scale_y = draw_resolution_scale_y();
++  if (key.is_depth && key.is_shadow_depth) {
++    dump_scale_x = shadow_resolution_scale();
++    dump_scale_y = shadow_resolution_scale();
++  }
+   spv::Id global_invocation_id = builder.createLoad(input_global_invocation_id, spv::NoPrecision);
+   spv::Id rectangle_sample_x = builder.createCompositeExtract(global_invocation_id, type_uint, 0);
+   uint32_t tile_width =
+-      (xenos::kEdramTileWidthSamples >> uint32_t(format_is_64bpp)) * draw_resolution_scale_x();
++      (xenos::kEdramTileWidthSamples >> uint32_t(format_is_64bpp)) * dump_scale_x;
+   spv::Id const_tile_width = builder.makeUintConstant(tile_width);
+   spv::Id rectangle_tile_index_x =
+       builder.createBinOp(spv::OpUDiv, type_uint, rectangle_sample_x, const_tile_width);
+   spv::Id tile_sample_x =
+       builder.createBinOp(spv::OpUMod, type_uint, rectangle_sample_x, const_tile_width);
+   spv::Id rectangle_sample_y = builder.createCompositeExtract(global_invocation_id, type_uint, 1);
+-  uint32_t tile_height = xenos::kEdramTileHeightSamples * draw_resolution_scale_y();
++  uint32_t tile_height = xenos::kEdramTileHeightSamples * dump_scale_y;
+   spv::Id const_tile_height = builder.makeUintConstant(tile_height);
+   spv::Id rectangle_tile_index_y =
+       builder.createBinOp(spv::OpUDiv, type_uint, rectangle_sample_y, const_tile_height);
+@@ -6283,7 +6435,7 @@ VkPipeline VulkanRenderTargetCache::GetDirectResolvePipeline(DirectResolvePipeli
+   // direct preflight path.
+   size_t copy_shader_index = size_t(key.copy_shader);
+   if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
+-    pipeline = resolve_copy_pipelines_[copy_shader_index];
++    pipeline = GetResolveCopyPipeline(key.copy_shader, key.draw_resolution_scaled);
+   }
+   direct_resolve_pipelines_.emplace(key, pipeline);
+   return pipeline;
+@@ -6320,6 +6472,8 @@ bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInf
+     dump_pipeline_key.msaa_samples = render_target->key().msaa_samples;
+     dump_pipeline_key.resource_format = render_target->key().resource_format;
+     dump_pipeline_key.is_depth = render_target->key().is_depth;
++    dump_pipeline_key.is_shadow_depth =
++        render_target->key().is_depth && IsShadowMapDepthTarget(render_target->key());
+     if (GetDumpPipeline(dump_pipeline_key) == VK_NULL_HANDLE) {
+       return false;
+     }
+@@ -6376,6 +6530,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
+     pipeline_key.msaa_samples = rt_key.msaa_samples;
+     pipeline_key.resource_format = rt_key.resource_format;
+     pipeline_key.is_depth = rt_key.is_depth;
++    pipeline_key.is_shadow_depth = rt_key.is_depth && IsShadowMapDepthTarget(rt_key);
+     dump_invocations_.emplace_back(rectangle, pipeline_key);
+   }
+ 
+@@ -6453,14 +6608,20 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
+                                           sizeof(uint32_t) * kDumpPushConstantOffsets,
+                                           sizeof(last_offsets), &last_offsets);
+       }
++      uint32_t dump_scale_x = draw_resolution_scale_x();
++      uint32_t dump_scale_y = draw_resolution_scale_y();
++      if (pipeline_key.is_depth && pipeline_key.is_shadow_depth) {
++        dump_scale_x = shadow_resolution_scale();
++        dump_scale_y = shadow_resolution_scale();
++      }
+       command_processor_.SubmitBarriers(true);
+       command_buffer.CmdVkDispatch(
+-          (draw_resolution_scale_x() *
++          (dump_scale_x *
+                (xenos::kEdramTileWidthSamples >> uint32_t(rt_key.Is64bpp())) *
+                dispatch.width_tiles +
+            (kDumpSamplesPerGroupX - 1)) /
+               kDumpSamplesPerGroupX,
+-          (draw_resolution_scale_y() * xenos::kEdramTileHeightSamples * dispatch.height_tiles +
++          (dump_scale_y * xenos::kEdramTileHeightSamples * dispatch.height_tiles +
+            (kDumpSamplesPerGroupY - 1)) /
+               kDumpSamplesPerGroupY,
+           1);
+@@ -6552,10 +6713,23 @@ VulkanRenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t heigh
+   if (GetPath() != Path::kHostRenderTargets) {
+     return nullptr;
+   }
+-  if (main_scene_depth_render_target_ != nullptr) {
++  auto IsValidSceneDepth = [this, width](VulkanRenderTarget* rt) -> bool {
++    if (!rt) return false;
++    const uint32_t guest_w = rt->key().GetWidth();
++    if (IsShadowMapDepthTarget(rt->key())) return false;
++    if (guest_w < 1280) return false;
++    const uint32_t host_w = guest_w * draw_resolution_scale_x();
++    if (width > 0 && host_w < width * 3 / 4 && guest_w < width * 3 / 4) return false;
++    return true;
++  };
++
++  if (IsValidSceneDepth(main_scene_depth_render_target_)) {
+     return main_scene_depth_render_target_;
+   }
+-  return last_scene_depth_render_target_;
++  if (IsValidSceneDepth(last_scene_depth_render_target_)) {
++    return last_scene_depth_render_target_;
++  }
++  return nullptr;
+ }
+ 
+ }  // namespace rex::graphics::vulkan
+diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
+index 6d08899..4a6caf6 100644
+--- a/src/graphics/vulkan/texture_cache.cpp
++++ b/src/graphics/vulkan/texture_cache.cpp
+@@ -550,6 +550,26 @@ VulkanTextureCache::~VulkanTextureCache() {
+   }
+ }
+ 
++void VulkanTextureCache::ClearCache() {
++  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
++
++  TextureCache::ClearCache();
++
++  // Keep scaled_resolve_buffer_ and its already-committed sparse physical memory
++  // blocks alive across mid-game cache clears instead of destroying and
++  // recreating the 16 GB sparse buffer.
++  scaled_resolve_last_usage_write_ = false;
++  scaled_resolve_last_written_range_ = std::make_pair(uint64_t(0), uint64_t(0));
++  if (scaled_resolve_buffer_ == VK_NULL_HANDLE &&
++      (IsDrawResolutionScaled() ||
++       (vulkan_device && vulkan_device->properties().sparseResidencyBuffer))) {
++    if (!InitializeScaledResolveBuffer()) {
++      REXGPU_ERROR(
++          "VulkanTextureCache: Failed to initialize scaled resolve buffer in ClearCache");
++    }
++  }
++}
++
+ void VulkanTextureCache::BeginSubmission(uint64_t new_submission_index) {
+   TextureCache::BeginSubmission(new_submission_index);
+ 
+@@ -712,6 +732,35 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(uint32_t fetch_c
+       const VulkanTextureBinding& vulkan_binding = vulkan_texture_bindings_[fetch_constant_index];
+       image_view =
+           is_signed ? vulkan_binding.image_view_signed : vulkan_binding.image_view_unsigned;
++      if (image_view != VK_NULL_HANDLE &&
++          (binding->key.base_page == 0x12BB8 || binding->key.base_page == 0x12978 ||
++           binding->key.base_page == 0x12738 || TextureKey::IsShadowMapTexture(binding->key))) {
++        const VulkanTexture* vk_tex = static_cast<const VulkanTexture*>(
++            is_signed && binding->texture_signed ? binding->texture_signed : binding->texture);
++        if (vk_tex) {
++          static uint32_t last_logged_width_0 = 0;
++          static uint32_t last_logged_width_1 = 0;
++          static uint32_t last_logged_width_2 = 0;
++          uint32_t* slot_width = &last_logged_width_0;
++          if (binding->key.base_page == 0x12978) {
++            slot_width = &last_logged_width_1;
++          } else if (binding->key.base_page == 0x12738) {
++            slot_width = &last_logged_width_2;
++          }
++          if (*slot_width != vk_tex->host_width()) {
++            *slot_width = vk_tex->host_width();
++            REXGPU_INFO(
++                "Shadow Map Cascade 0x{:08X} bound to scene shader (tfetch={}): VkImage={}x{} "
++                "(guest={}x{}, pitch={}, scaled_resolve={}, shadow_scale={}x, image=0x{:X}, view=0x{:X})",
++                uint32_t(binding->key.base_page) << 12, fetch_constant_index,
++                vk_tex->host_width(), vk_tex->host_height(), binding->key.GetWidth(),
++                binding->key.GetHeight(), uint32_t(binding->key.pitch) << 5,
++                uint32_t(binding->key.scaled_resolve), shadow_resolution_scale(),
++                reinterpret_cast<uintptr_t>(vk_tex->image()),
++                reinterpret_cast<uintptr_t>(image_view));
++          }
++        }
++      }
+     }
+   }
+   if (image_view != VK_NULL_HANDLE) {
+@@ -766,13 +815,23 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
+                                         ? fetch.aniso_filter
+                                         : binding.aniso_filter;
+   aniso_filter = std::min(aniso_filter, max_anisotropy_);
++  TextureKey texture_key;
++  uint8_t texture_swizzled_signs;
++  BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
++  if (texture_key.is_valid && TextureKey::IsShadowMapTexture(texture_key)) {
++    parameters.clamp_x = xenos::ClampMode::kClampToEdge;
++    parameters.clamp_y = xenos::ClampMode::kClampToEdge;
++    const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
++    if (host_format_pair.format_unsigned.linear_filterable) {
++      parameters.mag_linear = 1;
++      parameters.min_linear = 1;
++    }
++  }
++
+   if (parameters.mag_linear || parameters.min_linear || parameters.mip_linear ||
+       aniso_filter != xenos::AnisoFilter::kDisabled) {
+     // Check if the texture is actually filterable on the host.
+     bool linear_filterable = true;
+-    TextureKey texture_key;
+-    uint8_t texture_swizzled_signs;
+-    BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
+     if (texture_key.is_valid) {
+       const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
+       if ((texture_util::IsAnySignNotSigned(texture_swizzled_signs) &&
+@@ -1105,8 +1164,15 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
+   if (height_unscaled_out) {
+     *height_unscaled_out = key.GetHeight();
+   }
+-  width_scaled_out = key.GetWidth() * (key.scaled_resolve ? draw_resolution_scale_x() : 1);
+-  height_scaled_out = key.GetHeight() * (key.scaled_resolve ? draw_resolution_scale_y() : 1);
++  uint32_t tex_scale_x = draw_resolution_scale_x();
++  uint32_t tex_scale_y = draw_resolution_scale_y();
++  if (TextureKey::IsShadowMapTexture(key)) {
++    const uint32_t shadow_scale = shadow_resolution_scale();
++    tex_scale_x = shadow_scale;
++    tex_scale_y = shadow_scale;
++  }
++  width_scaled_out = key.GetWidth() * (key.scaled_resolve ? tex_scale_x : 1);
++  height_scaled_out = key.GetHeight() * (key.scaled_resolve ? tex_scale_y : 1);
+   format_out = key.format;
+   return texture_view;
+ }
+@@ -1122,8 +1188,14 @@ bool VulkanTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const
+ }
+ 
+ bool VulkanTextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const {
+-  if (!IsDrawResolutionScaled()) {
+-    return false;
++  if (TextureKey::IsShadowMapTexture(key)) {
++    if (shadow_resolution_scale() <= 1) {
++      return false;
++    }
++  } else {
++    if (draw_resolution_scale_x() <= 1 && draw_resolution_scale_y() <= 1) {
++      return false;
++    }
+   }
+   const HostFormatPair& host_format_pair = GetHostFormatPair(key);
+   bool host_format_is_signed;
+@@ -1258,8 +1330,15 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+   image_create_info.extent.width = key.GetWidth();
+   image_create_info.extent.height = key.GetHeight();
+   if (key.scaled_resolve) {
+-    image_create_info.extent.width *= draw_resolution_scale_x();
+-    image_create_info.extent.height *= draw_resolution_scale_y();
++    uint32_t scale_x = draw_resolution_scale_x();
++    uint32_t scale_y = draw_resolution_scale_y();
++    if (TextureKey::IsShadowMapTexture(key)) {
++      const uint32_t shadow_scale = shadow_resolution_scale();
++      scale_x = shadow_scale;
++      scale_y = shadow_scale;
++    }
++    image_create_info.extent.width *= scale_x;
++    image_create_info.extent.height *= scale_y;
+   }
+   const bool rectangular_cube = key.dimension == xenos::DataDimension::kCube &&
+                                 image_create_info.extent.width != image_create_info.extent.height;
+@@ -1332,6 +1411,7 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+   }
+ 
+   auto result = std::make_unique<VulkanTexture>(*this, key, image, allocation);
++  result->set_host_extent(image_create_info.extent.width, image_create_info.extent.height);
+   if (direct_upload) {
+     VkImageViewCreateInfo info = {};
+     info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+@@ -1370,10 +1450,11 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+ 
+ bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
+                                                             uint32_t length_unscaled,
+-                                                            uint32_t length_scaled_alignment_log2) {
++                                                            uint32_t length_scaled_alignment_log2,
++                                                            bool is_shadow_depth) {
+   uint64_t start_scaled, length_scaled;
+   if (!GetScaledResolveRange(start_unscaled, length_unscaled, length_scaled_alignment_log2,
+-                             start_scaled, length_scaled)) {
++                             start_scaled, length_scaled, is_shadow_depth)) {
+     return false;
+   }
+   return EnsureScaledResolveBufferAllocated(start_scaled, length_scaled);
+@@ -1386,7 +1467,8 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
+   const auto key = texture.key();
+   const auto* device = command_processor_.GetVulkanDevice();
+   uint64_t start, length;
+-  if (!GetScaledResolveRange(key.base_page << 12, texture.GetGuestBaseSize(), 4, start, length))
++  if (!GetScaledResolveRange(key.base_page << 12, texture.GetGuestBaseSize(), 4, start, length,
++                             TextureKey::IsShadowMapTexture(key)))
+     return false;
+   auto dest = command_processor_.AllocateSingleTransientDescriptor(
+       VulkanCommandProcessor::SingleTransientDescriptorLayout::kStorageImageCompute);
+@@ -1425,6 +1507,11 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
+   command_processor_.BindExternalComputePipeline(load_image_pipeline_);
+   LoadConstants constants = {};
+   uint32_t sx = draw_resolution_scale_x(), sy = draw_resolution_scale_y();
++  if (TextureKey::IsShadowMapTexture(key)) {
++    const uint32_t shadow_scale = shadow_resolution_scale();
++    sx = shadow_scale;
++    sy = shadow_scale;
++  }
+   constants.is_tiled_3d_endian_scale = 1 | (uint32_t(key.endianness) << 2) | (sx << 4) | (sy << 7);
+   const auto load_shader = GetHostFormatPair(key).format_unsigned.load_shader;
+   if (load_shader == kLoadShaderIndexDepthUnorm) {
+@@ -1525,8 +1612,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+   uint32_t level_packed = guest_layout.packed_level;
+   uint32_t level_stored_first = std::min(level_first, level_packed);
+   uint32_t level_stored_last = std::min(level_last, level_packed);
+-  uint32_t texture_resolution_scale_x = texture_key.scaled_resolve ? draw_resolution_scale_x() : 1;
+-  uint32_t texture_resolution_scale_y = texture_key.scaled_resolve ? draw_resolution_scale_y() : 1;
++  uint32_t texture_resolution_scale_x = draw_resolution_scale_x();
++  uint32_t texture_resolution_scale_y = draw_resolution_scale_y();
++  if (TextureKey::IsShadowMapTexture(texture_key)) {
++    const uint32_t shadow_scale = shadow_resolution_scale();
++    texture_resolution_scale_x = shadow_scale;
++    texture_resolution_scale_y = shadow_scale;
++  }
++  if (!texture_key.scaled_resolve) {
++    texture_resolution_scale_x = 1;
++    texture_resolution_scale_y = 1;
++  }
+ 
+   // The loop counter can mean two things depending on whether the packed mip
+   // tail is stored as mip 0, because in this case, it would be ambiguous since
+@@ -1665,7 +1761,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+     if (texture_key.scaled_resolve) {
+       if (!GetScaledResolveRange(source_base_start_unscaled, vulkan_texture.GetGuestBaseSize(),
+                                  load_shader_info.source_bpe_log2, source_base_start,
+-                                 source_base_range)) {
++                                 source_base_range, TextureKey::IsShadowMapTexture(texture_key))) {
+         return false;
+       }
+       write_descriptor_set_source_base_buffer_info.buffer = scaled_resolve_buffer_;
+@@ -1705,7 +1801,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+     if (texture_key.scaled_resolve) {
+       if (!GetScaledResolveRange(source_mips_start_unscaled, vulkan_texture.GetGuestMipsSize(),
+                                  load_shader_info.source_bpe_log2, source_mips_start,
+-                                 source_mips_range)) {
++                                 source_mips_range, TextureKey::IsShadowMapTexture(texture_key))) {
+         return false;
+       }
+       write_descriptor_set_source_mips_buffer_info.buffer = scaled_resolve_buffer_;
+@@ -2372,15 +2468,28 @@ VulkanTextureCache::VulkanTextureCache(const RegisterFile& register_file,
+       guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
+ 
+ bool VulkanTextureCache::InitializeScaledResolveBuffer() {
+-  assert_true(IsDrawResolutionScaled());
+-
+-  uint64_t scale_area = uint64_t(draw_resolution_scale_x()) * uint64_t(draw_resolution_scale_y());
+-  scaled_resolve_buffer_size_ = uint64_t(SharedMemory::kBufferSize) * scale_area;
+-
+   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+   const VkDevice device = vulkan_device->device();
+ 
++  uint32_t max_scale_x = std::max(draw_resolution_scale_x(), uint32_t(1));
++  uint32_t max_scale_y = std::max(draw_resolution_scale_y(), uint32_t(1));
++  const uint32_t shadow_scale = std::max(shadow_resolution_scale(), uint32_t(1));
++  max_scale_x = std::max(max_scale_x, shadow_scale);
++  max_scale_y = std::max(max_scale_y, shadow_scale);
++  uint64_t scale_area = uint64_t(max_scale_x) * uint64_t(max_scale_y);
++
++  // For sparse buffers, reserve 16 GB virtual address space (8 GB draw scale partition + 8 GB shadow partition,
++  // accommodating up to 4x draw scale and 4x shadow scale with zero physical VRAM overhead until pages are bound).
++  const uint64_t max_virtual_scale_area = std::max(scale_area, uint64_t(16));
++  if (vulkan_device->properties().sparseResidencyBuffer) {
++    scaled_resolve_buffer_size_ =
++        kShadowMapScaledBufferOffset + uint64_t(SharedMemory::kBufferSize) * max_virtual_scale_area;
++  } else {
++    scaled_resolve_buffer_size_ =
++        kShadowMapScaledBufferOffset + uint64_t(SharedMemory::kBufferSize) * scale_area;
++  }
++
+   const VkBufferCreateFlags sparse_flags =
+       VK_BUFFER_CREATE_SPARSE_BINDING_BIT | VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
+ 
+@@ -2448,6 +2557,10 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
+   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+   const VkDevice device = vulkan_device->device();
+ 
++  if (scaled_resolve_buffer_ != VK_NULL_HANDLE || !scaled_resolve_buffer_memory_.empty()) {
++    dfn.vkDeviceWaitIdle(device);
++  }
++
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, scaled_resolve_buffer_);
+   for (VkDeviceMemory memory : scaled_resolve_buffer_memory_) {
+     device_memory::Get().Forget(memory);
+@@ -2466,7 +2579,8 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
+ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
+                                                uint32_t length_scaled_alignment_log2,
+                                                uint64_t& start_scaled_out,
+-                                               uint64_t& length_scaled_out) const {
++                                               uint64_t& length_scaled_out,
++                                               bool is_shadow_depth) const {
+   if (!IsDrawResolutionScaled()) {
+     return false;
+   }
+@@ -2480,8 +2594,23 @@ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t
+     return false;
+   }
+ 
+-  uint64_t scale_area = uint64_t(draw_resolution_scale_x()) * uint64_t(draw_resolution_scale_y());
+-  uint64_t start_scaled = uint64_t(start_unscaled) * scale_area;
++  uint64_t scale_area;
++  uint64_t base_offset = 0;
++  if (is_shadow_depth || IsShadowMapResolvedRange(start_unscaled)) {
++    const uint32_t shadow_scale = shadow_resolution_scale();
++    if (shadow_scale <= 1) {
++      return false;
++    }
++    scale_area = uint64_t(shadow_scale) * uint64_t(shadow_scale);
++    base_offset = kShadowMapScaledBufferOffset;
++  } else {
++    if (draw_resolution_scale_x() <= 1 && draw_resolution_scale_y() <= 1) {
++      return false;
++    }
++    scale_area = uint64_t(draw_resolution_scale_x()) * uint64_t(draw_resolution_scale_y());
++  }
++
++  uint64_t start_scaled = base_offset + uint64_t(start_unscaled) * scale_area;
+   uint64_t length_scaled = uint64_t(length_unscaled) * scale_area;
+   uint64_t alignment = uint64_t(1) << length_scaled_alignment_log2;
+   length_scaled = rex::align(length_scaled, alignment);
+@@ -2640,7 +2769,8 @@ bool VulkanTextureCache::Initialize() {
+     return false;
+   }
+ 
+-  if (IsDrawResolutionScaled() && !InitializeScaledResolveBuffer()) {
++  if ((IsDrawResolutionScaled() || device_properties.sparseResidencyBuffer) &&
++      !InitializeScaledResolveBuffer()) {
+     return false;
+   }
+ 
+@@ -3170,7 +3300,7 @@ bool VulkanTextureCache::Initialize() {
+   load_shader_code[kLoadShaderIndexDepthFloat] = std::make_pair(
+       shaders::texture_load_depth_float_cs, sizeof(shaders::texture_load_depth_float_cs));
+   std::pair<const uint32_t*, size_t> load_shader_code_scaled[kLoadShaderCount] = {};
+-  if (IsDrawResolutionScaled()) {
++  {
+     load_shader_code_scaled[kLoadShaderIndex8bpb] = std::make_pair(
+         shaders::texture_load_8bpb_scaled_cs, sizeof(shaders::texture_load_8bpb_scaled_cs));
+     load_shader_code_scaled[kLoadShaderIndex16bpb] = std::make_pair(
+@@ -3253,20 +3383,18 @@ bool VulkanTextureCache::Initialize() {
+           i);
+       return false;
+     }
+-    if (IsDrawResolutionScaled()) {
+-      const std::pair<const uint32_t*, size_t>& current_load_shader_code_scaled =
+-          load_shader_code_scaled[i];
+-      if (current_load_shader_code_scaled.first) {
+-        load_pipelines_scaled_[i] = ui::vulkan::util::CreateComputePipeline(
+-            vulkan_device, load_pipeline_layout_, current_load_shader_code_scaled.first,
+-            current_load_shader_code_scaled.second);
+-        if (load_pipelines_scaled_[i] == VK_NULL_HANDLE) {
+-          REXGPU_ERROR(
+-              "VulkanTextureCache: Failed to create the resolution-scaled "
+-              "texture loading pipeline for shader {}",
+-              i);
+-          return false;
+-        }
++    const std::pair<const uint32_t*, size_t>& current_load_shader_code_scaled =
++        load_shader_code_scaled[i];
++    if (current_load_shader_code_scaled.first) {
++      load_pipelines_scaled_[i] = ui::vulkan::util::CreateComputePipeline(
++          vulkan_device, load_pipeline_layout_, current_load_shader_code_scaled.first,
++          current_load_shader_code_scaled.second);
++      if (load_pipelines_scaled_[i] == VK_NULL_HANDLE) {
++        REXGPU_ERROR(
++            "VulkanTextureCache: Failed to create the resolution-scaled "
++            "texture loading pipeline for shader {}",
++            i);
++        return false;
+       }
+     }
+   }

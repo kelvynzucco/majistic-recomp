@@ -214,6 +214,9 @@ class MajinApp : public rex::ReXApp {
       if (rex::cvar::GetFlagSource("readback_memexport") == rex::cvar::Source::kDefault) {
         rex::cvar::SetFlagByName("readback_memexport", "false");
       }
+      if (rex::cvar::GetFlagSource("majin_shadow_scale") == rex::cvar::Source::kDefault) {
+        rex::cvar::SetFlagByName("majin_shadow_scale", "1");
+      }
     } else if (backend == "d3d12" || backend.empty()) {
       auto rt_path = rex::cvar::GetFlagByName("render_target_path_d3d12");
       if (rt_path.empty()) {
@@ -435,6 +438,11 @@ class MajinApp : public rex::ReXApp {
           StopTitleTimer();
 #endif
           if (window()) window()->RequestClose();
+        },
+        [this] {
+          if (runtime() && runtime()->graphics_system()) {
+            runtime()->graphics_system()->ClearCaches();
+          }
         });
   }
 

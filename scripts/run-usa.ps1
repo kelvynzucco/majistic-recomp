@@ -8,7 +8,7 @@ param(
     [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
     [ValidateRange(0.0, 1.0)][double]$DeDitherStrength = 0.85,
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
-    [ValidateSet('Default','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
+    [ValidateSet('Default','D3D12','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
     [ValidateRange(0.01,10)][double]$MouseSensitivity = 1.0,
     $RecordPerformance = $true,

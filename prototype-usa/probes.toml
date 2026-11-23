@@ -211,3 +211,56 @@ address = 0x822BCEFC
 name = "Majin_MotionStepTotal"
 registers = ["f13"]
 after_instruction = false
+
+# T_OHKUNI_SSSM Full-Res 1280x720 fix (majin_sssm_fullres_fix, default true, sssm_uv_align.cpp).
+# All 7 addresses are < 0x821C0000 (identical in PAL and USA).
+# 0x8218DB7C (li r7, 28 in majin_recomp.69.cpp): promote 3452 (Screen Space Shadow Map) from 640x360 to 1280x720.
+[[midasm_hook]]
+address = 0x8218DB7C
+name = "Majin_SssmPromoteFullRes3452"
+registers = ["r3", "r4"]
+after_instruction = false
+
+# 0x82195CD8 (sub_82195C58): scale GXDS_ShadowSize.zw by 1 / RenderScale.
+[[midasm_hook]]
+address = 0x82195CD8
+name = "Majin_SssmShadowSizeScale"
+registers = ["r5"]
+after_instruction = false
+
+# 0x82195ED0 (sub_82195C58): clamp vertical depth tolerance GXDS_SSSMParam.y (100.0 -> 2.0), keeping sigma=2.0.
+[[midasm_hook]]
+address = 0x82195ED0
+name = "Majin_SssmParamContain"
+registers = ["r5"]
+after_instruction = false
+
+# 0x82196228 (sub_82195C58): unbind MRT1 (3456) in PS#1 to preserve Pre-Z depth at EDRAM base_tiles=720..1439.
+[[midasm_hook]]
+address = 0x82196228
+name = "Majin_SssmDisableMrt1"
+registers = ["r5"]
+after_instruction = false
+
+# 0x821963AC (after PS#1 Draw+Resolve RT0): skip Resolve(RT1) and redundant SetRenderTarget(1,null) -> jump to PS#2 at 0x821963EC.
+[[midasm_hook]]
+address = 0x821963AC
+name = "Majin_SssmSkipRt1Resolve"
+registers = ["r29"]
+after_instruction = false
+jump_address_on_true = 0x821963EC
+
+# 0x82196448 (sub_82195C58): skip SetTexture(r25, 3456) in PS#2 -> jump to 0x82196464 so tf1 keeps Full-Res Pre-Z depth 0x13238000.
+[[midasm_hook]]
+address = 0x82196448
+name = "Majin_SssmKeepPreZDepthTf1"
+registers = ["r29"]
+after_instruction = false
+jump_address_on_true = 0x82196464
+
+# 0x821965C4 (bctrl for PS#3 draw): apply VPOS subpixel UV alignment to PS#3 vertices (r10).
+[[midasm_hook]]
+address = 0x821965C4
+name = "Majin_SssmPs3UvAlign"
+registers = ["r10"]
+after_instruction = false

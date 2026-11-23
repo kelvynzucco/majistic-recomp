@@ -5,6 +5,9 @@ param(
     $VSync = $true,
     [ValidateRange(1,3)][int]$RenderScale = 1,
     [ValidateRange(1,4)][int]$ShadowScale = 1,
+    [ValidateRange(0.0, 3.0)][double]$ShadowSlopeBias = 0.30,
+    [ValidateRange(0.0, 2.0)][double]$ShadowConstantBias = 0.000,
+    [ValidateRange(0.0, 0.05)][double]$ShadowBiasClamp = 0.002,
     [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
     [ValidateRange(0.0, 1.0)][double]$DeDitherStrength = 0.85,
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
@@ -36,7 +39,8 @@ param(
     [string]$GameDataRoot = 'game-data',
     [switch]$ShaderPrebuildOnly,
     [switch]$DisableLogging,
-    [switch]$Preview
+    [switch]$Preview,
+    [Parameter(ValueFromRemainingArguments)][string[]]$ExtraArgs
 )
 $ErrorActionPreference = 'Stop'
 
@@ -46,22 +50,22 @@ function ConvertTo-Bool($val) {
     return ($s -eq 'true' -or $s -eq '1')
 }
 
+$projectRoot = Split-Path $PSScriptRoot -Parent
+$cfgFile = Join-Path $projectRoot 'private\launcher-usa.json'
+if (Test-Path $cfgFile) {
+    try {
+        $jsonCfg = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
+        foreach ($prop in $jsonCfg.PSObject.Properties) {
+            if (-not $PSBoundParameters.ContainsKey($prop.Name)) {
+                Set-Variable -Name $prop.Name -Value $prop.Value
+            }
+        }
+    } catch {}
+}
+
 $isFullscreen = ConvertTo-Bool $Fullscreen
 $isVSync = ConvertTo-Bool $VSync
 $isRecordPerf = ConvertTo-Bool $RecordPerformance
-
-$projectRoot = Split-Path $PSScriptRoot -Parent
-if (-not $PSBoundParameters.ContainsKey('ShadowScale')) {
-    $cfgFile = Join-Path $projectRoot 'private\launcher-usa.json'
-    if (Test-Path $cfgFile) {
-        try {
-            $jsonCfg = Get-Content -LiteralPath $cfgFile -Raw | ConvertFrom-Json
-            if ($jsonCfg.ShadowScale -in @(1, 2, 4)) {
-                $ShadowScale = [int]$jsonCfg.ShadowScale
-            }
-        } catch {}
-    }
-}
 if (-not $DisableLogging) {
     New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
 }
@@ -171,6 +175,9 @@ $launchArgs += @(
     "--vsync=$($isVSync.ToString().ToLowerInvariant())",
     "--resolution_scale=$RenderScale",
     "--majin_shadow_scale=$ShadowScale",
+    "--majin_shadow_slope_bias=$($ShadowSlopeBias.ToString([Globalization.CultureInfo]::InvariantCulture))",
+    "--majin_shadow_constant_bias=$($ShadowConstantBias.ToString([Globalization.CultureInfo]::InvariantCulture))",
+    "--majin_shadow_bias_clamp=$($ShadowBiasClamp.ToString([Globalization.CultureInfo]::InvariantCulture))",
     "--swap_post_effect=$PostEffect",
     "--swap_dedither_strength=$($DeDitherStrength.ToString([Globalization.CultureInfo]::InvariantCulture))",
     "--present_effect=$Upscaler",
@@ -283,6 +290,10 @@ $launchArgs += "--majin_bloom=$($bloomVal.ToString([Globalization.CultureInfo]::
 $isAutoCapture = ConvertTo-Bool $AutoCapture
 if ($isAutoCapture) {
     $launchArgs += "--majin_auto_capture=true"
+}
+
+if ($ExtraArgs) {
+    $launchArgs += $ExtraArgs
 }
 
 if ($Preview) {

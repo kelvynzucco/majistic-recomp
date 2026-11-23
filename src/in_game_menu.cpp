@@ -110,6 +110,18 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double fsr_reduction = rex::cvar::Query<double>("present_fsr_sharpness_reduction");
   const bool window_fps = rex::cvar::Query<bool>("majin_window_fps");
   const int32_t shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
+  double shadow_slope_bias = 0.30;
+  if (!rex::cvar::GetFlagByName("majin_shadow_slope_bias").empty()) {
+    shadow_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
+  }
+  double shadow_const_bias = 0.000;
+  if (!rex::cvar::GetFlagByName("majin_shadow_constant_bias").empty()) {
+    shadow_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
+  }
+  double shadow_bias_clamp = 0.002;
+  if (!rex::cvar::GetFlagByName("majin_shadow_bias_clamp").empty()) {
+    shadow_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
+  }
 
   char sens_buf[32];
   snprintf(sens_buf, sizeof(sens_buf), "%.1f", mouse_sens);
@@ -125,6 +137,12 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(cas_buf, sizeof(cas_buf), "%.2f", cas_sharp);
   char fsr_buf[32];
   snprintf(fsr_buf, sizeof(fsr_buf), "%.2f", fsr_reduction);
+  char slope_bias_buf[32];
+  snprintf(slope_bias_buf, sizeof(slope_bias_buf), "%.2f", shadow_slope_bias);
+  char const_bias_buf[32];
+  snprintf(const_bias_buf, sizeof(const_bias_buf), "%.3f", shadow_const_bias);
+  char bias_clamp_buf[32];
+  snprintf(bias_clamp_buf, sizeof(bias_clamp_buf), "%.3f", shadow_bias_clamp);
 
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
@@ -147,6 +165,9 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "SkipCutscenes", skip_cutscenes ? "true" : "false");
   ReplaceJsonField(json, "CutsceneSpeed", std::to_string(cutscene_speed));
   ReplaceJsonField(json, "ShadowScale", std::to_string(shadow_scale <= 1 ? 1 : (shadow_scale >= 4 ? 4 : 2)));
+  ReplaceJsonField(json, "ShadowSlopeBias", slope_bias_buf);
+  ReplaceJsonField(json, "ShadowConstantBias", const_bias_buf);
+  ReplaceJsonField(json, "ShadowBiasClamp", bias_clamp_buf);
 
   std::ofstream outfile(config_path, std::ios::trunc);
   if (!outfile.is_open()) return false;
@@ -499,6 +520,117 @@ void InGameMenuDialog::DrawVisualsTab() {
     }
   }
   ImGui::TextDisabled("Scales depth-only shadow passes in real-time, eliminating staircasing/pixelation on characters and geometry.");
+
+  ImGui::Spacing();
+
+  // Shadow Map Slope-Scaled Depth Bias
+  double current_slope_bias = 0.30;
+  const std::string slope_bias_str = rex::cvar::GetFlagByName("majin_shadow_slope_bias");
+  if (!slope_bias_str.empty()) {
+    current_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
+  }
+  float slope_val = static_cast<float>(current_slope_bias);
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Slope-Scaled Depth Bias (majin_shadow_slope_bias):");
+  ImGui::SetNextItemWidth(300.0f);
+  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, 0.0f, 2.0f, "%.2f")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.05##SlopeMinus")) {
+    slope_val = std::max(0.0f, slope_val - 0.05f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.05##SlopePlus")) {
+    slope_val = std::min(3.0f, slope_val + 0.05f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  ImGui::TextDisabled("Eliminates shadow acne/flickering on angled walls as sunlight rotates (default: 0.30).");
+
+  ImGui::Spacing();
+
+  // Shadow Map Constant Depth Bias
+  double current_const_bias = 0.000;
+  const std::string const_bias_str = rex::cvar::GetFlagByName("majin_shadow_constant_bias");
+  if (!const_bias_str.empty()) {
+    current_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
+  }
+  float const_val = static_cast<float>(current_const_bias);
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Constant Depth Bias (majin_shadow_constant_bias):");
+  ImGui::SetNextItemWidth(300.0f);
+  if (ImGui::SliderFloat("##ShadowConstBias", &const_val, 0.000f, 0.050f, "%.3f")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.001##ConstMinus")) {
+    const_val = std::max(0.000f, const_val - 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.001##ConstPlus")) {
+    const_val = std::min(0.050f, const_val + 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  ImGui::TextDisabled("Fine constant offset added to shadow depth passes (default: 0.000).");
+
+  ImGui::Spacing();
+
+  // Shadow Map Depth Bias Clamp
+  double current_bias_clamp = 0.002;
+  const std::string bias_clamp_str = rex::cvar::GetFlagByName("majin_shadow_bias_clamp");
+  if (!bias_clamp_str.empty()) {
+    current_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
+  }
+  float clamp_val = static_cast<float>(current_bias_clamp);
+  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Depth Bias Clamp (majin_shadow_bias_clamp):");
+  ImGui::SetNextItemWidth(300.0f);
+  if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, "%.3f")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.001##ClampMinus")) {
+    clamp_val = std::max(0.000f, clamp_val - 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.001##ClampPlus")) {
+    clamp_val = std::min(0.020f, clamp_val + 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  ImGui::TextDisabled("Caps maximum slope bias on silhouette edges, eliminating glowing halos/glow (default: 0.002).");
+
+  ImGui::Spacing();
+
+  // Quick Action Buttons
+  if (ImGui::Button("Reset Shadow Bias (0.30 / 0.000 / 0.002)", ImVec2(275, 26))) {
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.30");
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Zero Bias (Original) (0.00 / 0.000 / 0.000)", ImVec2(275, 26))) {
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.00");
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
+  }
 
   ImGui::Spacing();
   ImGui::Separator();

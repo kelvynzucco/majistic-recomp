@@ -1,8 +1,8 @@
 diff --git a/include/rex/graphics/d3d12/command_processor.h b/include/rex/graphics/d3d12/command_processor.h
-index 18b3c30..ba105c7 100644
+index 18b3c30..4494780 100644
 --- a/include/rex/graphics/d3d12/command_processor.h
 +++ b/include/rex/graphics/d3d12/command_processor.h
-@@ -594,6 +594,26 @@ class D3D12CommandProcessor : public CommandProcessor {
+@@ -594,6 +594,27 @@ class D3D12CommandProcessor : public CommandProcessor {
    Microsoft::WRL::ComPtr<ID3D12PipelineState> fxaa_pipeline_;
    Microsoft::WRL::ComPtr<ID3D12PipelineState> fxaa_extreme_pipeline_;
  
@@ -13,6 +13,7 @@ index 18b3c30..ba105c7 100644
 +    uint32_t debug_mode;
 +    uint32_t has_depth;
 +    float dedither_strength;
++    uint32_t pad[3];
 +  };
 +  enum class DeditherRootParameter : UINT {
 +    kConstants,
@@ -30,7 +31,7 @@ index 18b3c30..ba105c7 100644
      uint32_t scale_x;
      uint32_t scale_y;
 diff --git a/include/rex/graphics/d3d12/render_target_cache.h b/include/rex/graphics/d3d12/render_target_cache.h
-index cd7693a..7090f07 100644
+index cd7693a..28c3c76 100644
 --- a/include/rex/graphics/d3d12/render_target_cache.h
 +++ b/include/rex/graphics/d3d12/render_target_cache.h
 @@ -50,6 +50,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
@@ -56,7 +57,15 @@ index cd7693a..7090f07 100644
    void InvalidateCommandListRenderTargets() {
      are_current_command_list_render_targets_valid_ = false;
    }
-@@ -186,9 +195,18 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+@@ -111,6 +120,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+   }
+ 
+   RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
++  void OnRenderTargetDestroyed(RenderTarget* rt) override;
+ 
+   bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const override;
+ 
+@@ -186,9 +196,18 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    };
    static const ResolveCopyShaderCode
        kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
@@ -77,7 +86,7 @@ index cd7693a..7090f07 100644
    // For host render targets.
  
    class D3D12RenderTarget final : public RenderTarget {
-@@ -259,6 +277,10 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+@@ -259,6 +278,10 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
      uint32_t temporary_sort_index_ = 0;
    };
  
@@ -88,7 +97,7 @@ index cd7693a..7090f07 100644
    enum TransferCBVRegister : uint32_t {
      kTransferCBVRegisterStencilMask,
      kTransferCBVRegisterAddress,
-@@ -383,6 +405,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+@@ -383,6 +406,7 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
        // stencil SRV.
        static_assert(size_t(TransferMode::kCount) <= (size_t(1) << 3));
        TransferMode mode : 3;
@@ -96,7 +105,7 @@ index cd7693a..7090f07 100644
      };
  
      TransferShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
-@@ -470,6 +493,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+@@ -470,6 +494,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
        // Last bit because this affects the root signature - after sorting, only
        // change it at most once. Depth buffers have an additional stencil SRV.
        uint32_t is_depth : 1;
@@ -105,7 +114,7 @@ index cd7693a..7090f07 100644
      };
  
      DumpPipelineKey() : key(0) { static_assert_size(*this, sizeof(key)); }
-@@ -732,6 +757,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
+@@ -732,6 +758,8 @@ class D3D12RenderTargetCache final : public RenderTargetCache {
    uint64_t direct_resolve_attempt_count_ = 0;
    uint64_t direct_resolve_success_count_ = 0;
    uint64_t direct_resolve_fallback_count_ = 0;
@@ -188,7 +197,7 @@ index ac6b056..1e70113 100644
  
    void InitializeShaderStorage(const std::filesystem::path& cache_root, uint32_t title_id,
 diff --git a/include/rex/graphics/pipeline/render_target/cache.h b/include/rex/graphics/pipeline/render_target/cache.h
-index 21af8a9..589b471 100644
+index 21af8a9..64d4460 100644
 --- a/include/rex/graphics/pipeline/render_target/cache.h
 +++ b/include/rex/graphics/pipeline/render_target/cache.h
 @@ -162,8 +162,10 @@ class RenderTargetCache {
@@ -203,7 +212,7 @@ index 21af8a9..589b471 100644
    }
  
    // Virtual (both the common code and the implementation may do something
-@@ -293,6 +295,22 @@ class RenderTargetCache {
+@@ -293,6 +295,31 @@ class RenderTargetCache {
               (xenos::kEdramTileWidthSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k4X));
      }
      uint32_t GetWidth() const { return GetWidth(pitch_tiles_at_32bpp, msaa_samples); }
@@ -223,22 +232,58 @@ index 21af8a9..589b471 100644
 +    static bool IsShadowMapDepthTarget(const RenderTargetKey& k) {
 +      return k.IsShadowMapDepthTarget();
 +    }
++    bool IsShadowMap4xMsaaDepthTarget() const {
++      return is_depth && msaa_samples == xenos::MsaaSamples::k4X &&
++             pitch_tiles_at_32bpp == 10 && GetWidth() == 400 &&
++             (GetDepthFormat() == xenos::DepthRenderTargetFormat::kD24S8 ||
++              GetDepthFormat() == xenos::DepthRenderTargetFormat::kD24FS8);
++    }
++    static bool IsShadowMap4xMsaaDepthTarget(const RenderTargetKey& k) {
++      return k.IsShadowMap4xMsaaDepthTarget();
++    }
  
      std::string GetDebugName() const {
        return fmt::format("RT @ {}t, <{}t>, {}xMSAA, {}", base_tiles, GetPitchTiles(),
-@@ -300,6 +318,10 @@ class RenderTargetCache {
+@@ -300,6 +327,13 @@ class RenderTargetCache {
      }
    };
  
 +  static bool IsShadowMapDepthTarget(RenderTargetKey key) {
 +    return key.IsShadowMapDepthTarget();
 +  }
++  static bool IsShadowMap4xMsaaDepthTarget(RenderTargetKey key) {
++    return key.IsShadowMap4xMsaaDepthTarget();
++  }
 +
    class RenderTarget {
     public:
      virtual ~RenderTarget() = default;
+@@ -309,12 +343,15 @@ class RenderTargetCache {
+     RenderTarget(RenderTarget&& render_target) = delete;
+     RenderTarget& operator=(RenderTarget&& render_target) = delete;
+     RenderTargetKey key() const { return key_; }
++    uint32_t resolution_scale() const { return resolution_scale_; }
++    void set_resolution_scale(uint32_t scale) { resolution_scale_ = scale; }
+ 
+    protected:
+     RenderTarget(RenderTargetKey key) : key_(key) {}
+ 
+    private:
+     RenderTargetKey key_;
++    uint32_t resolution_scale_ = 1;
+   };
+ 
+   struct Transfer {
+@@ -491,6 +528,7 @@ class RenderTargetCache {
+                                  xenos::MsaaSamples msaa_samples) const;
+ 
+   virtual RenderTarget* CreateRenderTarget(RenderTargetKey key) = 0;
++  virtual void OnRenderTargetDestroyed(RenderTarget* /*rt*/) {}
+ 
+   // Whether depth buffer is encoded differently on the host, thus after
+   // aliasing naively, precision may be lost - host depth must only be
 diff --git a/include/rex/graphics/pipeline/texture/cache.h b/include/rex/graphics/pipeline/texture/cache.h
-index f59ab37..b34341a 100644
+index f59ab37..edb2e23 100644
 --- a/include/rex/graphics/pipeline/texture/cache.h
 +++ b/include/rex/graphics/pipeline/texture/cache.h
 @@ -73,10 +73,11 @@ class TextureCache {
@@ -297,7 +342,25 @@ index f59ab37..b34341a 100644
      texture_util::TextureGuestLayout GetGuestLayout() const {
        return texture_util::GetGuestTextureLayout(dimension, pitch, GetWidth(), GetHeight(),
                                                   GetDepthOrArraySize(), tiled, format, packed_mips,
-@@ -658,6 +679,7 @@ class TextureCache {
+@@ -237,6 +258,9 @@ class TextureCache {
+ 
+     const TextureKey& key() const { return key_; }
+ 
++    uint32_t resolution_scale() const { return resolution_scale_; }
++    void set_resolution_scale(uint32_t scale) { resolution_scale_ = scale; }
++
+     const texture_util::TextureGuestLayout& guest_layout() const { return guest_layout_; }
+     uint32_t GetGuestBaseSize() const { return guest_layout().base.level_data_extent_bytes; }
+     uint32_t GetGuestMipsSize() const { return guest_layout().mips_total_extent_bytes; }
+@@ -326,6 +350,7 @@ class TextureCache {
+     SharedMemory::WatchHandle mips_watch_handle_ = nullptr;
+ 
+     PackState pack_state_;
++    uint32_t resolution_scale_ = 1;
+   };
+ 
+   // Rules of data access in load shaders:
+@@ -658,6 +683,7 @@ class TextureCache {
    // resolve data. uint32_t rather than uint64_t because parts of it can be sent
    // to shaders.
    std::unique_ptr<uint32_t[]> scaled_resolve_pages_;
@@ -305,14 +368,31 @@ index f59ab37..b34341a 100644
    // Second level of the bit vector for faster rejection of non-scaled textures.
    // >> 12 for 4 KB pages, >> 5 for uint32_t level 1 bits, >> 6 for uint64_t
    // level 2 bits.
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+index 3b56447..4f6cc13 100644
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -1109,6 +1109,7 @@ class VulkanCommandProcessor : public CommandProcessor {
+   // applicable only to the render target implementations where they are
+   // actually involved.
+   float dynamic_depth_bias_constant_factor_;
++  float dynamic_depth_bias_clamp_ = 0.0f;
+   float dynamic_depth_bias_slope_factor_;
+   float dynamic_blend_constants_[4];
+   // The stencil values are pre-initialized (to D3D11_DEFAULT_STENCIL_*, and the
 diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
-index 8100c5c..91c65d8 100644
+index 8100c5c..8214a5d 100644
 --- a/include/rex/graphics/vulkan/render_target_cache.h
 +++ b/include/rex/graphics/vulkan/render_target_cache.h
-@@ -166,6 +166,17 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -166,6 +166,29 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
                              uint32_t normalized_color_mask, RenderPassKey& key_out) const;
    // Binding information for the last successful update.
    RenderPassKey last_update_render_pass_key() const { return last_update_render_pass_key_; }
++  // Majin shadow diagnostics: depth render target of the last update, or nullptr.
++  const RenderTarget* MajinLastUpdateDepthRenderTarget() const {
++    const auto* const* rts = last_update_accumulated_render_targets();
++    return rts ? rts[0] : nullptr;
++  }
 +  bool IsLastUpdateShadowMapDepth() const {
 +    if (last_update_render_pass_key_.depth_and_color_used != 1) {
 +      return false;
@@ -324,10 +404,25 @@ index 8100c5c..91c65d8 100644
 +    const auto* const* rts = last_update_accumulated_render_targets();
 +    return rts && rts[0] && IsShadowMapDepthTarget(rts[0]->key());
 +  }
++  bool IsLastUpdateShadowMap4xMsaaDepth() const {
++    if (!IsLastUpdateShadowMapDepth()) {
++      return false;
++    }
++    const auto* const* rts = last_update_accumulated_render_targets();
++    return rts && rts[0] && IsShadowMap4xMsaaDepthTarget(rts[0]->key());
++  }
    VkRenderPass last_update_render_pass() const { return last_update_render_pass_; }
    const Framebuffer* last_update_framebuffer() const { return last_update_framebuffer_; }
    void GetLastUpdateRenderingAttachments(VkRenderingAttachmentInfo* color_attachments,
-@@ -320,7 +331,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -222,6 +245,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   uint32_t GetMaxRenderTargetHeight() const override;
+ 
+   RenderTarget* CreateRenderTarget(RenderTargetKey key) override;
++  void OnRenderTargetDestroyed(RenderTarget* rt) override;
+ 
+   bool IsHostDepthEncodingDifferent(xenos::DepthRenderTargetFormat format) const override;
+ 
+@@ -320,7 +344,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
    static const ResolveCopyShaderCode
        kResolveCopyShaders[size_t(draw_util::ResolveCopyShaderIndex::kCount)];
    std::array<VkPipeline, size_t(draw_util::ResolveCopyShaderIndex::kCount)>
@@ -343,7 +438,15 @@ index 8100c5c..91c65d8 100644
  
    // On the fragment shader interlock path, the render pass key is used purely
    // for passing parameters to pipeline setup - there's always only one render
-@@ -608,6 +626,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -472,6 +503,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+     uint32_t color_2_base_tiles : xenos::kEdramBaseTilesBits;  // 54
+ 
+     uint32_t color_3_base_tiles : xenos::kEdramBaseTilesBits;  // 75
++    uint32_t fb_scale : 4;
+ 
+     // Including all the padding, for a stable hash.
+     FramebufferKey() { Reset(); }
+@@ -608,6 +640,7 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
        // additional stencil texture.
        static_assert(size_t(TransferMode::kCount) <= (size_t(1) << 4));
        TransferMode mode : 4;
@@ -351,7 +454,7 @@ index 8100c5c..91c65d8 100644
      };
  
      TransferShaderKey() : key(0) { static_assert_size(*this, sizeof(key)); }
-@@ -716,6 +735,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+@@ -716,6 +749,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
        // Last bit because this affects the pipeline - after sorting, only change
        // it at most once. Depth buffers have an additional stencil SRV.
        uint32_t is_depth : 1;
@@ -465,6 +568,18 @@ index 35035a4..b798d7d 100644
    pD3DDisassemble pfn_d3d_disassemble_ = nullptr;
  
    HMODULE library_dxilconv_ = nullptr;
+diff --git a/include/rex/ui/vulkan/device.h b/include/rex/ui/vulkan/device.h
+index a4dd981..9bad4ae 100644
+--- a/include/rex/ui/vulkan/device.h
++++ b/include/rex/ui/vulkan/device.h
+@@ -101,6 +101,7 @@ class VulkanDevice {
+     bool tessellationShader = false;
+     bool sampleRateShading = false;
+     bool depthClamp = false;
++    bool depthBiasClamp = false;
+     bool fillModeNonSolid = false;
+     bool samplerAnisotropy = false;
+     bool occlusionQueryPrecise = false;
 diff --git a/include/rex/ui/vulkan/functions/device_1_0.inc b/include/rex/ui/vulkan/functions/device_1_0.inc
 index aa55a4a..db6632a 100644
 --- a/include/rex/ui/vulkan/functions/device_1_0.inc
@@ -486,10 +601,18 @@ index aa55a4a..db6632a 100644
  XE_UI_VULKAN_FUNCTION(vkUpdateDescriptorSets)
  XE_UI_VULKAN_FUNCTION(vkWaitForFences)
 diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
-index bef8db8..2871c02 100644
+index bef8db8..18a8e68 100644
 --- a/src/graphics/d3d12/command_processor.cpp
 +++ b/src/graphics/d3d12/command_processor.cpp
-@@ -77,6 +77,368 @@ namespace shaders {
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "../majin_shadow_scale.h"
+ #include "../vulkan/fh1_submission_watch.h"
+ #include <algorithm>
+ #include <cstdarg>
+@@ -77,6 +78,378 @@ namespace shaders {
  #include "../shaders/bytecode/d3d12_5_1/resolve_downscale_cs.h"
  }  // namespace shaders
  
@@ -506,27 +629,23 @@ index bef8db8..2871c02 100644
 +  float xe_dedither_strength;
 +};
 +
-+RWTexture2D<unorm float4> xe_dedither_dest : register(u0);
++RWTexture2D<float4> xe_dedither_dest : register(u0);
 +Texture2D<float4> xe_dedither_source : register(t0);
-+Texture2D<float> xe_dedither_depth : register(t1);
++Texture2D<float4> xe_dedither_depth : register(t1);
 +SamplerState xe_sampler_linear_clamp : register(s0);
 +
 +static const float3 kLumaWeights = float3(0.299f, 0.587f, 0.114f);
 +
-+int2 ClampCoord(int2 p) {
-+  return clamp(p, int2(0, 0), int2(xe_dedither_size) - int2(1, 1));
-+}
-+
-+float SampleOscillationAtStep(int2 p, int stepVal, float depthScale) {
-+  float zC  = xe_dedither_depth.Load(int3(p, 0)).r;
-+  float zN  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( 0, -stepVal)), 0)).r;
-+  float zS  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( 0,  stepVal)), 0)).r;
-+  float zE  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal,  0)), 0)).r;
-+  float zW  = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal,  0)), 0)).r;
-+  float zNW = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal, -stepVal)), 0)).r;
-+  float zNE = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal, -stepVal)), 0)).r;
-+  float zSW = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal,  stepVal)), 0)).r;
-+  float zSE = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal,  stepVal)), 0)).r;
++float SampleOscillationAtStep(int2 dp, int stepVal, float depthScale, int2 depthMax) {
++  float zC  = xe_dedither_depth.Load(int3(dp, 0)).r;
++  float zN  = xe_dedither_depth.Load(int3(clamp(dp + int2( 0, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zS  = xe_dedither_depth.Load(int3(clamp(dp + int2( 0,  stepVal), int2(0, 0), depthMax), 0)).r;
++  float zE  = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal,  0), int2(0, 0), depthMax), 0)).r;
++  float zW  = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal,  0), int2(0, 0), depthMax), 0)).r;
++  float zNW = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zNE = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zSW = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal,  stepVal), int2(0, 0), depthMax), 0)).r;
++  float zSE = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal,  stepVal), int2(0, 0), depthMax), 0)).r;
 +
 +  float dW = zW - zC;
 +  float dE = zE - zC;
@@ -551,7 +670,7 @@ index bef8db8..2871c02 100644
 +  return maxOscStr / depthScale;
 +}
 +
-+float DetectDitherAtStep(int2 p, int stepVal, out float3 outBoxAvg) {
++float DetectDitherAtStep(int2 p, int2 dp, int2 depthMax, int stepVal, out float3 outBoxAvg) {
 +  float2 texel = xe_dedither_size_inv;
 +  float2 uv = (float2(p) + float2(0.5f, 0.5f)) * texel;
 +  float2 st = float(stepVal) * texel;
@@ -574,15 +693,15 @@ index bef8db8..2871c02 100644
 +    return 0.0f;
 +  }
 +
-+  float zC = xe_dedither_depth.Load(int3(p, 0)).r;
++  float zC = xe_dedither_depth.Load(int3(dp, 0)).r;
 +  float depthScale = max(min(zC, 1.0f - zC), 0.0005f);
 +
 +  const float kMinRelOsc = 0.0025f;
 +
-+  float relOsc = SampleOscillationAtStep(p, stepVal, depthScale);
++  float relOsc = SampleOscillationAtStep(dp, stepVal, depthScale, depthMax);
 +
 +  if (relOsc <= kMinRelOsc) {
-+    float relOsc2 = SampleOscillationAtStep(p, stepVal * 2, depthScale);
++    float relOsc2 = SampleOscillationAtStep(dp, stepVal * 2, depthScale, depthMax);
 +    if (relOsc2 > kMinRelOsc) {
 +      relOsc = relOsc2;
 +    }
@@ -630,17 +749,26 @@ index bef8db8..2871c02 100644
 +  float2 uv = (float2(pixel) + float2(0.5f, 0.5f)) * texel;
 +  float3 c = xe_dedither_source.SampleLevel(xe_sampler_linear_clamp, uv, 0.0f).rgb;
 +
++  uint depth_w = 0;
++  uint depth_h = 0;
++  xe_dedither_depth.GetDimensions(depth_w, depth_h);
++  int2 depth_max = int2(max(int(depth_w), 1) - 1, max(int(depth_h), 1) - 1);
++  int2 depth_p = (depth_w != xe_dedither_size.x || depth_h < xe_dedither_size.y)
++      ? int2(round(float2(p) * float2(depth_w, depth_h) * xe_dedither_size_inv))
++      : p;
++  depth_p = clamp(depth_p, int2(0, 0), depth_max);
++
 +  int scaleVal = int(max(xe_dedither_scale.x, 1u));
 +
 +  float3 boxAvgScale;
-+  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
++  float confScale = DetectDitherAtStep(p, depth_p, depth_max, scaleVal, boxAvgScale);
 +
 +  float confidence = confScale;
 +  float3 bestBoxAvg = boxAvgScale;
 +
 +  if (scaleVal > 1) {
 +    float3 boxAvgNative;
-+    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
++    float confNative = DetectDitherAtStep(p, depth_p, depth_max, 1, boxAvgNative);
 +    if (confNative > confidence) {
 +      confidence = confNative;
 +      bestBoxAvg = boxAvgNative;
@@ -655,7 +783,7 @@ index bef8db8..2871c02 100644
 +      } else if (xe_dedither_has_depth == 0u) {
 +        result = float3(1.0f, 0.0f, 0.0f);
 +      } else {
-+        int2 fullCoord = int2((float2(pixel) / float2(360.0f, 202.0f)) * float2(xe_dedither_size));
++        int2 fullCoord = int2((float2(pixel) / float2(360.0f, 202.0f)) * float2(depth_max));
 +        float pipZ = xe_dedither_depth.Load(int3(fullCoord, 0)).r;
 +        float visZ = pow(saturate(pipZ), 0.35f);
 +        result = float3(visZ, visZ, visZ);
@@ -684,27 +812,23 @@ index bef8db8..2871c02 100644
 +  float xe_dedither_strength;
 +};
 +
-+RWTexture2D<unorm float4> xe_dedither_dest : register(u0);
++RWTexture2D<float4> xe_dedither_dest : register(u0);
 +Texture2D<float4> xe_dedither_source : register(t0);
-+Texture2D<float> xe_dedither_depth : register(t1);
++Texture2D<float4> xe_dedither_depth : register(t1);
 +SamplerState xe_sampler_linear_clamp : register(s0);
 +
 +static const float3 kLumaWeights = float3(0.299f, 0.587f, 0.114f);
 +
-+int2 ClampCoord(int2 p) {
-+  return clamp(p, int2(0, 0), int2(xe_dedither_size) - int2(1, 1));
-+}
-+
-+float SampleOscillationAtStep(int2 p, int stepVal, float depthScale) {
-+  float zC  = xe_dedither_depth.Load(int3(p, 0)).r;
-+  float zN  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( 0, -stepVal)), 0)).r;
-+  float zS  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( 0,  stepVal)), 0)).r;
-+  float zE  = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal,  0)), 0)).r;
-+  float zW  = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal,  0)), 0)).r;
-+  float zNW = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal, -stepVal)), 0)).r;
-+  float zNE = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal, -stepVal)), 0)).r;
-+  float zSW = xe_dedither_depth.Load(int3(ClampCoord(p + int2(-stepVal,  stepVal)), 0)).r;
-+  float zSE = xe_dedither_depth.Load(int3(ClampCoord(p + int2( stepVal,  stepVal)), 0)).r;
++float SampleOscillationAtStep(int2 dp, int stepVal, float depthScale, int2 depthMax) {
++  float zC  = xe_dedither_depth.Load(int3(dp, 0)).r;
++  float zN  = xe_dedither_depth.Load(int3(clamp(dp + int2( 0, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zS  = xe_dedither_depth.Load(int3(clamp(dp + int2( 0,  stepVal), int2(0, 0), depthMax), 0)).r;
++  float zE  = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal,  0), int2(0, 0), depthMax), 0)).r;
++  float zW  = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal,  0), int2(0, 0), depthMax), 0)).r;
++  float zNW = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zNE = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal, -stepVal), int2(0, 0), depthMax), 0)).r;
++  float zSW = xe_dedither_depth.Load(int3(clamp(dp + int2(-stepVal,  stepVal), int2(0, 0), depthMax), 0)).r;
++  float zSE = xe_dedither_depth.Load(int3(clamp(dp + int2( stepVal,  stepVal), int2(0, 0), depthMax), 0)).r;
 +
 +  float dW = zW - zC;
 +  float dE = zE - zC;
@@ -729,7 +853,7 @@ index bef8db8..2871c02 100644
 +  return maxOscStr / depthScale;
 +}
 +
-+float DetectDitherAtStep(int2 p, int stepVal, out float3 outBoxAvg) {
++float DetectDitherAtStep(int2 p, int2 dp, int2 depthMax, int stepVal, out float3 outBoxAvg) {
 +  float2 texel = xe_dedither_size_inv;
 +  float2 uv = (float2(p) + float2(0.5f, 0.5f)) * texel;
 +  float2 st = float(stepVal) * texel;
@@ -752,15 +876,15 @@ index bef8db8..2871c02 100644
 +    return 0.0f;
 +  }
 +
-+  float zC = xe_dedither_depth.Load(int3(p, 0)).r;
++  float zC = xe_dedither_depth.Load(int3(dp, 0)).r;
 +  float depthScale = max(min(zC, 1.0f - zC), 0.0005f);
 +
 +  const float kMinRelOsc = 0.0025f;
 +
-+  float relOsc = SampleOscillationAtStep(p, stepVal, depthScale);
++  float relOsc = SampleOscillationAtStep(dp, stepVal, depthScale, depthMax);
 +
 +  if (relOsc <= kMinRelOsc) {
-+    float relOsc2 = SampleOscillationAtStep(p, stepVal * 2, depthScale);
++    float relOsc2 = SampleOscillationAtStep(dp, stepVal * 2, depthScale, depthMax);
 +    if (relOsc2 > kMinRelOsc) {
 +      relOsc = relOsc2;
 +    }
@@ -808,17 +932,26 @@ index bef8db8..2871c02 100644
 +  float2 uv = (float2(pixel) + float2(0.5f, 0.5f)) * texel;
 +  float3 c = xe_dedither_source.SampleLevel(xe_sampler_linear_clamp, uv, 0.0f).rgb;
 +
++  uint depth_w = 0;
++  uint depth_h = 0;
++  xe_dedither_depth.GetDimensions(depth_w, depth_h);
++  int2 depth_max = int2(max(int(depth_w), 1) - 1, max(int(depth_h), 1) - 1);
++  int2 depth_p = (depth_w != xe_dedither_size.x || depth_h < xe_dedither_size.y)
++      ? int2(round(float2(p) * float2(depth_w, depth_h) * xe_dedither_size_inv))
++      : p;
++  depth_p = clamp(depth_p, int2(0, 0), depth_max);
++
 +  int scaleVal = int(max(xe_dedither_scale.x, 1u));
 +
 +  float3 boxAvgScale;
-+  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
++  float confScale = DetectDitherAtStep(p, depth_p, depth_max, scaleVal, boxAvgScale);
 +
 +  float confidence = confScale;
 +  float3 bestBoxAvg = boxAvgScale;
 +
 +  if (scaleVal > 1) {
 +    float3 boxAvgNative;
-+    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
++    float confNative = DetectDitherAtStep(p, depth_p, depth_max, 1, boxAvgNative);
 +    if (confNative > confidence) {
 +      confidence = confNative;
 +      bestBoxAvg = boxAvgNative;
@@ -833,7 +966,7 @@ index bef8db8..2871c02 100644
 +      } else if (xe_dedither_has_depth == 0u) {
 +        result = float3(1.0f, 0.0f, 0.0f);
 +      } else {
-+        int2 fullCoord = int2((float2(pixel) / float2(360.0f, 202.0f)) * float2(xe_dedither_size));
++        int2 fullCoord = int2((float2(pixel) / float2(360.0f, 202.0f)) * float2(depth_max));
 +        float pipZ = xe_dedither_depth.Load(int3(fullCoord, 0)).r;
 +        float visZ = pow(saturate(pipZ), 0.35f);
 +        result = float3(visZ, visZ, visZ);
@@ -858,7 +991,7 @@ index bef8db8..2871c02 100644
  D3D12CommandProcessor::D3D12CommandProcessor(D3D12GraphicsSystem* graphics_system,
                                               system::KernelState* kernel_state)
      : CommandProcessor(graphics_system, kernel_state), deferred_command_list_(*this) {
-@@ -122,6 +484,7 @@ void D3D12CommandProcessor::InsertDebugMarker(const char* format, ...) {
+@@ -122,6 +495,7 @@ void D3D12CommandProcessor::InsertDebugMarker(const char* format, ...) {
  void D3D12CommandProcessor::ClearCaches() {
    CommandProcessor::ClearCaches();
    InvalidateAllVertexBufferResidency();
@@ -866,7 +999,7 @@ index bef8db8..2871c02 100644
    cache_clear_requested_ = true;
  }
  
-@@ -1440,6 +1803,98 @@ bool D3D12CommandProcessor::SetupContext() {
+@@ -1440,6 +1814,98 @@ bool D3D12CommandProcessor::SetupContext() {
      return false;
    }
  
@@ -965,7 +1098,7 @@ index bef8db8..2871c02 100644
    // Resolve downscale compute pipeline for scaled readback resolve.
    D3D12_ROOT_PARAMETER
    resolve_downscale_root_parameters[UINT(ResolveDownscaleRootParameter::kCount)];
-@@ -1699,6 +2154,10 @@ void D3D12CommandProcessor::ShutdownContext() {
+@@ -1699,6 +2165,10 @@ void D3D12CommandProcessor::ShutdownContext() {
    fxaa_source_texture_submission_ = 0;
    fxaa_source_texture_.Reset();
  
@@ -976,7 +1109,7 @@ index bef8db8..2871c02 100644
    fxaa_extreme_pipeline_.Reset();
    fxaa_pipeline_.Reset();
    fxaa_root_signature_.Reset();
-@@ -2014,10 +2473,37 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2014,10 +2484,37 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
          ID3D12Device* device = provider.GetDevice();
  
          SwapPostEffect swap_post_effect = GetActualSwapPostEffect();
@@ -1018,7 +1151,7 @@ index bef8db8..2871c02 100644
            if (fxaa_source_texture_) {
              D3D12_RESOURCE_DESC fxaa_source_texture_desc = fxaa_source_texture_->GetDesc();
              if (fxaa_source_texture_desc.Width != guest_output_width ||
-@@ -2048,9 +2534,10 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2048,9 +2545,10 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
                      &ui::d3d12::util::kHeapPropertiesDefault, provider.GetHeapFlagCreateNotZeroed(),
                      &fxaa_source_texture_desc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                      nullptr, IID_PPV_ARGS(&fxaa_source_texture_)))) {
@@ -1030,7 +1163,7 @@ index bef8db8..2871c02 100644
              }
            }
          }
-@@ -2065,7 +2552,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2065,7 +2563,7 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
              frontbuffer_format == xenos::TextureFormat::k_2_10_10_10 ||
              frontbuffer_format == xenos::TextureFormat::k_2_10_10_10_AS_16_16_16_16;
  
@@ -1039,7 +1172,7 @@ index bef8db8..2871c02 100644
  
          // Upload the new gamma ramp, using the upload buffer for the current
          // frame (will close the frame after this anyway, so can't write
-@@ -2131,15 +2618,22 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2131,15 +2629,22 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
              static_cast<ui::d3d12::D3D12Presenter::D3D12GuestOutputRefreshContext&>(context)
                  .resource_uav_capable();
  
@@ -1066,7 +1199,7 @@ index bef8db8..2871c02 100644
          static_cast<ui::d3d12::D3D12Presenter::D3D12GuestOutputRefreshContext&>(context)
              .resource_uav_capable();
          PushTransitionBarrier(apply_gamma_dest, apply_gamma_dest_initial_state,
-@@ -2148,7 +2642,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2148,7 +2653,8 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
          // transitioned back to apply_gamma_dest_initial_state!
          D3D12_UNORDERED_ACCESS_VIEW_DESC apply_gamma_dest_uav_desc;
          apply_gamma_dest_uav_desc.Format =
@@ -1076,7 +1209,7 @@ index bef8db8..2871c02 100644
          apply_gamma_dest_uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
          apply_gamma_dest_uav_desc.Texture2D.MipSlice = 0;
          apply_gamma_dest_uav_desc.Texture2D.PlaneSlice = 0;
-@@ -2177,11 +2672,13 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2177,11 +2683,13 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
              UINT(ApplyGammaRootParameter::kRamp), apply_gamma_descriptor_gamma_ramp.second);
          ID3D12PipelineState* apply_gamma_pipeline;
          if (use_pwl_gamma_ramp) {
@@ -1094,7 +1227,7 @@ index bef8db8..2871c02 100644
          }
          SetExternalPipeline(apply_gamma_pipeline);
          SubmitBarriers();
-@@ -2189,8 +2686,263 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
+@@ -2189,8 +2697,269 @@ void D3D12CommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbu
          uint32_t group_count_y = (guest_output_height + 7) / 8;
          deferred_command_list_.D3DDispatch(group_count_x, group_count_y, 1);
  
@@ -1186,6 +1319,9 @@ index bef8db8..2871c02 100644
 +          dedither_constants.debug_mode = debug_mode;
 +          dedither_constants.has_depth = has_depth ? 1u : 0u;
 +          dedither_constants.dedither_strength = dedither_strength;
++          dedither_constants.pad[0] = 0;
++          dedither_constants.pad[1] = 0;
++          dedither_constants.pad[2] = 0;
 +          deferred_command_list_.D3DSetComputeRoot32BitConstants(
 +              UINT(DeditherRootParameter::kConstants),
 +              sizeof(dedither_constants) / sizeof(uint32_t), &dedither_constants, 0);
@@ -1342,6 +1478,9 @@ index bef8db8..2871c02 100644
 +          dedither_constants.debug_mode = debug_mode;
 +          dedither_constants.has_depth = has_depth ? 1u : 0u;
 +          dedither_constants.dedither_strength = dedither_strength;
++          dedither_constants.pad[0] = 0;
++          dedither_constants.pad[1] = 0;
++          dedither_constants.pad[2] = 0;
 +          deferred_command_list_.D3DSetComputeRoot32BitConstants(
 +              UINT(DeditherRootParameter::kConstants),
 +              sizeof(dedither_constants) / sizeof(uint32_t), &dedither_constants, 0);
@@ -1360,26 +1499,13 @@ index bef8db8..2871c02 100644
            // Destination and source.
            ui::d3d12::util::DescriptorCpuGpuHandlePair fxaa_descriptors[2];
            if (!RequestOneUseSingleViewDescriptors(uint32_t(rex::countof(fxaa_descriptors)),
-@@ -2303,6 +3055,30 @@ bool Fh1Uma(ID3D12Device* device) {
+@@ -2303,6 +3072,17 @@ bool Fh1Uma(ID3D12Device* device) {
    }();
    return uma;
  }
 +
 +uint32_t MajinShadowScale(uint32_t base_scale) {
-+  const std::string shadow_scale_str = rex::cvar::GetFlagByName("majin_shadow_scale");
-+  if (!shadow_scale_str.empty()) {
-+    const int s = std::atoi(shadow_scale_str.c_str());
-+    if (s >= 4) {
-+      return 4u;
-+    }
-+    if (s >= 2) {
-+      return 2u;
-+    }
-+    if (s >= 1) {
-+      return 1u;
-+    }
-+  }
-+  return base_scale;
++  return majin::ShadowScale(base_scale);
 +}
 +
 +bool IsShadowMapPass(const D3D12RenderTargetCache* cache) {
@@ -1391,7 +1517,7 @@ index bef8db8..2871c02 100644
  }  // namespace
  
  bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
-@@ -2477,6 +3253,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+@@ -2477,6 +3257,11 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
    // Get dynamic rasterizer state.
    uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
    uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
@@ -1403,7 +1529,7 @@ index bef8db8..2871c02 100644
  
    bool convert_z_to_float24 =
        host_render_targets_used && render_target_cache_->depth_float24_convert_in_pixel_shader();
-@@ -2494,7 +3275,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+@@ -2494,7 +3279,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
    std::memcpy(viewport_key.vport_regs, &regs[XE_GPU_REG_PA_CL_VPORT_XSCALE],
                sizeof(viewport_key.vport_regs));
    viewport_key.flags = (uint32_t(convert_z_to_float24) << 0) |
@@ -1414,7 +1540,7 @@ index bef8db8..2871c02 100644
  
    draw_util::ViewportInfo viewport_info;
    if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
-@@ -2541,6 +3324,18 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+@@ -2541,6 +3328,18 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
  
    // Update viewport, scissor, blend factor and stencil reference.
    UpdateFixedFunctionState(viewport_info, scissor, primitive_polygonal, normalized_depth_control);
@@ -1433,7 +1559,17 @@ index bef8db8..2871c02 100644
  
    // Update system constants before uploading them.
    // TODO(Triang3l): With ROV, pass the disabled render target mask for safety.
-@@ -3773,6 +4568,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
+@@ -3641,6 +4440,9 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
+       }
+       constant_buffer_pool_->ClearCache();
+ 
++      // GPU is idle here - safe point to apply a new majin_shadow_scale.
++      majin::LatchShadowScale();
++
+       texture_cache_->ClearCache();
+ 
+       // Not clearing the root signatures as they're referenced by pipelines,
+@@ -3773,6 +4575,11 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
        render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
    uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
    uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
@@ -1445,8 +1581,30 @@ index bef8db8..2871c02 100644
  
    // Get the color info register values for each render target. Also, for ROV,
    // exclude components that don't exist in the format from the write mask.
+diff --git a/src/graphics/d3d12/pipeline_cache.cpp b/src/graphics/d3d12/pipeline_cache.cpp
+index 656788e..2a8bbc9 100644
+--- a/src/graphics/d3d12/pipeline_cache.cpp
++++ b/src/graphics/d3d12/pipeline_cache.cpp
+@@ -2885,10 +2885,14 @@ ID3D12PipelineState* PipelineCache::CreateD3D12Pipeline(
+   // reverted (slope only along the scaled axis), thus max. More bias is better
+   // than less bias, because less bias means Z fighting with the background is
+   // more likely.
++  uint32_t bias_resolution_scale = std::max(render_target_cache_.draw_resolution_scale_x(),
++                                            render_target_cache_.draw_resolution_scale_y());
++  if (render_target_cache_.IsLastUpdateShadowMapDepth()) {
++    bias_resolution_scale =
++        std::max(bias_resolution_scale, render_target_cache_.shadow_resolution_scale());
++  }
+   state_desc.RasterizerState.SlopeScaledDepthBias =
+-      description.depth_bias_slope_scaled *
+-      float(std::max(render_target_cache_.draw_resolution_scale_x(),
+-                     render_target_cache_.draw_resolution_scale_y()));
++      description.depth_bias_slope_scaled * float(bias_resolution_scale);
+   state_desc.RasterizerState.DepthClipEnable = description.depth_clip ? TRUE : FALSE;
+   uint32_t msaa_sample_count = uint32_t(1) << uint32_t(description.host_msaa_samples);
+   if (edram_rov_used) {
 diff --git a/src/graphics/d3d12/render_target_cache.cpp b/src/graphics/d3d12/render_target_cache.cpp
-index dd24163..baca9d1 100644
+index dd24163..d41e983 100644
 --- a/src/graphics/d3d12/render_target_cache.cpp
 +++ b/src/graphics/d3d12/render_target_cache.cpp
 @@ -203,8 +203,12 @@ bool D3D12RenderTargetCache::Initialize() {
@@ -1554,7 +1712,7 @@ index dd24163..baca9d1 100644
      if (direct_resolve_pipeline_pair.second && !aliased_resolve_copy_pipeline) {
        direct_resolve_pipeline_pair.second->Release();
      }
-@@ -1026,19 +1045,33 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
+@@ -1026,19 +1045,40 @@ void D3D12RenderTargetCache::Shutdown(bool from_destructor) {
    descriptor_pool_depth_.reset();
    descriptor_pool_color_.reset();
  
@@ -1579,6 +1737,13 @@ index dd24163..baca9d1 100644
    }
  }
  
++void D3D12RenderTargetCache::OnRenderTargetDestroyed(RenderTarget* rt) {
++  InvalidateCommandListRenderTargets();
++  last_scene_depth_render_target_ = nullptr;
++  main_scene_depth_render_target_ = nullptr;
++  ResetAccumulatedRenderTargets();
++}
++
 +void D3D12RenderTargetCache::ClearCache() {
 +  InvalidateCommandListRenderTargets();
 +  last_scene_depth_render_target_ = nullptr;
@@ -1590,7 +1755,7 @@ index dd24163..baca9d1 100644
  void D3D12RenderTargetCache::CompletedSubmissionUpdated() {
    if (transfer_vertex_buffer_pool_) {
      transfer_vertex_buffer_pool_->Reclaim(command_processor_.GetCompletedSubmission());
-@@ -1069,6 +1102,24 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
+@@ -1069,6 +1109,24 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
            last_update_accumulated_render_targets();
        PerformTransfersAndResolveClears(1 + xenos::kMaxColorRenderTargets,
                                         depth_and_color_render_targets, last_update_transfers());
@@ -1615,7 +1780,7 @@ index dd24163..baca9d1 100644
        SetCommandListRenderTargets(depth_and_color_render_targets);
      } break;
      case Path::kPixelShaderInterlock: {
-@@ -1165,12 +1216,25 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1165,12 +1223,25 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
    written_address_out = 0;
    written_length_out = 0;
  
@@ -1644,7 +1809,7 @@ index dd24163..baca9d1 100644
                                   fixed_16_truncated_to_minus_1_to_1, resolve_info)) {
      return false;
    }
-@@ -1188,7 +1252,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1188,7 +1259,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
      draw_util::ResolveCopyShaderConstants copy_shader_constants;
      uint32_t copy_group_count_x, copy_group_count_y;
      draw_util::ResolveCopyShaderIndex copy_shader =
@@ -1653,7 +1818,7 @@ index dd24163..baca9d1 100644
                                     copy_shader_constants, copy_group_count_x, copy_group_count_y);
      assert_true(copy_group_count_x && copy_group_count_y);
      if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
-@@ -1198,7 +1262,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1198,7 +1269,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
        if (GetPath() == Path::kHostRenderTargets) {
          if (REXCVAR_GET(direct_host_resolve)) {
            direct_resolved =
@@ -1662,7 +1827,7 @@ index dd24163..baca9d1 100644
            if (direct_resolved) {
              ++direct_resolve_success_count_;
            } else {
-@@ -1220,19 +1284,23 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1220,19 +1291,23 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
          }
        }
  
@@ -1692,7 +1857,7 @@ index dd24163..baca9d1 100644
        } else {
          copy_dest_committed = shared_memory.RequestRange(resolve_info.copy_dest_extent_start,
                                                           resolve_info.copy_dest_extent_length);
-@@ -1247,9 +1315,9 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1247,9 +1322,9 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
          ui::d3d12::util::DescriptorCpuGpuHandlePair descriptor_source;
          ui::d3d12::util::DescriptorCpuGpuHandlePair descriptors[2];
          if (command_processor_.RequestOneUseSingleViewDescriptors(
@@ -1704,7 +1869,7 @@ index dd24163..baca9d1 100644
                descriptor_dest = descriptors[0];
              } else {
                descriptor_dest = command_processor_.GetSharedMemoryUintPow2BindlessUAVHandlePair(
-@@ -1264,7 +1332,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1264,7 +1339,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
              }
            } else {
              descriptor_dest = descriptors[0];
@@ -1713,7 +1878,7 @@ index dd24163..baca9d1 100644
                shared_memory.WriteUintPow2UAVDescriptor(descriptor_dest.first,
                                                         copy_shader_info.dest_bpe_log2);
              }
-@@ -1276,7 +1344,18 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1276,7 +1351,18 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
                                                copy_shader_info.source_bpe_log2);
              }
            }
@@ -1733,7 +1898,7 @@ index dd24163..baca9d1 100644
              texture_cache.CreateCurrentScaledResolveRangeUintPow2UAV(
                  descriptor_dest.first, copy_shader_info.dest_bpe_log2);
              texture_cache.TransitionCurrentScaledResolveRange(
-@@ -1290,7 +1369,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1290,7 +1376,7 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
            command_list.D3DSetComputeRootSignature(resolve_copy_root_signature_);
            command_list.D3DSetComputeRootDescriptorTable(2, descriptor_source.second);
            command_list.D3DSetComputeRootDescriptorTable(1, descriptor_dest.second);
@@ -1742,7 +1907,7 @@ index dd24163..baca9d1 100644
              command_list.D3DSetComputeRoot32BitConstants(
                  0, sizeof(copy_shader_constants.dest_relative) / sizeof(uint32_t),
                  &copy_shader_constants.dest_relative, 0);
-@@ -1298,20 +1377,36 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
+@@ -1298,20 +1384,36 @@ bool D3D12RenderTargetCache::Resolve(const memory::Memory& memory, D3D12SharedMe
              command_list.D3DSetComputeRoot32BitConstants(
                  0, sizeof(copy_shader_constants) / sizeof(uint32_t), &copy_shader_constants, 0);
            }
@@ -1783,7 +1948,7 @@ index dd24163..baca9d1 100644
            written_address_out = resolve_info.copy_dest_extent_start;
            written_length_out = resolve_info.copy_dest_extent_length;
            copied = true;
-@@ -1562,9 +1657,15 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
+@@ -1562,9 +1664,15 @@ RenderTargetCache::RenderTarget* D3D12RenderTargetCache::CreateRenderTarget(Rend
    D3D12_RESOURCE_DESC resource_desc;
    resource_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
    resource_desc.Alignment = 0;
@@ -1801,7 +1966,7 @@ index dd24163..baca9d1 100644
    resource_desc.DepthOrArraySize = 1;
    resource_desc.MipLevels = 1;
    if (key.is_depth) {
-@@ -2429,8 +2530,10 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
+@@ -2429,8 +2537,10 @@ ID3D12PipelineState* const* D3D12RenderTargetCache::GetOrCreateTransferPipelines
    // for the coordinates for that load. Currently 3 temps are enough.
    a.OpDclTemps(3);
  
@@ -1814,7 +1979,7 @@ index dd24163..baca9d1 100644
  
    uint32_t tile_width_samples = xenos::kEdramTileWidthSamples * draw_resolution_scale_x;
    uint32_t tile_height_samples = xenos::kEdramTileHeightSamples * draw_resolution_scale_y;
-@@ -3814,19 +3917,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+@@ -3814,19 +3924,7 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
    DeferredCommandList& command_list = command_processor_.GetDeferredCommandList();
  
    bool resolve_clear_needed = render_target_resolve_clear_values && resolve_clear_rectangle;
@@ -1835,7 +2000,7 @@ index dd24163..baca9d1 100644
  
    // Do host depth storing for the depth destination (assuming there can be only
    // one depth destination) where depth destination == host depth source.
-@@ -4081,8 +4172,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+@@ -4081,8 +4179,6 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
  
    bool transfer_viewport_set = false;
    float pixels_to_ndc_unscaled = 2.0f / float(D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION);
@@ -1844,7 +2009,7 @@ index dd24163..baca9d1 100644
  
    TransferRootSignatureIndex last_transfer_root_signature_index =
        TransferRootSignatureIndex::kCount;
-@@ -4109,6 +4198,25 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+@@ -4109,6 +4205,25 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
      auto& dest_d3d12_rt = *static_cast<D3D12RenderTarget*>(dest_rt);
      RenderTargetKey dest_rt_key = dest_d3d12_rt.key();
  
@@ -1870,7 +2035,7 @@ index dd24163..baca9d1 100644
      // Late barrier in case there was cross-copying that prevented merging of
      // barriers.
      D3D12_RESOURCE_STATES dest_state = dest_rt_key.is_depth ? D3D12_RESOURCE_STATE_DEPTH_WRITE
-@@ -4145,6 +4253,9 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+@@ -4145,6 +4260,9 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
        TransferShaderKey new_transfer_shader_key;
        new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
        new_transfer_shader_key.dest_resource_format = dest_rt_key.resource_format;
@@ -1880,7 +2045,7 @@ index dd24163..baca9d1 100644
        uint32_t stencil_clear_rectangle_count = 0;
        for (uint32_t j = 0; j <= uint32_t(need_stencil_bit_draws); ++j) {
          // j == 0 - color or depth.
-@@ -4233,15 +4344,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
+@@ -4233,15 +4351,15 @@ void D3D12RenderTargetCache::PerformTransfersAndResolveClears(
              const Transfer::Rectangle& stencil_clear_rectangle =
                  transfer_stencil_clear_rectangles[j];
              stencil_clear_rect_write_ptr->left =
@@ -1900,7 +2065,7 @@ index dd24163..baca9d1 100644
              ++stencil_clear_rect_write_ptr;
            }
          }
-@@ -4757,6 +4868,9 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
+@@ -4757,6 +4875,9 @@ void D3D12RenderTargetCache::SetCommandListRenderTargets(
  }
  
  ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelineKey key) {
@@ -1910,7 +2075,7 @@ index dd24163..baca9d1 100644
    auto pipeline_it = dump_pipelines_.find(key);
    if (pipeline_it != dump_pipelines_.end()) {
      return pipeline_it->second;
-@@ -5083,6 +5197,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
+@@ -5083,6 +5204,10 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDumpPipeline(DumpPipelin
  
    uint32_t draw_resolution_scale_x = this->draw_resolution_scale_x();
    uint32_t draw_resolution_scale_y = this->draw_resolution_scale_y();
@@ -1921,7 +2086,7 @@ index dd24163..baca9d1 100644
  
    // For now, as the exact addressing in 64bpp render targets relatively to
    // 32bpp is unknown, treating 64bpp tiles as storing 40x16 samples rather than
-@@ -5535,7 +5653,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
+@@ -5535,7 +5660,7 @@ ID3D12PipelineState* D3D12RenderTargetCache::GetOrCreateDirectResolvePipeline(
    // direct preflight path.
    size_t copy_shader_index = size_t(key.copy_shader);
    if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
@@ -1930,7 +2095,7 @@ index dd24163..baca9d1 100644
    }
    direct_resolve_pipelines_.emplace(key, pipeline);
    return pipeline;
-@@ -5571,6 +5689,8 @@ bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo
+@@ -5571,6 +5696,8 @@ bool D3D12RenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInfo
      dump_pipeline_key.msaa_samples = render_target->key().msaa_samples;
      dump_pipeline_key.resource_format = render_target->key().resource_format;
      dump_pipeline_key.is_depth = render_target->key().is_depth;
@@ -1939,7 +2104,7 @@ index dd24163..baca9d1 100644
      if (!GetOrCreateDumpPipeline(dump_pipeline_key)) {
        return false;
      }
-@@ -5637,6 +5757,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
+@@ -5637,6 +5764,7 @@ bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
      pipeline_key.msaa_samples = rt_key.msaa_samples;
      pipeline_key.resource_format = rt_key.resource_format;
      pipeline_key.is_depth = rt_key.is_depth;
@@ -1947,7 +2112,7 @@ index dd24163..baca9d1 100644
      dump_invocations_.emplace_back(rectangle, pipeline_key);
    }
    // 32bpp and 64bpp.
-@@ -5792,16 +5913,47 @@ bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
+@@ -5792,16 +5920,46 @@ bool D3D12RenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dump
              kDumpRootParameterOffsets, sizeof(last_offsets) / sizeof(uint32_t), &last_offsets, 0);
          root_parameters_set |= kDumpRootParameterOffsetsBit;
        }
@@ -1972,13 +2137,12 @@ index dd24163..baca9d1 100644
  }
  
 +D3D12RenderTargetCache::D3D12RenderTarget*
-+D3D12RenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t height) const {
++D3D12RenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t /*height*/) const {
 +  if (GetPath() != Path::kHostRenderTargets) {
 +    return nullptr;
 +  }
 +  auto IsValidSceneDepth = [this, width](D3D12RenderTarget* rt) -> bool {
 +    if (!rt) return false;
-+    if (rt->key().msaa_samples != xenos::MsaaSamples::k1X) return false;
 +    const uint32_t guest_w = rt->key().GetWidth();
 +    if (IsShadowMapDepthTarget(rt->key())) return false;
 +    if (guest_w < 1280) return false;
@@ -1998,7 +2162,7 @@ index dd24163..baca9d1 100644
 +
  }  // namespace rex::graphics::d3d12
 diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
-index 2be0e8e..d3926cf 100644
+index 2be0e8e..9eb42fc 100644
 --- a/src/graphics/d3d12/texture_cache.cpp
 +++ b/src/graphics/d3d12/texture_cache.cpp
 @@ -391,15 +391,14 @@ bool D3D12TextureCache::Initialize() {
@@ -2071,7 +2235,7 @@ index 2be0e8e..d3926cf 100644
      size_t scaled_resolve_buffer_count = GetScaledResolveBufferCount();
      for (size_t i = 0; i < scaled_resolve_buffer_count; ++i) {
        ScaledResolveVirtualBuffer* scaled_resolve_buffer = scaled_resolve_2gb_buffers_[i].get();
-@@ -988,6 +985,17 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
+@@ -988,6 +985,16 @@ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
    }
    parameters.mip_base_map = mip_base_map;
  
@@ -2079,17 +2243,16 @@ index 2be0e8e..d3926cf 100644
 +  uint8_t texture_swizzled_signs;
 +  BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
 +  if (texture_key.is_valid && TextureKey::IsShadowMapTexture(texture_key)) {
-+    parameters.clamp_x = xenos::ClampMode::kClampToEdge;
-+    parameters.clamp_y = xenos::ClampMode::kClampToEdge;
-+    parameters.border_color = xenos::BorderColor::k_ABGR_Black;
 +    parameters.mag_linear = 1;
 +    parameters.min_linear = 1;
++    parameters.mip_linear = 0;
++    parameters.aniso_filter = xenos::AnisoFilter::kDisabled;
 +  }
 +
    return parameters;
  }
  
-@@ -1113,7 +1121,8 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
+@@ -1113,7 +1120,8 @@ bool D3D12TextureCache::ClampDrawResolutionScaleToMaxSupported(
  
  bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
                                                             uint32_t length_unscaled,
@@ -2099,7 +2262,7 @@ index 2be0e8e..d3926cf 100644
    assert_true(IsDrawResolutionScaled());
  
    if (length_unscaled == 0) {
-@@ -1125,13 +1134,28 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
+@@ -1125,13 +1133,28 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
      return false;
    }
  
@@ -2133,7 +2296,7 @@ index 2be0e8e..d3926cf 100644
  
    const ui::d3d12::D3D12Provider& provider = command_processor_.GetD3D12Provider();
    ID3D12Device* device = provider.GetDevice();
-@@ -1153,9 +1177,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
+@@ -1153,9 +1176,7 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
      // Buffer indices are gigabytes.
      ui::d3d12::util::FillBufferResourceDesc(
          scaled_resolve_buffer_desc,
@@ -2144,7 +2307,7 @@ index 2be0e8e..d3926cf 100644
          D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
      // The first access will be a resolve.
      constexpr D3D12_RESOURCE_STATES kScaledResolveVirtualBufferInitialState =
-@@ -1227,7 +1249,8 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
+@@ -1227,7 +1248,8 @@ bool D3D12TextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscal
  
  bool D3D12TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
                                                        uint32_t length_unscaled,
@@ -2154,7 +2317,7 @@ index 2be0e8e..d3926cf 100644
    assert_true(IsDrawResolutionScaled());
  
    if (!length_unscaled || start_unscaled >= SharedMemory::kBufferSize ||
-@@ -1237,8 +1260,22 @@ bool D3D12TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
+@@ -1237,8 +1259,22 @@ bool D3D12TextureCache::MakeScaledResolveRangeCurrent(uint32_t start_unscaled,
      return false;
    }
  
@@ -2179,7 +2342,7 @@ index 2be0e8e..d3926cf 100644
    uint64_t length_scaled_alignment_bits = (UINT64_C(1) << length_scaled_alignment_log2) - 1;
    uint64_t length_scaled =
        (uint64_t(length_unscaled) * draw_resolution_scale_area + length_scaled_alignment_bits) &
-@@ -1466,6 +1503,15 @@ bool D3D12TextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const {
+@@ -1466,6 +1502,15 @@ bool D3D12TextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const {
  }
  
  bool D3D12TextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const {
@@ -2195,7 +2358,7 @@ index 2be0e8e..d3926cf 100644
    LoadShaderIndex load_shader = GetLoadShaderIndex(key);
    return load_shader != kLoadShaderIndexUnknown && load_pipelines_scaled_[load_shader] != nullptr;
  }
-@@ -1533,8 +1579,28 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
+@@ -1533,8 +1578,28 @@ std::unique_ptr<TextureCache::Texture> D3D12TextureCache::CreateTexture(TextureK
    desc.Width = key.GetWidth();
    desc.Height = key.GetHeight();
    if (key.scaled_resolve) {
@@ -2226,7 +2389,7 @@ index 2be0e8e..d3926cf 100644
    }
    desc.DepthOrArraySize = key.GetDepthOrArraySize();
    desc.MipLevels = key.mip_max_level + 1;
-@@ -1600,8 +1666,17 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+@@ -1600,8 +1665,17 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
    uint32_t level_packed = guest_layout.packed_level;
    uint32_t level_stored_first = std::min(level_first, level_packed);
    uint32_t level_stored_last = std::min(level_last, level_packed);
@@ -2246,7 +2409,7 @@ index 2be0e8e..d3926cf 100644
  
    // The loop counter can mean two things depending on whether the packed mip
    // tail is stored as mip 0, because in this case, it would be ambiguous since
-@@ -1778,7 +1853,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+@@ -1778,7 +1852,8 @@ bool D3D12TextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
        uint32_t guest_size_unscaled =
            is_base ? d3d12_texture.GetGuestBaseSize() : d3d12_texture.GetGuestMipsSize();
        if (!MakeScaledResolveRangeCurrent(guest_address, guest_size_unscaled,
@@ -2257,28 +2420,29 @@ index 2be0e8e..d3926cf 100644
          return false;
        }
 diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
-index e477d0a..8738a8b 100644
+index e477d0a..25885f9 100644
 --- a/src/graphics/pipeline/render_target/cache.cpp
 +++ b/src/graphics/pipeline/render_target/cache.cpp
-@@ -329,6 +329,17 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
+@@ -17,6 +17,7 @@
+ #include <unordered_set>
+ #include <utility>
+ 
++#include "../../majin_shadow_scale.h"
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+ #include <rex/graphics/flags.h>
+@@ -329,6 +330,10 @@ uint32_t RenderTargetCache::Transfer::AddRectangle(const Rectangle& rectangle,
    return rectangle_count;
  }
  
 +uint32_t RenderTargetCache::shadow_resolution_scale() const {
-+  const std::string s = rex::cvar::GetFlagByName("majin_shadow_scale");
-+  if (!s.empty()) {
-+    const int val = std::atoi(s.c_str());
-+    if (val >= 4) return 4u;
-+    if (val >= 2) return 2u;
-+    if (val >= 1) return 1u;
-+  }
-+  return draw_resolution_scale_x_;
++  return majin::ShadowScale(draw_resolution_scale_x_);
 +}
 +
  RenderTargetCache::~RenderTargetCache() {
    ShutdownCommon();
  }
-@@ -364,7 +375,26 @@ void RenderTargetCache::ShutdownCommon() {
+@@ -364,7 +369,36 @@ void RenderTargetCache::ShutdownCommon() {
  
  void RenderTargetCache::ClearCache() {
    ++update_state_generation_;
@@ -2302,27 +2466,74 @@ index e477d0a..8738a8b 100644
 +      ownership_range.host_depth_render_target_float24 = RenderTargetKey();
 +    }
 +  }
++  // Also explicitly purge all shadow map depth targets from render_targets_
++  // so any target created under a previous shadow scale is unconditionally destroyed.
++  for (auto it = render_targets_.begin(); it != render_targets_.end();) {
++    if (it->second && IsShadowMapDepthTarget(it->second->key())) {
++      delete it->second;
++      it = render_targets_.erase(it);
++    } else {
++      ++it;
++    }
++  }
    if (!render_targets_.empty()) {
      std::unordered_set<RenderTargetKey, RenderTargetKey::Hasher> used_render_targets;
      for (const auto& ownership_range_pair : ownership_ranges_) {
-@@ -1520,7 +1550,11 @@ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_til
-         // Only perform the copying when actually changing the latest owner, not
-         // just the latest host depth owner - the transfer source is expected to
-         // be different than the destination.
--        if (!transfer_source.IsEmpty() && transfer_source != dest) {
-+        // Skip cross-domain transfers between shadow map depth targets and
-+        // non-shadow targets (such as 1280x720 scene color at base_tiles=0)
-+        // which may have different resolution scales.
-+        if (!transfer_source.IsEmpty() && transfer_source != dest &&
-+            IsShadowMapDepthTarget(transfer_source) == IsShadowMapDepthTarget(dest)) {
-           uint32_t transfer_end_tiles = std::min(it->second.end_tiles, extent_end);
-           if (!resolve_clear_cutout ||
-               Transfer::GetRangeRectangles(it->first, transfer_end_tiles, dest.base_tiles,
+@@ -580,7 +614,7 @@ void RenderTargetCache::GetUpdateInputs(bool is_rasterization_done,
+                            draw_extent_estimator_.EstimateMaxY(true, vertex_shader));
+   }
+   values[8] = height_used;
+-  values[9] = 0;
++  values[9] = shadow_resolution_scale();
+   values[10] = 0;
+ }
+ 
+@@ -1369,12 +1403,25 @@ void RenderTargetCache::PixelShaderInterlockFullEdramBarrierPlaced() {
+ 
+ RenderTargetCache::RenderTarget* RenderTargetCache::GetOrCreateRenderTarget(RenderTargetKey key) {
+   assert_true(GetPath() == Path::kHostRenderTargets);
++  const uint32_t expected_scale =
++      IsShadowMapDepthTarget(key) ? shadow_resolution_scale() : draw_resolution_scale_x();
+   auto it_rt = render_targets_.find(key);
+-  RenderTarget* render_target;
++  RenderTarget* render_target = nullptr;
+   if (it_rt != render_targets_.end()) {
+     render_target = it_rt->second;
+-  } else {
++    if (render_target && render_target->resolution_scale() != expected_scale) {
++      OnRenderTargetDestroyed(render_target);
++      delete render_target;
++      render_targets_.erase(it_rt);
++      render_target = nullptr;
++      ++update_state_generation_;
++    }
++  }
++  if (!render_target) {
+     render_target = CreateRenderTarget(key);
++    if (render_target) {
++      render_target->set_resolution_scale(expected_scale);
++    }
+     uint32_t width = key.GetWidth();
+     uint32_t height = GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples);
+     if (render_target) {
 diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
-index 6d39bcf..875ac12 100644
+index 6d39bcf..ab9337e 100644
 --- a/src/graphics/pipeline/texture/cache.cpp
 +++ b/src/graphics/pipeline/texture/cache.cpp
-@@ -226,14 +226,25 @@ TextureCache::TextureCache(const RegisterFile& register_file, SharedMemory& shar
+@@ -10,10 +10,12 @@
+  */
+ 
+ #include "../../fh1_frame_cost.h"
++#include "../../majin_shadow_scale.h"
+ #include <algorithm>
+ #include <bit>
+ #include <chrono>
+ #include <cstdint>
++#include <unordered_set>
+ #include <utility>
+ 
+ #include <rex/assert.h>
+@@ -226,14 +228,18 @@ TextureCache::TextureCache(const RegisterFile& register_file, SharedMemory& shar
    assert_true(draw_resolution_scale_y >= 1);
    assert_true(draw_resolution_scale_y <= kMaxDrawResolutionScaleAlongAxis);
  
@@ -2333,6 +2544,7 @@ index 6d39bcf..875ac12 100644
 -    std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
 -    scaled_resolve_global_watch_handle_ =
 -        shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
+-  }
 +  constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
 +  scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
 +  std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
@@ -2344,18 +2556,11 @@ index 6d39bcf..875ac12 100644
 +}
 +
 +uint32_t TextureCache::shadow_resolution_scale() const {
-+  const std::string s = rex::cvar::GetFlagByName("majin_shadow_scale");
-+  if (!s.empty()) {
-+    const int val = std::atoi(s.c_str());
-+    if (val >= 4) return 4u;
-+    if (val >= 2) return 2u;
-+    if (val >= 1) return 1u;
-   }
-+  return draw_resolution_scale_x_;
++  return majin::ShadowScale(draw_resolution_scale_x_);
  }
  
  TextureCache::~TextureCache() {
-@@ -263,6 +274,10 @@ bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out
+@@ -263,6 +269,10 @@ bool TextureCache::GetConfigDrawResolutionScale(uint32_t& x_out, uint32_t& y_out
  
  void TextureCache::ClearCache() {
    DestroyAllTextures();
@@ -2366,7 +2571,7 @@ index 6d39bcf..875ac12 100644
  }
  
  void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_index) {
-@@ -373,6 +388,75 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
+@@ -373,6 +383,75 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
    shared_memory().RangeWrittenByGpu(start_unscaled, length_unscaled);
  }
  
@@ -2442,7 +2647,7 @@ index 6d39bcf..875ac12 100644
  uint32_t TextureCache::GuestToHostSwizzle(uint32_t guest_swizzle, uint32_t host_format_swizzle) {
    uint32_t host_swizzle = 0;
    for (uint32_t i = 0; i < 4; ++i) {
-@@ -460,12 +544,15 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
+@@ -460,12 +539,15 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
      // the shader, including any possible padding that hasn't yet been touched
      // by an actual resolve, but is still included in the texture size, so the
      // GPU won't be trying to access unmapped memory.
@@ -2462,7 +2667,7 @@ index 6d39bcf..875ac12 100644
        return false;
      }
    }
-@@ -704,6 +791,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+@@ -704,6 +786,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
        if (any_sign_is_not_signed) {
          if (key_changed || !any_sign_was_not_signed) {
            binding.texture = FindOrCreateTexture(binding.key);
@@ -2472,7 +2677,7 @@ index 6d39bcf..875ac12 100644
            load_unsigned_data = true;
          }
        } else {
-@@ -714,6 +804,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+@@ -714,6 +799,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
            TextureKey signed_key = binding.key;
            signed_key.signed_separate = 1;
            binding.texture_signed = FindOrCreateTexture(signed_key);
@@ -2482,7 +2687,7 @@ index 6d39bcf..875ac12 100644
            load_signed_data = true;
          }
        } else {
-@@ -724,6 +817,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+@@ -724,6 +812,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
        // be different.
        if (key_changed) {
          binding.texture = FindOrCreateTexture(binding.key);
@@ -2492,9 +2697,39 @@ index 6d39bcf..875ac12 100644
          load_unsigned_data = true;
        }
        binding.texture_signed = nullptr;
-@@ -967,16 +1063,25 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
+@@ -966,17 +1057,55 @@ void TextureCache::DestroyAllTextures(bool from_destructor) {
+ }
  
  TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
++  // Majin shadow diagnostics: depth-format textures whose shadow classification
++  // disagrees with what was actually resolved there (deduplicated, bounded).
++  if (key.format == xenos::TextureFormat::k_24_8 ||
++      key.format == xenos::TextureFormat::k_24_8_FLOAT) {
++    static std::unordered_set<uint64_t> majin_diag_seen;
++    static uint32_t majin_diag_logged = 0;
++    const bool diag_is_shadow = TextureKey::IsShadowMapTexture(key);
++    const bool diag_resolved = IsShadowMapResolvedRange(key.base_page << 12);
++    const char* reason = nullptr;
++    if (!diag_is_shadow && diag_resolved) {
++      reason = "E: shadow-resolved memory sampled as NON-shadow texture (scale mismatch)";
++    } else if (diag_is_shadow && !diag_resolved) {
++      reason = "F: shadow texture over memory with no scaled shadow resolve (stale/empty data)";
++    }
++    if (reason && majin_diag_logged < 256) {
++      const uint64_t sig = (uint64_t(key.base_page) << 32) ^ (uint64_t(key.GetWidth()) << 16) ^
++                           uint64_t(key.GetHeight()) ^ (uint64_t(reason[0]) << 56);
++      if (majin_diag_seen.insert(sig).second) {
++        ++majin_diag_logged;
++        REXGPU_WARN(
++            "[ShadowDiag] {} | addr=0x{:08X} {}x{} format={} pitch={} mips={} tiled={} | "
++            "shadow_scale={} scene_scale={}",
++            reason, key.base_page << 12, key.GetWidth(), key.GetHeight(),
++            key.format == xenos::TextureFormat::k_24_8 ? "24_8" : "24_8_FLOAT",
++            uint32_t(key.pitch), uint32_t(key.mip_max_level), uint32_t(key.tiled),
++            shadow_resolution_scale(), draw_resolution_scale_x_);
++      }
++    }
++  }
    // Check if the texture is a scaled resolve texture.
 -  if (IsDrawResolutionScaled() && IsScaledResolveSupportedForFormat(key)) {
 +  bool can_be_scaled = false;
@@ -2527,7 +2762,7 @@ index 6d39bcf..875ac12 100644
        key.scaled_resolve = 1;
      }
    }
-@@ -986,8 +1091,15 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+@@ -986,8 +1115,15 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
      host_width_out = key.GetWidth();
      host_height_out = key.GetHeight();
      if (key.scaled_resolve) {
@@ -2545,7 +2780,35 @@ index 6d39bcf..875ac12 100644
      }
      host_depth_or_array_size_out = key.GetDepthOrArraySize();
    };
-@@ -1334,6 +1446,9 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
+@@ -1067,7 +1203,16 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+   // previously 0, now not 0, to save memory - common case in streaming.
+   auto found_texture_it = textures_.find(key);
+   if (found_texture_it != textures_.end()) {
+-    return found_texture_it->second.get();
++    if (TextureKey::IsShadowMapTexture(key)) {
++      const uint32_t expected_scale = shadow_resolution_scale();
++      if (found_texture_it->second->resolution_scale() != expected_scale) {
++        textures_.erase(found_texture_it);
++      } else {
++        return found_texture_it->second.get();
++      }
++    } else {
++      return found_texture_it->second.get();
++    }
+   }
+ 
+   // Create the texture and add it to the map.
+@@ -1087,6 +1232,9 @@ TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+       return nullptr;
+     }
+     assert_true(new_texture->key() == key);
++    new_texture->set_resolution_scale(TextureKey::IsShadowMapTexture(key)
++                                          ? shadow_resolution_scale()
++                                          : draw_resolution_scale_x());
+     texture = textures_.emplace(key, std::move(new_texture)).first->second.get();
+   }
+   COUNT_profile_set("gpu/texture_cache/textures", textures_.size());
+@@ -1334,6 +1482,9 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
          resolve_keep_bits |= ~((UINT32_C(1) << ((resolve_page_last & 31) + 1)) - 1);
        }
        scaled_resolve_pages_[resolve_block_index] &= resolve_keep_bits;
@@ -2556,28 +2819,53 @@ index 6d39bcf..875ac12 100644
          scaled_resolve_pages_l2_[i] &= ~(UINT64_C(1) << resolve_block_relative_index);
        }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index 7f4480c..b1745b0 100644
+index 7f4480c..271fd71 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -274,6 +274,30 @@ bool Fh1ScreenViewport(const RegisterFile& regs) {
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include "../majin_shadow_scale.h"
+ #include <algorithm>
+ #include <array>
+ #include <chrono>
+@@ -24,6 +25,7 @@
+ #include <filesystem>
+ #include <deque>
+ #include <unordered_map>
++#include <unordered_set>
+ #include <mutex>
+ #include <string>
+ #include <string_view>
+@@ -95,6 +97,21 @@ REXCVAR_DECLARE(double, forza_ultrawide_hud_offset_y);
+ #include <rex/ui/vulkan/util.h>
+ 
+ // Legacy backend compatibility aliases for shared readback controls.
++REXCVAR_DEFINE_BOOL(majin_shadow_diag, false, "GPU/Vulkan",
++                    "Majin: log (deduplicated) shadow-pass classification mismatches to diagnose "
++                    "shadow flickering.");
++REXCVAR_DEFINE_DOUBLE(majin_shadow_slope_bias, 0.30, "GPU/Vulkan",
++                      "Majin: slope-scaled depth bias factor applied to shadow depth passes when the "
++                      "game provides zero bias, eliminating grazing-angle wall acne.")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_DOUBLE(majin_shadow_constant_bias, 0.00, "GPU/Vulkan",
++                      "Majin: constant depth bias factor applied to shadow depth passes when the game "
++                      "provides zero bias.")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_DOUBLE(majin_shadow_bias_clamp, 0.002, "GPU/Vulkan",
++                      "Majin: depth bias clamp applied to shadow depth passes to prevent "
++                      "shadow erosion and glowing halos on grazing silhouette edges.")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_BOOL(shader_prebuild_only, false, "GPU/Vulkan",
+                     "Create the stored and prebuild-listed pipelines, save the driver's cache "
+                     "and exit before the game starts (the launcher's Prebuild shaders step)")
+@@ -274,6 +291,97 @@ bool Fh1ScreenViewport(const RegisterFile& regs) {
                                       br.br_x - tl.tl_x, br.br_y - tl.tl_y);
  }
  
 +uint32_t MajinShadowScale(uint32_t base_scale) {
-+  const std::string shadow_scale_str = rex::cvar::GetFlagByName("majin_shadow_scale");
-+  if (!shadow_scale_str.empty()) {
-+    const int s = std::atoi(shadow_scale_str.c_str());
-+    if (s >= 4) {
-+      return 4u;
-+    }
-+    if (s >= 2) {
-+      return 2u;
-+    }
-+    if (s >= 1) {
-+      return 1u;
-+    }
-+  }
-+  return base_scale;
++  return majin::ShadowScale(base_scale);
 +}
 +
 +bool IsShadowMapPass(const VulkanRenderTargetCache* cache) {
@@ -2587,36 +2875,124 @@ index 7f4480c..b1745b0 100644
 +  return cache->IsLastUpdateShadowMapDepth();
 +}
 +
++// Majin shadow diagnostics. Logs each distinct suspicious configuration once
++// (bounded), so a capture in a flickering spot shows which draws are
++// classified inconsistently between the render target, the draw viewport
++// scale and the depth bias.
++void MajinShadowDiagDraw(const VulkanRenderTargetCache* cache, const RegisterFile& regs,
++                         uint32_t applied_scale, uint32_t shadow_scale, uint32_t scene_scale) {
++  static std::unordered_set<uint64_t> seen;
++  static uint32_t logged = 0;
++  constexpr uint32_t kMaxLogs = 256;
++  if (!cache || logged >= kMaxLogs) {
++    return;
++  }
++  const auto* rt = cache->MajinLastUpdateDepthRenderTarget();
++  if (!rt) {
++    return;
++  }
++  const auto key = rt->key();
++  if (!key.is_depth) {
++    return;
++  }
++  const auto pass_key = cache->last_update_render_pass_key();
++  const bool depth_only = pass_key.depth_and_color_used == 1;
++  const bool shadow_rt = key.IsShadowMapDepthTarget();
++  const bool shadow_pass = cache->IsLastUpdateShadowMapDepth();
++  const uint32_t width = key.GetWidth();
++  const uint32_t rt_scale = rt->resolution_scale();
++
++  auto mode = regs.Get<reg::PA_SU_SC_MODE_CNTL>();
++  const float bias_scale = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_SCALE);
++  const float bias_offset = regs.Get<float>(XE_GPU_REG_PA_SU_POLY_OFFSET_FRONT_OFFSET);
++
++  const char* reason = nullptr;
++  if (shadow_rt && !shadow_pass) {
++    // A: shadow-shaped RT, but the draw is NOT treated as a shadow pass ->
++    // viewport uses the scene scale over a shadow-scaled RT.
++    reason = "A: shadow RT but draw not classified as shadow pass";
++  } else if (shadow_pass && rt_scale != applied_scale) {
++    // C: classified as shadow but the RT was created at another scale.
++    reason = "C: shadow pass with RT scale != applied scale";
++  } else if (!shadow_rt && depth_only && width < 1280) {
++    // B: depth-only pass into a small RT that the heuristic doesn't recognize
++    // (possible secondary/spot light shadow map left at the scene scale).
++    reason = "B: depth-only small RT not recognized as shadow RT";
++  } else if (shadow_pass) {
++    // D: normal shadow pass - log each distinct depth-bias setup once.
++    reason = "D: shadow pass bias setup";
++  }
++  if (!reason) {
++    return;
++  }
++  uint64_t sig = uint64_t(key.key) ^ (uint64_t(pass_key.key) << 32) ^
++                 (uint64_t(reason[0]) << 56) ^ (uint64_t(applied_scale) << 48);
++  if (reason[0] == 'D') {
++    uint32_t bs, bo;
++    std::memcpy(&bs, &bias_scale, 4);
++    std::memcpy(&bo, &bias_offset, 4);
++    sig ^= (uint64_t(bs) * 0x9E3779B97F4A7C15ull) ^ (uint64_t(bo) << 16) ^
++           (uint64_t(mode.value) << 8);
++  }
++  if (!seen.insert(sig).second) {
++    return;
++  }
++  ++logged;
++  REXGPU_WARN(
++      "[ShadowDiag] {} | rt={} width={} pitch_tiles={} msaa={}x base_tiles={} rt_scale={} | "
++      "pass_key=0x{:04X} depth_and_color_used=0x{:X} | applied_scale={} shadow_scale={} "
++      "scene_scale={} | poly_offset front_en={} back_en={} para_en={} scale={} offset={} "
++      "cull_front={} cull_back={}",
++      reason, key.GetDebugName(), width, uint32_t(key.pitch_tiles_at_32bpp),
++      uint32_t(1) << uint32_t(key.msaa_samples), uint32_t(key.base_tiles), rt_scale,
++      uint32_t(pass_key.key), uint32_t(pass_key.depth_and_color_used), applied_scale,
++      shadow_scale, scene_scale, uint32_t(mode.poly_offset_front_enable),
++      uint32_t(mode.poly_offset_back_enable), uint32_t(mode.poly_offset_para_enable), bias_scale,
++      bias_offset, uint32_t(mode.cull_front), uint32_t(mode.cull_back));
++  if (logged == kMaxLogs) {
++    REXGPU_WARN("[ShadowDiag] log limit reached ({}), further draw diagnostics suppressed",
++                kMaxLogs);
++  }
++}
++
  // glslang default built-in resource limits.
  constexpr TBuiltInResource kGlslangDefaultTBuiltInResource = {
      /* .maxLights = */ 32,
-@@ -8289,6 +8313,11 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -8289,6 +8397,18 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets;
    uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
    uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
 +  if (IsShadowMapPass(render_target_cache_.get())) {
 +    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
-+    draw_resolution_scale_x = shadow_scale;
-+    draw_resolution_scale_y = shadow_scale;
++    const uint32_t shadow_mult =
++        render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
++    draw_resolution_scale_x = shadow_scale * shadow_mult;
++    draw_resolution_scale_y = shadow_scale * shadow_mult;
++  }
++  if (host_render_targets_used && REXCVAR_GET(majin_shadow_diag)) {
++    MajinShadowDiagDraw(render_target_cache_.get(), regs, draw_resolution_scale_x,
++                        MajinShadowScale(texture_cache_->draw_resolution_scale_x()),
++                        texture_cache_->draw_resolution_scale_x());
 +  }
  
    // Get dynamic rasterizer state.
    draw_util::ViewportInfo viewport_info;
-@@ -8341,6 +8370,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -8341,6 +8461,23 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control,
                       normalized_color_mask,
                       primitive_processing_result.host_primitive_reset_enabled);
 +  if (IsShadowMapPass(render_target_cache_.get())) {
-+    static uint32_t last_logged_shadow_scale = 0;
-+    if (last_logged_shadow_scale != draw_resolution_scale_x) {
-+      last_logged_shadow_scale = draw_resolution_scale_x;
++    static uint32_t last_logged_base_scale = 0;
++    const uint32_t base_shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
++    if (last_logged_base_scale != base_shadow_scale) {
++      last_logged_base_scale = base_shadow_scale;
 +      const uint32_t pass_key = render_target_cache_->last_update_render_pass_key().key;
 +      const auto* fb = render_target_cache_->last_update_framebuffer();
 +      REXGPU_INFO(
-+          "Shadow Map Draw: pass_key=0x{:04X}, shadow_scale={}x, host_viewport={}x{}+{}+{}, "
++          "Shadow Map Draw: pass_key=0x{:04X}, shadow_scale={}x, eff_scale={}x, host_viewport={}x{}+{}+{}, "
 +          "fb_extent={}x{}, clip_disable={}, vtx_xy_fmt={}",
-+          pass_key, draw_resolution_scale_x, viewport_info.xy_extent[0], viewport_info.xy_extent[1],
-+          viewport_info.xy_offset[0], viewport_info.xy_offset[1],
++          pass_key, base_shadow_scale, draw_resolution_scale_x, viewport_info.xy_extent[0],
++          viewport_info.xy_extent[1], viewport_info.xy_offset[0], viewport_info.xy_offset[1],
 +          fb ? fb->host_extent.width : 0, fb ? fb->host_extent.height : 0,
 +          uint32_t(regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable),
 +          uint32_t(regs.Get<reg::PA_CL_VTE_CNTL>().vtx_xy_fmt));
@@ -2625,7 +3001,7 @@ index 7f4480c..b1745b0 100644
  
    auto vgt_draw_initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
  
-@@ -10584,7 +10629,17 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+@@ -10584,7 +10721,17 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
              dfn.vkQueueBindSparse(queue_acquisition.queue(), 1, &bind_sparse_info, VK_NULL_HANDLE);
        }
        if (bind_sparse_result != VK_SUCCESS) {
@@ -2644,32 +3020,88 @@ index 7f4480c..b1745b0 100644
          return false;
        }
        current_submission_wait_semaphores_.push_back(bind_sparse_semaphore);
-@@ -10988,6 +11043,11 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+@@ -10792,6 +10939,9 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+ 
+       uniform_buffer_pool_->ClearCache();
+ 
++      // GPU is idle here - safe point to apply a new majin_shadow_scale.
++      majin::LatchShadowScale();
++
+       texture_cache_->ClearCache();
+       if (fh1_other_textures_) fh1_other_textures_->ClearCache();
+ 
+@@ -10988,6 +11138,13 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
    const RegisterFile& regs = *register_file_;
    uint32_t draw_resolution_scale_x = texture_cache_ ? texture_cache_->draw_resolution_scale_x() : 1;
    uint32_t draw_resolution_scale_y = texture_cache_ ? texture_cache_->draw_resolution_scale_y() : 1;
 +  if (IsShadowMapPass(render_target_cache_.get())) {
 +    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
-+    draw_resolution_scale_x = shadow_scale;
-+    draw_resolution_scale_y = shadow_scale;
++    const uint32_t shadow_mult =
++        render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
++    draw_resolution_scale_x = shadow_scale * shadow_mult;
++    draw_resolution_scale_y = shadow_scale * shadow_mult;
 +  }
  
    // Window parameters.
    // http://ftp.tku.edu.tw/NetBSD/NetBSD-current/xsrc/external/mit/xf86-video-ati/dist/src/r600_reg_auto_r6xx.h
-@@ -11550,6 +11610,11 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+@@ -11064,6 +11221,23 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+     float depth_bias_constant_factor, depth_bias_slope_factor;
+     draw_util::GetPreferredFacePolygonOffset(regs, primitive_polygonal, depth_bias_slope_factor,
+                                              depth_bias_constant_factor);
++    float depth_bias_clamp = 0.0f;
++    if (IsShadowMapPass(render_target_cache_.get())) {
++      const double clamp_val = REXCVAR_GET(majin_shadow_bias_clamp);
++      if (clamp_val > 0.0 && GetVulkanDevice()->properties().depthBiasClamp) {
++        depth_bias_clamp = static_cast<float>(clamp_val);
++      }
++      if (depth_bias_slope_factor == 0.0f && depth_bias_constant_factor == 0.0f) {
++        const double slope_bias = REXCVAR_GET(majin_shadow_slope_bias);
++        const double const_bias = REXCVAR_GET(majin_shadow_constant_bias);
++        if (slope_bias > 0.0) {
++          depth_bias_slope_factor = static_cast<float>(slope_bias) * 16.0f;
++        }
++        if (const_bias > 0.0) {
++          depth_bias_constant_factor = static_cast<float>(const_bias);
++        }
++      }
++    }
+     depth_bias_constant_factor *=
+         regs.Get<reg::RB_DEPTH_INFO>().depth_format == xenos::DepthRenderTargetFormat::kD24S8
+             ? draw_util::kD3D10PolygonOffsetFactorUnorm24
+@@ -11079,12 +11253,16 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+     dynamic_depth_bias_update_needed_ |=
+         std::memcmp(&dynamic_depth_bias_constant_factor_, &depth_bias_constant_factor,
+                     sizeof(float)) != 0;
++    dynamic_depth_bias_update_needed_ |=
++        std::memcmp(&dynamic_depth_bias_clamp_, &depth_bias_clamp, sizeof(float)) != 0;
+     dynamic_depth_bias_update_needed_ |= std::memcmp(&dynamic_depth_bias_slope_factor_,
+                                                      &depth_bias_slope_factor, sizeof(float)) != 0;
+     if (dynamic_depth_bias_update_needed_) {
+       dynamic_depth_bias_constant_factor_ = depth_bias_constant_factor;
++      dynamic_depth_bias_clamp_ = depth_bias_clamp;
+       dynamic_depth_bias_slope_factor_ = depth_bias_slope_factor;
+-      deferred_command_buffer_.CmdVkSetDepthBias(dynamic_depth_bias_constant_factor_, 0.0f,
++      deferred_command_buffer_.CmdVkSetDepthBias(dynamic_depth_bias_constant_factor_,
++                                                 dynamic_depth_bias_clamp_,
+                                                  dynamic_depth_bias_slope_factor_);
+       dynamic_depth_bias_update_needed_ = false;
+     }
+@@ -11550,6 +11728,13 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
        render_target_cache_->GetPath() == RenderTargetCache::Path::kPixelShaderInterlock;
    uint32_t draw_resolution_scale_x = texture_cache_->draw_resolution_scale_x();
    uint32_t draw_resolution_scale_y = texture_cache_->draw_resolution_scale_y();
 +  if (IsShadowMapPass(render_target_cache_.get())) {
 +    const uint32_t shadow_scale = MajinShadowScale(texture_cache_->draw_resolution_scale_x());
-+    draw_resolution_scale_x = shadow_scale;
-+    draw_resolution_scale_y = shadow_scale;
++    const uint32_t shadow_mult =
++        render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
++    draw_resolution_scale_x = shadow_scale * shadow_mult;
++    draw_resolution_scale_y = shadow_scale * shadow_mult;
 +  }
  
    // Get the color info register values for each render target. Also, for FSI,
    // exclude components that don't exist in the format from the write mask.
 diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
-index cb77c2b..5f7edc8 100644
+index cb77c2b..2d39c08 100644
 --- a/src/graphics/vulkan/render_target_cache.cpp
 +++ b/src/graphics/vulkan/render_target_cache.cpp
 @@ -495,12 +495,14 @@ bool VulkanRenderTargetCache::Initialize(uint32_t shared_memory_binding_count) {
@@ -2796,7 +3228,47 @@ index cb77c2b..5f7edc8 100644
      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, resolve_copy_pipeline);
    }
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
-@@ -1126,15 +1150,10 @@ void VulkanRenderTargetCache::ClearCache() {
+@@ -1112,6 +1136,27 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
+   }
+ }
+ 
++void VulkanRenderTargetCache::OnRenderTargetDestroyed(RenderTarget* rt) {
++  const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
++  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++  const VkDevice device = vulkan_device->device();
++  last_update_render_pass_key_ = RenderPassKey();
++  last_update_render_pass_ = VK_NULL_HANDLE;
++  last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
++  std::memset(last_update_framebuffer_attachments_, 0,
++              sizeof(last_update_framebuffer_attachments_));
++  last_update_framebuffer_ = VK_NULL_HANDLE;
++  for (const auto& framebuffer_pair : framebuffers_) {
++    dfn.vkDestroyFramebuffer(device, framebuffer_pair.second.framebuffer, nullptr);
++  }
++  framebuffers_.clear();
++  fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
++  last_scene_depth_render_target_ = nullptr;
++  main_scene_depth_render_target_ = nullptr;
++  update_reuse_valid_ = false;
++  ResetAccumulatedRenderTargets();
++}
++
+ void VulkanRenderTargetCache::ClearCache() {
+   const ui::vulkan::VulkanDevice* const vulkan_device = command_processor_.GetVulkanDevice();
+   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+@@ -1119,6 +1164,11 @@ void VulkanRenderTargetCache::ClearCache() {
+ 
+   // Framebuffer objects must be destroyed because they reference views of
+   // attachment images, which may be removed by the common ClearCache.
++  last_update_render_pass_key_ = RenderPassKey();
++  last_update_render_pass_ = VK_NULL_HANDLE;
++  last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
++  std::memset(last_update_framebuffer_attachments_, 0,
++              sizeof(last_update_framebuffer_attachments_));
+   last_update_framebuffer_ = VK_NULL_HANDLE;
+   for (const auto& framebuffer_pair : framebuffers_) {
+     dfn.vkDestroyFramebuffer(device, framebuffer_pair.second.framebuffer, nullptr);
+@@ -1126,15 +1176,10 @@ void VulkanRenderTargetCache::ClearCache() {
    framebuffers_.clear();
    fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
  
@@ -2813,7 +3285,19 @@ index cb77c2b..5f7edc8 100644
    ResetAccumulatedRenderTargets();
    RenderTargetCache::ClearCache();
  }
-@@ -1152,6 +1171,7 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
+@@ -1144,6 +1189,11 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
+   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+   const VkDevice device = vulkan_device->device();
+   // Framebuffers reference views of the images that may be deleted.
++  last_update_render_pass_key_ = RenderPassKey();
++  last_update_render_pass_ = VK_NULL_HANDLE;
++  last_update_framebuffer_pitch_tiles_at_32bpp_ = 0;
++  std::memset(last_update_framebuffer_attachments_, 0,
++              sizeof(last_update_framebuffer_attachments_));
+   last_update_framebuffer_ = VK_NULL_HANDLE;
+   for (const auto& framebuffer_pair : framebuffers_) {
+     dfn.vkDestroyFramebuffer(device, framebuffer_pair.second.framebuffer, nullptr);
+@@ -1152,6 +1202,7 @@ void VulkanRenderTargetCache::TrimRenderTargets() {
    fh1_frame_cost::GetSizes().framebuffers.store(int64_t(framebuffers_.size()), std::memory_order_relaxed);
    last_scene_depth_render_target_ = nullptr;
    main_scene_depth_render_target_ = nullptr;
@@ -2821,7 +3305,7 @@ index cb77c2b..5f7edc8 100644
    ResetAccumulatedRenderTargets();
    RenderTargetCache::ClearCache();
  }
-@@ -1175,11 +1195,24 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1175,11 +1226,24 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
    written_address_out = 0;
    written_length_out = 0;
  
@@ -2849,7 +3333,7 @@ index cb77c2b..5f7edc8 100644
                                   IsFixedRGBA16TruncatedToMinus1To1(), resolve_info)) {
      return false;
    }
-@@ -1200,7 +1233,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1200,7 +1264,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
      draw_util::ResolveCopyShaderConstants copy_shader_constants;
      uint32_t copy_group_count_x, copy_group_count_y;
      draw_util::ResolveCopyShaderIndex copy_shader =
@@ -2858,7 +3342,7 @@ index cb77c2b..5f7edc8 100644
                                     copy_shader_constants, copy_group_count_x, copy_group_count_y);
      assert_true(copy_group_count_x && copy_group_count_y);
      if (copy_shader != draw_util::ResolveCopyShaderIndex::kUnknown) {
-@@ -1210,7 +1243,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1210,7 +1274,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
        if (GetPath() == Path::kHostRenderTargets) {
          if (REXCVAR_GET(direct_host_resolve)) {
            direct_resolved =
@@ -2867,7 +3351,7 @@ index cb77c2b..5f7edc8 100644
            if (direct_resolved) {
              ++direct_resolve_success_count_;
            } else {
-@@ -1239,13 +1272,15 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1239,13 +1303,15 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
        uint64_t copy_dest_range_length = copy_dest_range_unscaled;
        uint64_t copy_dest_use_start = resolve_info.copy_dest_extent_start;
        uint64_t copy_dest_use_length = resolve_info.copy_dest_extent_length;
@@ -2886,7 +3370,7 @@ index cb77c2b..5f7edc8 100644
            REXGPU_ERROR(
                "VulkanRenderTargetCache: Failed to map scaled resolve "
                "destination range (base={:08X}, length={:08X})",
-@@ -1256,9 +1291,10 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1256,9 +1322,10 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
  
        // Make sure there is memory to write to.
        bool copy_dest_committed;
@@ -2899,7 +3383,7 @@ index cb77c2b..5f7edc8 100644
        } else {
          copy_dest_committed = shared_memory.RequestRange(resolve_info.copy_dest_extent_start,
                                                           resolve_info.copy_dest_extent_length);
-@@ -1277,7 +1313,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1277,7 +1344,7 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
          if (descriptor_set_dest != VK_NULL_HANDLE) {
            // Write the destination descriptor.
            VkDescriptorBufferInfo write_descriptor_set_dest_buffer_info;
@@ -2908,7 +3392,7 @@ index cb77c2b..5f7edc8 100644
                                                               ? texture_cache.scaled_resolve_buffer()
                                                               : shared_memory.buffer();
            write_descriptor_set_dest_buffer_info.offset = copy_dest_base;
-@@ -1296,7 +1332,27 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1296,7 +1363,27 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
            dfn.vkUpdateDescriptorSets(device, 1, &write_descriptor_set_dest, 0, nullptr);
  
            // Submit the resolve.
@@ -2937,7 +3421,7 @@ index cb77c2b..5f7edc8 100644
              texture_cache.UseScaledResolveBufferForWrite(copy_dest_use_start, copy_dest_use_length);
            } else {
              shared_memory.Use(VulkanSharedMemory::Usage::kComputeWrite,
-@@ -1305,14 +1361,14 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1305,14 +1392,14 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
            }
            UseEdramBuffer(EdramBufferUsage::kComputeRead);
            command_processor_.BindExternalComputePipeline(
@@ -2954,7 +3438,7 @@ index cb77c2b..5f7edc8 100644
              command_buffer.CmdVkPushConstants(
                  resolve_copy_pipeline_layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                  sizeof(copy_shader_constants.dest_relative), &copy_shader_constants.dest_relative);
-@@ -1330,8 +1386,23 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+@@ -1330,8 +1417,23 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
            command_buffer.CmdVkDispatch(copy_group_count_x, copy_group_count_y, 1);
  
            // Invalidate textures and mark the range as scaled if needed.
@@ -2980,7 +3464,7 @@ index cb77c2b..5f7edc8 100644
            written_address_out = resolve_info.copy_dest_extent_start;
            written_length_out = resolve_info.copy_dest_extent_length;
            copied = true;
-@@ -1470,8 +1541,20 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
+@@ -1470,8 +1572,20 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
        RenderTarget* const* rts = last_update_accumulated_render_targets();
        if (rts && rts[0]) {
          auto* vulkan_depth_rt = static_cast<VulkanRenderTarget*>(rts[0]);
@@ -3003,7 +3487,7 @@ index cb77c2b..5f7edc8 100644
            main_scene_depth_render_target_ = vulkan_depth_rt;
          }
        }
-@@ -1554,14 +1637,6 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+@@ -1554,13 +1668,8 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
        if (depth_and_color_render_targets[0]) {
          render_pass_key.depth_and_color_used |= 1 << 0;
          render_pass_key.depth_format = depth_and_color_render_targets[0]->key().GetDepthFormat();
@@ -3014,11 +3498,12 @@ index cb77c2b..5f7edc8 100644
 -          if (vulkan_depth_rt->key().GetWidth() >= 1280) {
 -            main_scene_depth_render_target_ = vulkan_depth_rt;
 -          }
--        }
++        if (IsShadowMap4xMsaaDepthTarget(depth_and_color_render_targets[0]->key())) {
++          render_pass_key.msaa_samples = xenos::MsaaSamples::k1X;
+         }
        }
        if (depth_and_color_render_targets[1]) {
-         render_pass_key.depth_and_color_used |= 1 << 1;
-@@ -1584,6 +1659,28 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+@@ -1584,6 +1693,28 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
              depth_and_color_render_targets[4]->key().GetColorFormat();
        }
  
@@ -3047,7 +3532,33 @@ index cb77c2b..5f7edc8 100644
        const Framebuffer* framebuffer = last_update_framebuffer_;
        VkRenderPass render_pass = last_update_render_pass_key_ == render_pass_key
                                       ? last_update_render_pass_
-@@ -2078,9 +2175,15 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
+@@ -1603,7 +1734,15 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+            (xenos::kEdramTileWidthSamples - 1)) /
+           xenos::kEdramTileWidthSamples;
+       if (framebuffer) {
++        uint32_t expected_scale = (depth_and_color_render_targets[0] &&
++                                   IsShadowMapDepthTarget(depth_and_color_render_targets[0]->key()))
++                                      ? shadow_resolution_scale()
++                                      : draw_resolution_scale_x();
++        uint32_t expected_width =
++            RenderTargetKey::GetWidth(pitch_tiles_at_32bpp, render_pass_key.msaa_samples) *
++            expected_scale;
+         if (last_update_framebuffer_pitch_tiles_at_32bpp_ != pitch_tiles_at_32bpp ||
++            framebuffer->host_extent.width != expected_width ||
+             std::memcmp(last_update_framebuffer_attachments_, depth_and_color_render_targets,
+                         sizeof(last_update_framebuffer_attachments_))) {
+           framebuffer = nullptr;
+@@ -1693,6 +1832,9 @@ bool VulkanRenderTargetCache::PredictRenderPassKey(BindingPrediction& prediction
+       switch (i) {
+         case 0:
+           render_pass_key.depth_format = rt_key.GetDepthFormat();
++          if (IsShadowMap4xMsaaDepthTarget(rt_key)) {
++            render_pass_key.msaa_samples = xenos::MsaaSamples::k1X;
++          }
+           break;
+         case 1:
+           render_pass_key.color_0_view_format = rt_key.GetColorFormat();
+@@ -2078,13 +2220,25 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
    image_create_info.pNext = nullptr;
    image_create_info.flags = 0;
    image_create_info.imageType = VK_IMAGE_TYPE_2D;
@@ -3058,24 +3569,42 @@ index cb77c2b..5f7edc8 100644
 +    rt_scale_x = shadow_resolution_scale();
 +    rt_scale_y = shadow_resolution_scale();
 +  }
-+  image_create_info.extent.width = key.GetWidth() * rt_scale_x;
++  const bool is_shadow_4x = IsShadowMap4xMsaaDepthTarget(key);
++  const uint32_t shadow_4x_wh_mult = is_shadow_4x ? 2u : 1u;
++  image_create_info.extent.width = key.GetWidth() * shadow_4x_wh_mult * rt_scale_x;
    image_create_info.extent.height =
 -      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * draw_resolution_scale_y();
-+      GetRenderTargetHeight(key.pitch_tiles_at_32bpp, key.msaa_samples) * rt_scale_y;
++      GetRenderTargetHeight(key.pitch_tiles_at_32bpp,
++                            is_shadow_4x ? xenos::MsaaSamples::k1X : key.msaa_samples) *
++      rt_scale_y;
    image_create_info.extent.depth = 1;
    image_create_info.mipLevels = 1;
    image_create_info.arrayLayers = 1;
-@@ -2507,12 +2610,19 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
-     host_extent.width = xenos::kTexture2DCubeMaxWidthHeight;
-     host_extent.height = xenos::kTexture2DCubeMaxWidthHeight;
+-  if (key.msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_attachments_supported_) {
++  if (is_shadow_4x) {
++    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
++  } else if (key.msaa_samples == xenos::MsaaSamples::k2X && !msaa_2x_attachments_supported_) {
+     image_create_info.samples = VK_SAMPLE_COUNT_4_BIT;
+   } else {
+     image_create_info.samples = VkSampleCountFlagBits(uint32_t(1) << uint32_t(key.msaa_samples));
+@@ -2456,6 +2610,12 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
+   if (render_pass_key.depth_and_color_used & (1 << 4)) {
+     key.color_3_base_tiles = depth_and_color_render_targets[4]->key().base_tiles;
    }
 +  uint32_t fb_scale_x = draw_resolution_scale_x();
-+  uint32_t fb_scale_y = draw_resolution_scale_y();
 +  if (depth_and_color_render_targets[0] &&
 +      IsShadowMapDepthTarget(depth_and_color_render_targets[0]->key())) {
 +    fb_scale_x = shadow_resolution_scale();
-+    fb_scale_y = shadow_resolution_scale();
 +  }
++  key.fb_scale = fb_scale_x;
+   auto it = framebuffers_.find(key);
+   if (it != framebuffers_.end()) {
+     return &it->second;
+@@ -2507,12 +2667,13 @@ VulkanRenderTargetCache::GetHostRenderTargetsFramebuffer(
+     host_extent.width = xenos::kTexture2DCubeMaxWidthHeight;
+     host_extent.height = xenos::kTexture2DCubeMaxWidthHeight;
+   }
++  uint32_t fb_scale_y = fb_scale_x;
    // Limiting to the device limit for the case of no attachments, for which
    // there's no limit imposed by the sizes of the attachments that have been
    // created successfully.
@@ -3087,7 +3616,7 @@ index cb77c2b..5f7edc8 100644
                                  device_properties.maxFramebufferHeight);
    framebuffer_create_info.width = host_extent.width;
    framebuffer_create_info.height = host_extent.height;
-@@ -2848,8 +2958,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
+@@ -2848,8 +3009,10 @@ VkShaderModule VulkanRenderTargetCache::GetTransferShader(TransferShaderKey key)
    // Working with unsigned numbers for simplicity now, bitcasting to signed will
    // be done at texture fetch.
  
@@ -3100,7 +3629,7 @@ index cb77c2b..5f7edc8 100644
  
    // Split the destination pixel index into 32bpp tile and 32bpp-tile-relative
    // pixel index.
-@@ -4839,16 +4951,25 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -4839,16 +5002,25 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
    bool resolve_clear_needed = render_target_resolve_clear_values && resolve_clear_rectangle;
    VkClearRect resolve_clear_rect;
    if (resolve_clear_needed) {
@@ -3130,7 +3659,7 @@ index cb77c2b..5f7edc8 100644
      resolve_clear_rect.baseArrayLayer = 0;
      resolve_clear_rect.layerCount = 1;
    }
-@@ -5098,6 +5219,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5098,6 +5270,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
  
      auto& dest_vulkan_rt = *static_cast<VulkanRenderTarget*>(dest_rt);
      RenderTargetKey dest_rt_key = dest_vulkan_rt.key();
@@ -3143,9 +3672,23 @@ index cb77c2b..5f7edc8 100644
  
      // Late barriers in case there was cross-copying that prevented merging of
      // barriers.
-@@ -5168,6 +5295,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5127,7 +5305,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+     // overall perform all non-cross-copying transfers for the current
+     // framebuffer configuration in a single pass, to load / store only once.
+     RenderPassKey transfer_render_pass_key;
+-    transfer_render_pass_key.msaa_samples = dest_rt_key.msaa_samples;
++    transfer_render_pass_key.msaa_samples =
++        IsShadowMap4xMsaaDepthTarget(dest_rt_key) ? xenos::MsaaSamples::k1X : dest_rt_key.msaa_samples;
+     if (dest_rt_key.is_depth) {
+       transfer_render_pass_key.depth_and_color_used = 0b1;
+       transfer_render_pass_key.depth_format = dest_rt_key.GetDepthFormat();
+@@ -5166,8 +5345,12 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+                                             << uint32_t(need_stencil_bit_draws));
+       uint32_t rt_sort_index = 0;
        TransferShaderKey new_transfer_shader_key;
-       new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
+-      new_transfer_shader_key.dest_msaa_samples = dest_rt_key.msaa_samples;
++      new_transfer_shader_key.dest_msaa_samples =
++          IsShadowMap4xMsaaDepthTarget(dest_rt_key) ? xenos::MsaaSamples::k1X : dest_rt_key.msaa_samples;
        new_transfer_shader_key.dest_resource_format = dest_rt_key.resource_format;
 +      if (dest_rt_key.is_depth && IsShadowMapDepthTarget(dest_rt_key)) {
 +        new_transfer_shader_key.shadow_scale = shadow_resolution_scale();
@@ -3153,7 +3696,27 @@ index cb77c2b..5f7edc8 100644
        uint32_t stencil_clear_rectangle_count = 0;
        for (uint32_t j = 0; j <= uint32_t(need_stencil_bit_draws); ++j) {
          // j == 0 - color or depth.
-@@ -5303,13 +5433,13 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5198,13 +5381,17 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+             source_vulkan_rt.SetTemporarySortIndex(rt_sort_index++);
+           }
+           RenderTargetKey source_rt_key = source_vulkan_rt.key();
+-          new_transfer_shader_key.source_msaa_samples = source_rt_key.msaa_samples;
++          new_transfer_shader_key.source_msaa_samples =
++              IsShadowMap4xMsaaDepthTarget(source_rt_key) ? xenos::MsaaSamples::k1X
++                                                          : source_rt_key.msaa_samples;
+           new_transfer_shader_key.source_resource_format = source_rt_key.resource_format;
+           bool host_depth_source_is_copy = host_depth_source_vulkan_rt == &dest_vulkan_rt;
+           // The host depth copy buffer has only raw samples.
+           new_transfer_shader_key.host_depth_source_msaa_samples =
+               (host_depth_source_vulkan_rt && !host_depth_source_is_copy)
+-                  ? host_depth_source_vulkan_rt->key().msaa_samples
++                  ? (IsShadowMap4xMsaaDepthTarget(host_depth_source_vulkan_rt->key())
++                         ? xenos::MsaaSamples::k1X
++                         : host_depth_source_vulkan_rt->key().msaa_samples)
+                   : xenos::MsaaSamples::k1X;
+           if (j) {
+             new_transfer_shader_key.mode = source_rt_key.is_depth
+@@ -5303,13 +5490,13 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
              const Transfer::Rectangle& stencil_clear_rectangle =
                  transfer_stencil_clear_rectangles[j];
              stencil_clear_rect_write_ptr->rect.offset.x =
@@ -3171,7 +3734,7 @@ index cb77c2b..5f7edc8 100644
              stencil_clear_rect_write_ptr->baseArrayLayer = 0;
              stencil_clear_rect_write_ptr->layerCount = 1;
              ++stencil_clear_rect_write_ptr;
-@@ -5331,8 +5461,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5331,8 +5518,8 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
        transfer_viewport.minDepth = 0.0f;
        transfer_viewport.maxDepth = 1.0f;
        command_processor_.SetViewport(transfer_viewport);
@@ -3182,7 +3745,47 @@ index cb77c2b..5f7edc8 100644
        VkRect2D transfer_scissor;
        transfer_scissor.offset.x = 0;
        transfer_scissor.offset.y = 0;
-@@ -5719,6 +5849,16 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5344,8 +5531,11 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+         const TransferInvocation& transfer_invocation_first = *it;
+         // Will be merging transfers from the same source into one mesh.
+         auto it_merged_first = it, it_merged_last = it;
++        const xenos::MsaaSamples dest_transfer_msaa =
++            IsShadowMap4xMsaaDepthTarget(dest_rt_key) ? xenos::MsaaSamples::k1X
++                                                      : dest_rt_key.msaa_samples;
+         uint32_t transfer_rectangle_count = transfer_invocation_first.transfer.GetRectangles(
+-            dest_rt_key.base_tiles, dest_pitch_tiles, dest_rt_key.msaa_samples, dest_is_64bpp,
++            dest_rt_key.base_tiles, dest_pitch_tiles, dest_transfer_msaa, dest_is_64bpp,
+             nullptr, resolve_clear_rectangle);
+         for (auto it_merge = std::next(it_merged_first);
+              it_merge != current_transfer_invocations_.cend(); ++it_merge) {
+@@ -5353,7 +5543,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+             break;
+           }
+           transfer_rectangle_count += it_merge->transfer.GetRectangles(
+-              dest_rt_key.base_tiles, dest_pitch_tiles, dest_rt_key.msaa_samples, dest_is_64bpp,
++              dest_rt_key.base_tiles, dest_pitch_tiles, dest_transfer_msaa, dest_is_64bpp,
+               nullptr, resolve_clear_rectangle);
+           it_merged_last = it_merge;
+         }
+@@ -5375,7 +5565,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+         uint32_t transfer_sample_pipeline_count = vulkan_device->properties().sampleRateShading
+                                                       ? 1
+                                                       : uint32_t(1)
+-                                                            << uint32_t(dest_rt_key.msaa_samples);
++                                                            << uint32_t(dest_transfer_msaa);
+         bool transfer_is_stencil_bit = (transfer_pipeline_layout_info.used_push_constant_dwords &
+                                         kTransferUsedPushConstantDwordStencilMaskBit) != 0;
+ 
+@@ -5392,7 +5582,7 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+         for (auto it_merged = it_merged_first; it_merged <= it_merged_last; ++it_merged) {
+           Transfer::Rectangle transfer_invocation_rectangles[Transfer::kMaxRectanglesWithCutout];
+           uint32_t transfer_invocation_rectangle_count = it_merged->transfer.GetRectangles(
+-              dest_rt_key.base_tiles, dest_pitch_tiles, dest_rt_key.msaa_samples, dest_is_64bpp,
++              dest_rt_key.base_tiles, dest_pitch_tiles, dest_transfer_msaa, dest_is_64bpp,
+               transfer_invocation_rectangles, resolve_clear_rectangle);
+           assert_not_zero(transfer_invocation_rectangle_count);
+           for (uint32_t j = 0; j < transfer_invocation_rectangle_count; ++j) {
+@@ -5719,6 +5909,16 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
            } break;
          }
        }
@@ -3199,7 +3802,7 @@ index cb77c2b..5f7edc8 100644
        command_buffer.CmdVkClearAttachments(1, &resolve_clear_attachment, 1, &resolve_clear_rect);
      }
    }
-@@ -5726,6 +5866,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
+@@ -5726,6 +5926,9 @@ void VulkanRenderTargetCache::PerformTransfersAndResolveClears(
  }
  
  VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
@@ -3209,7 +3812,7 @@ index cb77c2b..5f7edc8 100644
    auto pipeline_it = dump_pipelines_.find(key);
    if (pipeline_it != dump_pipelines_.end()) {
      return pipeline_it->second;
-@@ -5840,17 +5983,23 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
+@@ -5840,17 +6043,23 @@ VkPipeline VulkanRenderTargetCache::GetDumpPipeline(DumpPipelineKey key) {
    // case when the position has upper bits set, for some reason, the code for it
    // is not eliminated when compiling the shader for AMD via RenderDoc on
    // Windows, as of June 2022.
@@ -3235,7 +3838,7 @@ index cb77c2b..5f7edc8 100644
    spv::Id const_tile_height = builder.makeUintConstant(tile_height);
    spv::Id rectangle_tile_index_y =
        builder.createBinOp(spv::OpUDiv, type_uint, rectangle_sample_y, const_tile_height);
-@@ -6283,7 +6432,7 @@ VkPipeline VulkanRenderTargetCache::GetDirectResolvePipeline(DirectResolvePipeli
+@@ -6283,7 +6492,7 @@ VkPipeline VulkanRenderTargetCache::GetDirectResolvePipeline(DirectResolvePipeli
    // direct preflight path.
    size_t copy_shader_index = size_t(key.copy_shader);
    if (copy_shader_index < size_t(draw_util::ResolveCopyShaderIndex::kCount)) {
@@ -3244,8 +3847,14 @@ index cb77c2b..5f7edc8 100644
    }
    direct_resolve_pipelines_.emplace(key, pipeline);
    return pipeline;
-@@ -6320,6 +6469,8 @@ bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInf
-     dump_pipeline_key.msaa_samples = render_target->key().msaa_samples;
+@@ -6317,9 +6526,13 @@ bool VulkanRenderTargetCache::TryResolveCopyDirectly(const draw_util::ResolveInf
+       return false;
+     }
+     DumpPipelineKey dump_pipeline_key;
+-    dump_pipeline_key.msaa_samples = render_target->key().msaa_samples;
++    dump_pipeline_key.msaa_samples =
++        IsShadowMap4xMsaaDepthTarget(render_target->key()) ? xenos::MsaaSamples::k1X
++                                                           : render_target->key().msaa_samples;
      dump_pipeline_key.resource_format = render_target->key().resource_format;
      dump_pipeline_key.is_depth = render_target->key().is_depth;
 +    dump_pipeline_key.is_shadow_depth =
@@ -3253,15 +3862,20 @@ index cb77c2b..5f7edc8 100644
      if (GetDumpPipeline(dump_pipeline_key) == VK_NULL_HANDLE) {
        return false;
      }
-@@ -6376,6 +6527,7 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
-     pipeline_key.msaa_samples = rt_key.msaa_samples;
+@@ -6373,9 +6586,11 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
+       vulkan_rt.SetTemporarySortIndex(rt_sort_index++);
+     }
+     DumpPipelineKey pipeline_key;
+-    pipeline_key.msaa_samples = rt_key.msaa_samples;
++    pipeline_key.msaa_samples =
++        IsShadowMap4xMsaaDepthTarget(rt_key) ? xenos::MsaaSamples::k1X : rt_key.msaa_samples;
      pipeline_key.resource_format = rt_key.resource_format;
      pipeline_key.is_depth = rt_key.is_depth;
 +    pipeline_key.is_shadow_depth = rt_key.is_depth && IsShadowMapDepthTarget(rt_key);
      dump_invocations_.emplace_back(rectangle, pipeline_key);
    }
  
-@@ -6453,14 +6605,20 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
+@@ -6453,14 +6668,20 @@ bool VulkanRenderTargetCache::DumpRenderTargets(uint32_t dump_base, uint32_t dum
                                            sizeof(uint32_t) * kDumpPushConstantOffsets,
                                            sizeof(last_offsets), &last_offsets);
        }
@@ -3284,7 +3898,7 @@ index cb77c2b..5f7edc8 100644
             (kDumpSamplesPerGroupY - 1)) /
                kDumpSamplesPerGroupY,
            1);
-@@ -6552,10 +6710,23 @@ VulkanRenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t heigh
+@@ -6552,10 +6773,23 @@ VulkanRenderTargetCache::GetMainDepthRenderTarget(uint32_t width, uint32_t heigh
    if (GetPath() != Path::kHostRenderTargets) {
      return nullptr;
    }
@@ -3311,7 +3925,7 @@ index cb77c2b..5f7edc8 100644
  
  }  // namespace rex::graphics::vulkan
 diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
-index 6d08899..0e77f16 100644
+index 6d08899..6bbaf32 100644
 --- a/src/graphics/vulkan/texture_cache.cpp
 +++ b/src/graphics/vulkan/texture_cache.cpp
 @@ -550,6 +550,26 @@ VulkanTextureCache::~VulkanTextureCache() {
@@ -3377,7 +3991,7 @@ index 6d08899..0e77f16 100644
      }
    }
    if (image_view != VK_NULL_HANDLE) {
-@@ -766,13 +815,23 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
+@@ -766,13 +815,20 @@ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
                                          ? fetch.aniso_filter
                                          : binding.aniso_filter;
    aniso_filter = std::min(aniso_filter, max_anisotropy_);
@@ -3385,13 +3999,10 @@ index 6d08899..0e77f16 100644
 +  uint8_t texture_swizzled_signs;
 +  BindingInfoFromFetchConstant(fetch, texture_key, &texture_swizzled_signs);
 +  if (texture_key.is_valid && TextureKey::IsShadowMapTexture(texture_key)) {
-+    parameters.clamp_x = xenos::ClampMode::kClampToEdge;
-+    parameters.clamp_y = xenos::ClampMode::kClampToEdge;
-+    const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
-+    if (host_format_pair.format_unsigned.linear_filterable) {
-+      parameters.mag_linear = 1;
-+      parameters.min_linear = 1;
-+    }
++    parameters.mag_linear = 1;
++    parameters.min_linear = 1;
++    parameters.mip_linear = 0;
++    aniso_filter = xenos::AnisoFilter::kDisabled;
 +  }
 +
    if (parameters.mag_linear || parameters.min_linear || parameters.mip_linear ||
@@ -3404,7 +4015,7 @@ index 6d08899..0e77f16 100644
      if (texture_key.is_valid) {
        const HostFormatPair& host_format_pair = GetHostFormatPair(texture_key);
        if ((texture_util::IsAnySignNotSigned(texture_swizzled_signs) &&
-@@ -1105,8 +1164,15 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
+@@ -1105,8 +1161,15 @@ VkImageView VulkanTextureCache::RequestSwapTexture(uint32_t& width_scaled_out,
    if (height_unscaled_out) {
      *height_unscaled_out = key.GetHeight();
    }
@@ -3422,7 +4033,7 @@ index 6d08899..0e77f16 100644
    format_out = key.format;
    return texture_view;
  }
-@@ -1122,8 +1188,14 @@ bool VulkanTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const
+@@ -1122,8 +1185,14 @@ bool VulkanTextureCache::IsSignedVersionSeparateForFormat(TextureKey key) const
  }
  
  bool VulkanTextureCache::IsScaledResolveSupportedForFormat(TextureKey key) const {
@@ -3439,7 +4050,7 @@ index 6d08899..0e77f16 100644
    }
    const HostFormatPair& host_format_pair = GetHostFormatPair(key);
    bool host_format_is_signed;
-@@ -1258,8 +1330,15 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+@@ -1258,8 +1327,15 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
    image_create_info.extent.width = key.GetWidth();
    image_create_info.extent.height = key.GetHeight();
    if (key.scaled_resolve) {
@@ -3457,7 +4068,7 @@ index 6d08899..0e77f16 100644
    }
    const bool rectangular_cube = key.dimension == xenos::DataDimension::kCube &&
                                  image_create_info.extent.width != image_create_info.extent.height;
-@@ -1332,6 +1411,7 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+@@ -1332,6 +1408,7 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
    }
  
    auto result = std::make_unique<VulkanTexture>(*this, key, image, allocation);
@@ -3465,7 +4076,7 @@ index 6d08899..0e77f16 100644
    if (direct_upload) {
      VkImageViewCreateInfo info = {};
      info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-@@ -1370,10 +1450,11 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+@@ -1370,10 +1447,11 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
  
  bool VulkanTextureCache::EnsureScaledResolveMemoryCommitted(uint32_t start_unscaled,
                                                              uint32_t length_unscaled,
@@ -3479,7 +4090,7 @@ index 6d08899..0e77f16 100644
      return false;
    }
    return EnsureScaledResolveBufferAllocated(start_scaled, length_scaled);
-@@ -1386,7 +1467,8 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
+@@ -1386,7 +1464,8 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
    const auto key = texture.key();
    const auto* device = command_processor_.GetVulkanDevice();
    uint64_t start, length;
@@ -3489,7 +4100,7 @@ index 6d08899..0e77f16 100644
      return false;
    auto dest = command_processor_.AllocateSingleTransientDescriptor(
        VulkanCommandProcessor::SingleTransientDescriptorLayout::kStorageImageCompute);
-@@ -1425,6 +1507,11 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
+@@ -1425,6 +1504,11 @@ bool VulkanTextureCache::LoadScaledTextureDirect(VulkanTexture& texture) {
    command_processor_.BindExternalComputePipeline(load_image_pipeline_);
    LoadConstants constants = {};
    uint32_t sx = draw_resolution_scale_x(), sy = draw_resolution_scale_y();
@@ -3501,7 +4112,7 @@ index 6d08899..0e77f16 100644
    constants.is_tiled_3d_endian_scale = 1 | (uint32_t(key.endianness) << 2) | (sx << 4) | (sy << 7);
    const auto load_shader = GetHostFormatPair(key).format_unsigned.load_shader;
    if (load_shader == kLoadShaderIndexDepthUnorm) {
-@@ -1525,8 +1612,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+@@ -1525,8 +1609,17 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
    uint32_t level_packed = guest_layout.packed_level;
    uint32_t level_stored_first = std::min(level_first, level_packed);
    uint32_t level_stored_last = std::min(level_last, level_packed);
@@ -3521,7 +4132,7 @@ index 6d08899..0e77f16 100644
  
    // The loop counter can mean two things depending on whether the packed mip
    // tail is stored as mip 0, because in this case, it would be ambiguous since
-@@ -1665,7 +1761,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+@@ -1665,7 +1758,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
      if (texture_key.scaled_resolve) {
        if (!GetScaledResolveRange(source_base_start_unscaled, vulkan_texture.GetGuestBaseSize(),
                                   load_shader_info.source_bpe_log2, source_base_start,
@@ -3530,7 +4141,7 @@ index 6d08899..0e77f16 100644
          return false;
        }
        write_descriptor_set_source_base_buffer_info.buffer = scaled_resolve_buffer_;
-@@ -1705,7 +1801,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
+@@ -1705,7 +1798,7 @@ bool VulkanTextureCache::LoadTextureDataFromResidentMemoryImpl(Texture& texture,
      if (texture_key.scaled_resolve) {
        if (!GetScaledResolveRange(source_mips_start_unscaled, vulkan_texture.GetGuestMipsSize(),
                                   load_shader_info.source_bpe_log2, source_mips_start,
@@ -3539,7 +4150,7 @@ index 6d08899..0e77f16 100644
          return false;
        }
        write_descriptor_set_source_mips_buffer_info.buffer = scaled_resolve_buffer_;
-@@ -2372,15 +2468,28 @@ VulkanTextureCache::VulkanTextureCache(const RegisterFile& register_file,
+@@ -2372,15 +2465,28 @@ VulkanTextureCache::VulkanTextureCache(const RegisterFile& register_file,
        guest_shader_pipeline_stages_(guest_shader_pipeline_stages) {}
  
  bool VulkanTextureCache::InitializeScaledResolveBuffer() {
@@ -3573,7 +4184,7 @@ index 6d08899..0e77f16 100644
    const VkBufferCreateFlags sparse_flags =
        VK_BUFFER_CREATE_SPARSE_BINDING_BIT | VK_BUFFER_CREATE_SPARSE_RESIDENCY_BIT;
  
-@@ -2448,6 +2557,10 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
+@@ -2448,6 +2554,10 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
    const VkDevice device = vulkan_device->device();
  
@@ -3584,7 +4195,7 @@ index 6d08899..0e77f16 100644
    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, scaled_resolve_buffer_);
    for (VkDeviceMemory memory : scaled_resolve_buffer_memory_) {
      device_memory::Get().Forget(memory);
-@@ -2466,7 +2579,8 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
+@@ -2466,7 +2576,8 @@ void VulkanTextureCache::ShutdownScaledResolveBuffer() {
  bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t length_unscaled,
                                                 uint32_t length_scaled_alignment_log2,
                                                 uint64_t& start_scaled_out,
@@ -3594,7 +4205,7 @@ index 6d08899..0e77f16 100644
    if (!IsDrawResolutionScaled()) {
      return false;
    }
-@@ -2480,8 +2594,23 @@ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t
+@@ -2480,8 +2591,23 @@ bool VulkanTextureCache::GetScaledResolveRange(uint32_t start_unscaled, uint32_t
      return false;
    }
  
@@ -3620,7 +4231,7 @@ index 6d08899..0e77f16 100644
    uint64_t length_scaled = uint64_t(length_unscaled) * scale_area;
    uint64_t alignment = uint64_t(1) << length_scaled_alignment_log2;
    length_scaled = rex::align(length_scaled, alignment);
-@@ -2640,7 +2769,8 @@ bool VulkanTextureCache::Initialize() {
+@@ -2640,7 +2766,8 @@ bool VulkanTextureCache::Initialize() {
      return false;
    }
  
@@ -3630,7 +4241,7 @@ index 6d08899..0e77f16 100644
      return false;
    }
  
-@@ -3170,7 +3300,7 @@ bool VulkanTextureCache::Initialize() {
+@@ -3170,7 +3297,7 @@ bool VulkanTextureCache::Initialize() {
    load_shader_code[kLoadShaderIndexDepthFloat] = std::make_pair(
        shaders::texture_load_depth_float_cs, sizeof(shaders::texture_load_depth_float_cs));
    std::pair<const uint32_t*, size_t> load_shader_code_scaled[kLoadShaderCount] = {};
@@ -3639,7 +4250,7 @@ index 6d08899..0e77f16 100644
      load_shader_code_scaled[kLoadShaderIndex8bpb] = std::make_pair(
          shaders::texture_load_8bpb_scaled_cs, sizeof(shaders::texture_load_8bpb_scaled_cs));
      load_shader_code_scaled[kLoadShaderIndex16bpb] = std::make_pair(
-@@ -3253,20 +3383,18 @@ bool VulkanTextureCache::Initialize() {
+@@ -3253,20 +3380,18 @@ bool VulkanTextureCache::Initialize() {
            i);
        return false;
      }
@@ -3688,3 +4299,15 @@ index 95d9fc4..1f14e0a 100644
      pfn_d3d_disassemble_ = pD3DDisassemble(GetProcAddress(library_d3dcompiler_, "D3DDisassemble"));
      if (pfn_d3d_disassemble_ == nullptr) {
        REXLOG_DEBUG(
+diff --git a/src/ui/vulkan/vulkan_device.cpp b/src/ui/vulkan/vulkan_device.cpp
+index ee65fae..5b013e9 100644
+--- a/src/ui/vulkan/vulkan_device.cpp
++++ b/src/ui/vulkan/vulkan_device.cpp
+@@ -725,6 +725,7 @@ std::unique_ptr<VulkanDevice> VulkanDevice::CreateIfSupported(
+     XE_UI_VULKAN_FEATURE(tessellationShader)
+     XE_UI_VULKAN_FEATURE(sampleRateShading)
+     XE_UI_VULKAN_FEATURE(depthClamp)
++    XE_UI_VULKAN_FEATURE(depthBiasClamp)
+     XE_UI_VULKAN_FEATURE(fillModeNonSolid)
+     XE_UI_VULKAN_FEATURE(samplerAnisotropy)
+     XE_UI_VULKAN_FEATURE(occlusionQueryPrecise)

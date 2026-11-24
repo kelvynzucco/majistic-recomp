@@ -101,9 +101,41 @@ REX_EXTERN(MAJIN_FN_TITLE_UPDATE) {
 REX_EXTERN(MAJIN_IMP_TITLE_LOGO);
 REX_EXTERN(MAJIN_FN_TITLE_LOGO) {
   const uint32_t object = ctx.r3.u32;
-  const uint32_t s_before = object ? REX_LOAD_U32(object + 48) : 0;
+  const bool valid_logo = Span(object, 68) &&
+      REX_LOAD_U32(object) == majin::offsets::kTitleLogoVtable;
+  const uint32_t s_before = valid_logo ? REX_LOAD_U32(object + 48) : 0;
+  if (valid_logo && s_before == 0 && REXCVAR_GET(majin_skip_intro_logos)) {
+    // Bypass logo movie creation (state 0), 1s fade-in (state 1), logo playback (state 2),
+    // and 1s fade-out (state 3), jumping straight to state 4 (essential package wait + init)
+    // and state 5 (clean logo SWF/pak unload + transition to SceneTitleTitle).
+    constexpr uint32_t kFadeManagerOffset = 0x15114;
+    const uint32_t scenario = REX_LOAD_U32(majin::offsets::kScenarioRootPtr);
+    if (Span(scenario, kFadeManagerOffset + 4)) {
+      const uint32_t fade_mgr = REX_LOAD_U32(scenario + kFadeManagerOffset);
+      if (Span(fade_mgr, 7284)) {
+        // Cancel SceneTitleLogo::OnEnter's fade-in and hold the solid black post-fade-out
+        // overlay until SceneTitleTitle takes over.
+        REX_STORE_U32(fade_mgr + 20, 0u);
+        REX_STORE_U32(fade_mgr + 24, 0u);
+        REX_STORE_U32(fade_mgr + 28, 0u);  // fade-in inactive
+        REX_STORE_U32(fade_mgr + 32, 0u);  // fade-out inactive
+        REX_STORE_U32(fade_mgr + 36, 1u);  // fade-out completed (solid black)
+        REX_STORE_U32(fade_mgr + 40, 0u);
+        REX_STORE_U32(fade_mgr + 52, 0u);
+        REX_STORE_U32(fade_mgr + 60, 0u);
+        REX_STORE_U32(fade_mgr + 7272, 0u);
+      }
+    }
+    REX_STORE_U32(object + 48, 4u);
+    static bool announced = false;
+    if (!announced) {
+      REXLOG_INFO("[Majin Skip Logos] bypassed logo movie and fades (state 0 -> 4; {})",
+                  MAJIN_EDITION_NAME);
+      announced = true;
+    }
+  }
   MAJIN_IMP_TITLE_LOGO(ctx, base);
-  const uint32_t s_after = object ? REX_LOAD_U32(object + 48) : 0;
+  const uint32_t s_after = valid_logo ? REX_LOAD_U32(object + 48) : 0;
 #if defined(MAJIN_ENABLE_DIAGNOSTICS)
   if (s_before != s_after && REXCVAR_GET(majin_skip_intro_logos)) {
     REXLOG_INFO("[Majin SceneTitleLogo] state {} -> {}", s_before, s_after);
@@ -117,7 +149,7 @@ REX_EXTERN(MAJIN_FN_SCALEFORM_INVOKE) {
   if (uint32_t(ctx.lr) == majin::offsets::kLogoEndFlagCallLR && REXCVAR_GET(majin_skip_intro_logos)) {
     static bool announced = false;
     if (!announced) {
-      REXLOG_INFO("[Majin Skip Logos] logo movie completed on tick 1; intro logos skipped ({})",
+      REXLOG_INFO("[Majin Skip Logos] fallback logo movie completion on tick 1 ({})",
                   MAJIN_EDITION_NAME);
       announced = true;
     }

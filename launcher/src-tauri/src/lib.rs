@@ -1173,6 +1173,7 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.fsr_reduction.to_string(),
         format!("-WindowFps:${}", settings.window_fps),
         format!("-PresentDither:${}", settings.present_dither),
+        format!("-DevMode:${}", is_dev),
         "-Configuration".to_string(),
         settings.configuration,
     ];

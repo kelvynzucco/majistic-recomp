@@ -17,6 +17,10 @@
 #include <string>
 #include <vector>
 
+REXCVAR_DEFINE_BOOL(majin_dev_mode, false, "Majin/UI",
+                    "Enable Developer Mode options in the in-game settings overlay")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace majin {
 
 namespace {
@@ -131,6 +135,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double cas_sharp = rex::cvar::Query<double>("present_cas_additional_sharpness");
   const double fsr_reduction = rex::cvar::Query<double>("present_fsr_sharpness_reduction");
   const bool window_fps = rex::cvar::Query<bool>("majin_window_fps");
+  const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
   const int32_t shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
   double shadow_slope_bias = 0.30;
   if (!rex::cvar::GetFlagByName("majin_shadow_slope_bias").empty()) {
@@ -190,6 +195,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "ShadowSlopeBias", slope_bias_buf);
   ReplaceJsonField(json, "ShadowConstantBias", const_bias_buf);
   ReplaceJsonField(json, "ShadowBiasClamp", bias_clamp_buf);
+  ReplaceJsonField(json, "DevMode", dev_mode ? "true" : "false");
 
   std::ofstream outfile(config_path, std::ios::trunc);
   if (!outfile.is_open()) return false;
@@ -216,8 +222,13 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar;
 
   if (ImGui::Begin("Majistic Recomp - In-Game Settings###MajinInGameOverlay", nullptr, window_flags)) {
+    const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
     if (ImGui::BeginMenuBar()) {
       ImGui::TextColored(ImVec4(0.22f, 0.74f, 0.97f, 1.0f), "MAJISTIC RECOMP");
+      if (dev_mode) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.98f, 0.75f, 0.20f, 1.0f), "[DEV]");
+      }
       ImGui::SameLine();
       ImGui::TextDisabled("|");
       ImGui::SameLine();
@@ -401,9 +412,13 @@ void InGameMenuDialog::DrawGraphicsTab() {
 
   ImGui::Spacing();
 
+  const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
+  const std::string active_backend = rex::cvar::GetFlagByName("gpu_backend");
+  const bool is_vulkan = (active_backend == "vulkan");
+
   // Anti-Aliasing (swap_post_effect)
   const std::string current_post = rex::cvar::GetFlagByName("swap_post_effect");
-  const char* post_effect_labels[] = {
+  const char* post_effect_labels_dev[] = {
       "Off (Native)",
       "FXAA 3.11 Default",
       "FXAA 3.11 Quality",
@@ -412,7 +427,7 @@ void InGameMenuDialog::DrawGraphicsTab() {
       "De-Dither + FXAA High",
       "De-Dither Debug Heatmap",
   };
-  const char* post_effect_values[] = {
+  const char* post_effect_values_dev[] = {
       "none",
       "fxaa",
       "fxaa_extreme",
@@ -421,9 +436,27 @@ void InGameMenuDialog::DrawGraphicsTab() {
       "dedither_fxaa_extreme",
       "dedither_debug",
   };
+  const char* post_effect_labels_std[] = {
+      "Off (Native)",
+      "FXAA 3.11 Default",
+      "FXAA 3.11 Quality",
+      "De-Dither + FXAA Fast (Recommended)",
+      "De-Dither + FXAA High",
+  };
+  const char* post_effect_values_std[] = {
+      "none",
+      "fxaa",
+      "fxaa_extreme",
+      "dedither_fxaa",
+      "dedither_fxaa_extreme",
+  };
 
-  int post_idx = 0;
-  for (int i = 0; i < IM_ARRAYSIZE(post_effect_values); ++i) {
+  const char* const* post_effect_labels = dev_mode ? post_effect_labels_dev : post_effect_labels_std;
+  const char* const* post_effect_values = dev_mode ? post_effect_values_dev : post_effect_values_std;
+  const int post_effect_count = dev_mode ? IM_ARRAYSIZE(post_effect_values_dev) : IM_ARRAYSIZE(post_effect_values_std);
+
+  int post_idx = dev_mode ? 4 : 3;  // Default fallback to dedither_fxaa
+  for (int i = 0; i < post_effect_count; ++i) {
     if (current_post == post_effect_values[i]) {
       post_idx = i;
       break;
@@ -432,11 +465,12 @@ void InGameMenuDialog::DrawGraphicsTab() {
 
   ImGui::Text("Anti-Aliasing:");
   ImGui::SetNextItemWidth(360.0f);
-  if (ImGui::Combo("##SwapPostEffect", &post_idx, post_effect_labels, IM_ARRAYSIZE(post_effect_labels))) {
+  if (ImGui::Combo("##SwapPostEffect", &post_idx, post_effect_labels, post_effect_count)) {
     rex::cvar::SetFlagByName("swap_post_effect", post_effect_values[post_idx]);
   }
 
-  const bool uses_dedither = (post_idx >= 3 && post_idx <= 6);
+  const std::string active_post = rex::cvar::GetFlagByName("swap_post_effect");
+  const bool uses_dedither = (active_post.rfind("dedither", 0) == 0);
   if (uses_dedither) {
     ImGui::Spacing();
     double current_strength = rex::cvar::Query<double>("swap_dedither_strength");
@@ -455,7 +489,18 @@ void InGameMenuDialog::DrawGraphicsTab() {
   ImGui::Separator();
   ImGui::Spacing();
 
-  DrawSubSectionHeader("SHADOW DEPTH BIAS");
+  ImGui::TextColored(ImVec4(0.65f, 0.72f, 0.82f, 1.0f), "SHADOW DEPTH BIAS");
+  if (!is_vulkan) {
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "[Off - Vulkan Only]");
+  }
+  ImGui::Spacing();
+  if (!is_vulkan) {
+    DrawHintText("Shadow Depth Bias is Off on DirectX 12. Switch Render Path to Vulkan in the launcher to adjust these settings.");
+    ImGui::Spacing();
+  }
+
+  ImGui::BeginDisabled(!is_vulkan);
 
   // Shadow Slope-Scaled Depth Bias
   double current_slope_bias = 0.30;
@@ -463,10 +508,10 @@ void InGameMenuDialog::DrawGraphicsTab() {
   if (!slope_bias_str.empty()) {
     current_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
   }
-  float slope_val = static_cast<float>(current_slope_bias);
+  float slope_val = is_vulkan ? static_cast<float>(current_slope_bias) : 0.0f;
   ImGui::Text("Shadow Slope-Scaled Depth Bias:");
   ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, 0.0f, 3.0f, "%.2f")) {
+  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, 0.0f, 3.0f, is_vulkan ? "%.2f" : "Off")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.2f", slope_val);
     rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
@@ -495,10 +540,10 @@ void InGameMenuDialog::DrawGraphicsTab() {
   if (!const_bias_str.empty()) {
     current_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
   }
-  float const_val = static_cast<float>(current_const_bias);
+  float const_val = is_vulkan ? static_cast<float>(current_const_bias) : 0.0f;
   ImGui::Text("Shadow Constant Depth Bias:");
   ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowConstBias", &const_val, 0.000f, 0.050f, "%.3f")) {
+  if (ImGui::SliderFloat("##ShadowConstBias", &const_val, 0.000f, 0.050f, is_vulkan ? "%.3f" : "Off")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.3f", const_val);
     rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
@@ -527,10 +572,10 @@ void InGameMenuDialog::DrawGraphicsTab() {
   if (!bias_clamp_str.empty()) {
     current_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
   }
-  float clamp_val = static_cast<float>(current_bias_clamp);
+  float clamp_val = is_vulkan ? static_cast<float>(current_bias_clamp) : 0.0f;
   ImGui::Text("Shadow Depth Bias Clamp:");
   ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, "%.3f")) {
+  if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, is_vulkan ? "%.3f" : "Off")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.3f", clamp_val);
     rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
@@ -565,6 +610,8 @@ void InGameMenuDialog::DrawGraphicsTab() {
     rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
     rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
   }
+
+  ImGui::EndDisabled();
 
   ImGui::Spacing();
   ImGui::Spacing();
@@ -647,14 +694,15 @@ void InGameMenuDialog::DrawGraphicsTab() {
   }
   DrawHintText("Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise.");
 
-  ImGui::Spacing();
-
-  // Window Title FPS
-  bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
-  if (ImGui::Checkbox("Window Title FPS", &show_fps)) {
-    rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
+  // Window Title FPS (Dev Mode only, matching launcher)
+  if (dev_mode) {
+    ImGui::Spacing();
+    bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
+    if (ImGui::Checkbox("Window Title FPS", &show_fps)) {
+      rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
+    }
+    DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
   }
-  DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
 }
 
 void InGameMenuDialog::DrawControlsTab() {
@@ -742,6 +790,41 @@ void InGameMenuDialog::DrawPreferencesTab() {
 
   ImGui::Spacing();
   ImGui::Spacing();
+
+  // Developer Mode Toggle (matching launcher Setup Game -> below Game Preferences)
+  const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
+  ImGui::TextColored(ImVec4(0.35f, 0.82f, 1.0f, 1.0f), "DEVELOPER MODE");
+  ImGui::SameLine();
+  if (dev_mode) {
+    ImGui::TextColored(ImVec4(0.98f, 0.75f, 0.20f, 1.0f), "[ENABLED]");
+  } else {
+    ImGui::TextDisabled("[DISABLED]");
+  }
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  if (dev_mode) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.36f, 0.08f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.46f, 0.12f, 1.0f));
+    if (ImGui::Button("Disable Developer Mode", ImVec2(240, 28))) {
+      rex::cvar::SetFlagByName("majin_dev_mode", "false");
+      const std::string cur_post = rex::cvar::GetFlagByName("swap_post_effect");
+      if (cur_post == "dedither" || cur_post == "dedither_debug") {
+        rex::cvar::SetFlagByName("swap_post_effect", "dedither_fxaa");
+      }
+    }
+    ImGui::PopStyleColor(2);
+  } else {
+    if (ImGui::Button("Enable Developer Mode", ImVec2(240, 28))) {
+      rex::cvar::SetFlagByName("majin_dev_mode", "true");
+    }
+  }
+  DrawHintText(
+      "Reveal hidden experimental and diagnostic options in the in-game menu "
+      "(De-Dither debug modes and Window Title FPS). Disabled by default.");
+
+  ImGui::Spacing();
+  ImGui::Spacing();
   DrawSectionHeader("SESSION INFO");
 
   const std::string backend = rex::cvar::GetFlagByName("gpu_backend");
@@ -750,7 +833,7 @@ void InGameMenuDialog::DrawPreferencesTab() {
   const std::string aa = rex::cvar::GetFlagByName("swap_post_effect");
   const int32_t active_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
 
-  ImGui::BulletText("Render Path: %s", backend.empty() ? "vulkan" : backend.c_str());
+  ImGui::BulletText("Render Path: %s", backend.empty() ? "d3d12" : backend.c_str());
   ImGui::BulletText("Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
   ImGui::BulletText("Shadow Quality: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));
   ImGui::BulletText("Upscaler: %s", upscaler.empty() ? "bilinear" : upscaler.c_str());

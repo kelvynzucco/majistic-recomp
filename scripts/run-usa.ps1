@@ -36,6 +36,7 @@ param(
     $WindowFps = $null,
     $AutoCapture = $false,
     $PresentDither = $false,
+    $DevMode = $false,
     [string]$GameDataRoot = 'game-data',
     [switch]$ShaderPrebuildOnly,
     [switch]$DisableLogging,
@@ -228,6 +229,8 @@ if ($InputMode -eq 'KeyboardMouse') {
 
 $isWindowFps = if ($null -ne $WindowFps) { ConvertTo-Bool $WindowFps } else { (-not $isFullscreen) }
 $launchArgs += "--majin_window_fps=$($isWindowFps.ToString().ToLowerInvariant())"
+$isDevMode = ConvertTo-Bool $DevMode
+$launchArgs += "--majin_dev_mode=$($isDevMode.ToString().ToLowerInvariant())"
 if ($isRecordPerf -and -not $DisableLogging -and $logPath) {
     $launchArgs += @('--majin_record_performance=true', "--perf_log_csv=$logPath.performance.csv")
 } else {

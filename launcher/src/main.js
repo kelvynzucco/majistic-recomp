@@ -195,6 +195,7 @@ const elements = {
   fullscreen: document.getElementById("fullscreen"),
   renderScale: document.getElementById("renderScale"),
   shadowScale: document.getElementById("shadowScale"),
+  shadowDepthBiasSection: document.getElementById("shadowDepthBiasSection"),
   shadowSlopeBias: document.getElementById("shadowSlopeBias"),
   shadowSlopeBiasVal: document.getElementById("shadowSlopeBiasVal"),
   shadowConstantBias: document.getElementById("shadowConstantBias"),
@@ -410,6 +411,17 @@ function updateUpscalerVisibility() {
   updatePostProcessingVisibility();
 }
 
+function updateShadowBiasVisibility() {
+  if (!elements.renderingPath || !elements.shadowDepthBiasSection) return;
+  const isVulkan = String(elements.renderingPath.value || "Vulkan") === "Vulkan";
+  elements.shadowDepthBiasSection.classList.toggle("hidden", !isVulkan);
+  if (isVulkan) {
+    updateSliderFill(elements.shadowSlopeBias);
+    updateSliderFill(elements.shadowConstantBias);
+    updateSliderFill(elements.shadowBiasClamp);
+  }
+}
+
 function updateSliderFill(slider) {
   if (!slider) return;
   const min = parseFloat(slider.min);
@@ -557,6 +569,7 @@ function populateForm(settings) {
     const rp = settings.RenderingPath || "Vulkan";
     elements.renderingPath.value = (rp === "Vulkan_FSI") ? "Vulkan" : rp;
   }
+  updateShadowBiasVisibility();
   if (elements.upscaler) elements.upscaler.value = settings.Upscaler || "bilinear";
   if (elements.casSharpness) {
     const casVal = Math.min(1.0, Math.max(0.0, safeFloat(settings.CasSharpness, 0.0)));
@@ -1407,6 +1420,12 @@ document.addEventListener("input", (e) => {
   }
 });
 
+if (elements.renderingPath) {
+  elements.renderingPath.addEventListener("change", () => {
+    updateShadowBiasVisibility();
+  });
+}
+
 if (elements.upscaler) {
   elements.upscaler.addEventListener("change", () => {
     updateUpscalerVisibility();
@@ -1805,6 +1824,7 @@ function applyDevModeUI(enabled) {
       elements.chkCompileBinary.checked = false;
     }
     updatePostProcessingVisibility();
+    updateShadowBiasVisibility();
   }
 
   document.querySelectorAll("select").forEach(refreshCustomSelect);

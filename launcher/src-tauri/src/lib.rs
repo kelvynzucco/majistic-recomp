@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 mod prebuild;
+mod saves;
 
 static DEV_MODE_RUNTIME: AtomicBool = AtomicBool::new(false);
 
@@ -170,6 +171,23 @@ where
     Ok(opt.unwrap_or(true))
 }
 
+fn default_save_profile() -> String {
+    saves::DEFAULT_PROFILE_ID.into()
+}
+
+fn deserialize_nullable_save_profile<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_string();
+    if trimmed.is_empty() {
+        Ok(saves::DEFAULT_PROFILE_ID.into())
+    } else {
+        Ok(trimmed)
+    }
+}
+
 fn deserialize_nullable_bool_false<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -255,6 +273,8 @@ pub struct Settings {
     pub window_fps: bool,
     #[serde(rename = "DevMode", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub dev_mode: bool,
+    #[serde(rename = "ActiveSaveProfile", default = "default_save_profile", deserialize_with = "deserialize_nullable_save_profile")]
+    pub active_save_profile: String,
 }
 
 impl Default for Settings {
@@ -297,6 +317,7 @@ impl Default for Settings {
             present_dither: false,
             window_fps: false,
             dev_mode: false,
+            active_save_profile: saves::DEFAULT_PROFILE_ID.into(),
         }
     }
 }
@@ -312,7 +333,7 @@ pub struct GameStatus {
     pub executable_path: String,
 }
 
-fn get_project_root() -> PathBuf {
+pub(crate) fn get_project_root() -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
         let mut cur = exe;
         for _ in 0..6 {
@@ -347,8 +368,7 @@ fn get_settings_path() -> PathBuf {
     get_project_root().join("private/launcher-usa.json")
 }
 
-#[tauri::command]
-fn load_settings() -> Result<Settings, String> {
+pub(crate) fn load_settings_internal() -> Result<Settings, String> {
     let path = get_settings_path();
     if !path.exists() {
         return Ok(Settings::default());
@@ -358,8 +378,7 @@ fn load_settings() -> Result<Settings, String> {
     Ok(settings)
 }
 
-#[tauri::command]
-fn save_settings(settings: Settings) -> Result<(), String> {
+pub(crate) fn save_settings_internal(settings: Settings) -> Result<(), String> {
     DEV_MODE_RUNTIME.store(settings.dev_mode, Ordering::Relaxed);
     let path = get_settings_path();
     if let Some(parent) = path.parent() {
@@ -368,6 +387,16 @@ fn save_settings(settings: Settings) -> Result<(), String> {
     let json = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+fn load_settings() -> Result<Settings, String> {
+    load_settings_internal()
+}
+
+#[tauri::command]
+fn save_settings(settings: Settings) -> Result<(), String> {
+    save_settings_internal(settings)
 }
 
 #[tauri::command]
@@ -1176,6 +1205,12 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         format!("-DevMode:${}", is_dev),
         "-Configuration".to_string(),
         settings.configuration,
+        "-ActiveSaveProfile".to_string(),
+        if settings.active_save_profile.trim().is_empty() {
+            saves::DEFAULT_PROFILE_ID.to_string()
+        } else {
+            settings.active_save_profile
+        },
     ];
 
     if !is_dev {
@@ -1986,7 +2021,17 @@ pub fn run() {
             set_dev_mode,
             exit_app,
             open_external_url,
-            get_connected_gamepads
+            get_connected_gamepads,
+            saves::list_save_profiles,
+            saves::create_save_profile,
+            saves::duplicate_save_profile,
+            saves::rename_save_profile,
+            saves::set_active_save_profile,
+            saves::delete_save_profile,
+            saves::export_save_profile,
+            saves::pick_and_inspect_savistic,
+            saves::import_save_profile,
+            saves::open_saves_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

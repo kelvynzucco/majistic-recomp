@@ -276,6 +276,31 @@
             <span>Fixes &amp; Patches</span>
           </button>
           <button
+            id="tabBtnSaves"
+            type="button"
+            class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all duration-200 cursor-pointer text-left"
+          >
+            <svg
+              class="w-5 h-5 shrink-0"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path
+                fill="currentColor"
+                fill-rule="evenodd"
+                d="M5 2.75C3.75736 2.75 2.75 3.75736 2.75 5V19C2.75 20.2426 3.75736 21.25 5 21.25H19C20.2426 21.25 21.25 20.2426 21.25 19V8.82843C21.25 8.23169 21.0129 7.6594 20.591 7.23744L16.7626 3.40901C16.3406 2.98705 15.7683 2.75 15.1716 2.75H5ZM7.5 4.25C7.08579 4.25 6.75 4.58579 6.75 5V8.5C6.75 9.19036 7.30964 9.75 8 9.75H14.5C15.1904 9.75 15.75 9.19036 15.75 8.5V5C15.75 4.58579 15.4142 4.25 15 4.25H7.5ZM13.5 5.5C13.9142 5.5 14.25 5.83579 14.25 6.25V7.75C14.25 8.16421 13.9142 8.5 13.5 8.5C13.0858 8.5 12.75 8.16421 12.75 7.75V6.25C12.75 5.83579 13.0858 5.5 13.5 5.5ZM7.75 14C7.75 13.0335 8.5335 12.25 9.5 12.25H14.5C15.4665 12.25 16.25 13.0335 16.25 14V19.75H7.75V14Z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span class="flex-1">Saves</span>
+            <span
+              id="tabSavesCountBadge"
+              class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-darkControl text-slate-400 shrink-0"
+              >1</span
+            >
+          </button>
+          <button
             id="tabBtnBuild"
             type="button"
             class="w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all duration-200 cursor-pointer text-left"
@@ -1206,7 +1231,103 @@
           </div>
 
           <!-- ========================================== -->
-          <!-- TAB 4: SETUP GAME                          -->
+          <!-- TAB 4: SAVES & PROFILES                    -->
+          <!-- ========================================== -->
+          <div id="tabSaves" class="hidden space-y-3.5">
+            <!-- Header & Actions Card -->
+            <section class="bg-darkCard rounded-xl p-4 shadow-sm space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-darkBorder/40 pb-3">
+                <div class="space-y-1">
+                  <h2 class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2">
+                    <svg
+                      class="w-5 h-5 text-accent shrink-0"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path
+                        fill="currentColor"
+                        fill-rule="evenodd"
+                        d="M5 2.75C3.75736 2.75 2.75 3.75736 2.75 5V19C2.75 20.2426 3.75736 21.25 5 21.25H19C20.2426 21.25 21.25 20.2426 21.25 19V8.82843C21.25 8.23169 21.0129 7.6594 20.591 7.23744L16.7626 3.40901C16.3406 2.98705 15.7683 2.75 15.1716 2.75H5ZM7.5 4.25C7.08579 4.25 6.75 4.58579 6.75 5V8.5C6.75 9.19036 7.30964 9.75 8 9.75H14.5C15.1904 9.75 15.75 9.19036 15.75 8.5V5C15.75 4.58579 15.4142 4.25 15 4.25H7.5ZM13.5 5.5C13.9142 5.5 14.25 5.83579 14.25 6.25V7.75C14.25 8.16421 13.9142 8.5 13.5 8.5C13.0858 8.5 12.75 8.16421 12.75 7.75V6.25C12.75 5.83579 13.0858 5.5 13.5 5.5ZM7.75 14C7.75 13.0335 8.5335 12.25 9.5 12.25H14.5C15.4665 12.25 16.25 13.0335 16.25 14V19.75H7.75V14Z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                    <span>Save Profiles</span>
+                  </h2>
+                  <p class="text-[11px] text-slate-400 leading-relaxed">
+                    Keep separate saves &amp; achievements for different players or checkpoints, and share them as
+                    <span class="font-mono text-slate-300">.savistic</span> packages.
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                  <button
+                    id="btnNewSave"
+                    type="button"
+                    class="h-9 px-3.5 rounded-xl bg-[#6da712] hover:bg-[#7cb818] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  >
+                    <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                      <path fill-rule="evenodd" d="M12 4.25C12.4142 4.25 12.75 4.58579 12.75 5V11.25H19C19.4142 11.25 19.75 11.5858 19.75 12C19.75 12.4142 19.4142 12.75 19 12.75H12.75V19C12.75 19.4142 12.4142 19.75 12 19.75C11.5858 19.75 11.25 19.4142 11.25 19V12.75H5C4.58579 12.75 4.25 12.4142 4.25 12C4.25 11.5858 4.58579 11.25 5 11.25H11.25V5C11.25 4.58579 11.5858 4.25 12 4.25Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>New Save</span>
+                  </button>
+                  <button
+                    id="btnImportSave"
+                    type="button"
+                    class="h-9 px-3.5 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                  >
+                    <svg class="w-4 h-4 shrink-0 text-accent" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                      <path fill-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V13.1893L15.4697 10.4697C15.7626 10.1768 16.2374 10.1768 16.5303 10.4697C16.8232 10.7626 16.8232 11.2374 16.5303 11.5303L12.5303 15.5303C12.2374 15.8232 11.7626 15.8232 11.4697 15.5303L7.46967 11.5303C7.17678 11.2374 7.17678 10.7626 7.46967 10.4697C7.76256 10.1768 8.23744 10.1768 8.53033 10.4697L11.25 13.1893V4C11.25 3.58579 11.5858 3.25 12 3.25ZM4.75 15C4.75 14.5858 4.41421 14.25 4 14.25C3.58579 14.25 3.25 14.5858 3.25 15V17C3.25 19.0711 4.92893 20.75 7 20.75H17C19.0711 20.75 20.75 19.0711 20.75 17V15C20.75 14.5858 20.4142 14.25 20 14.25C19.5858 14.25 19.25 14.5858 19.25 15V17C19.25 18.2426 18.2426 19.25 17 19.25H7C5.75736 19.25 4.75 18.2426 4.75 17V15Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Import .savistic</span>
+                  </button>
+                  <button
+                    id="btnOpenSavesFolder"
+                    type="button"
+                    title="Open active save folder in File Explorer"
+                    class="h-9 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-300 hover:text-white border border-darkBorder/60 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <svg class="w-4 h-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                      <path fill-rule="evenodd" d="M2.06935 5.25839C2 5.62595 2 6.06722 2 6.94975V14C2 17.7712 2 19.6569 3.17157 20.8284C4.34315 22 6.22876 22 10 22H14C17.7712 22 19.6569 22 20.8284 20.8284C22 19.6569 22 17.7712 22 14V11.7979C22 9.16554 22 7.84935 21.2305 6.99383C21.1598 6.91514 21.0849 6.84024 21.0062 6.76946C20.1506 6 18.8345 6 16.2021 6H15.8284C14.6747 6 14.0979 6 13.5604 5.84678C13.2651 5.7626 12.9804 5.64471 12.7121 5.49543C12.2237 5.22367 11.8158 4.81578 11 4L10.4497 3.44975C10.1763 3.17633 10.0396 3.03961 9.89594 2.92051C9.27652 2.40704 8.51665 2.09229 7.71557 2.01738C7.52976 2 7.33642 2 6.94975 2C6.06722 2 5.62595 2 5.25839 2.06935C3.64031 2.37464 2.37464 3.64031 2.06935 5.25839Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Folder</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Game Running Warning -->
+              <div
+                id="savesGameRunningBanner"
+                class="hidden flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-amber-950/60 border border-amber-700/60 text-amber-200 text-xs"
+              >
+                <svg class="w-4 h-4 text-amber-400 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill-rule="evenodd" d="M12 2.25C6.61522 2.25 2.25 6.61522 2.25 12C2.25 17.3848 6.61522 21.75 12 21.75C17.3848 21.75 21.75 17.3848 21.75 12C21.75 6.61522 17.3848 2.25 12 2.25ZM12 7.25C12.4142 7.25 12.75 7.58579 12.75 8V12.5C12.75 12.9142 12.4142 13.25 12 13.25C11.5858 13.25 11.25 12.9142 11.25 12.5V8C11.25 7.58579 11.5858 7.25 12 7.25ZM12 16.75C12.5523 16.75 13 16.3023 13 15.75C13 15.1977 12.5523 14.75 12 14.75C11.4477 14.75 11 15.1977 11 15.75C11 16.3023 11.4477 16.75 12 16.75Z" clip-rule="evenodd" />
+                </svg>
+                <span>Majin is currently running. Close the game before switching, duplicating, exporting, or deleting save profiles.</span>
+              </div>
+
+              <!-- Status / Feedback Banner -->
+              <div
+                id="savesFeedbackBanner"
+                class="hidden flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-xs border"
+              >
+                <span id="savesFeedbackText" class="leading-relaxed"></span>
+                <button
+                  id="btnDismissSavesFeedback"
+                  type="button"
+                  class="text-current opacity-70 hover:opacity-100 cursor-pointer shrink-0 font-bold px-1"
+                >
+                  &times;
+                </button>
+              </div>
+            </section>
+
+            <!-- Profiles List -->
+            <div id="savesProfilesList" class="space-y-2.5"></div>
+          </div>
+
+          <!-- ========================================== -->
+          <!-- TAB 5: SETUP GAME                          -->
           <!-- ========================================== -->
           <div id="tabBuild" class="hidden">
             <div class="grid grid-cols-2 gap-4 items-start">
@@ -1907,11 +2028,22 @@
         </main>
       </div>
 
-      <!-- Footer Controls (Centered Launch Button) -->
+      <!-- Footer Controls (Centered Launch Button + Active Save Pill) -->
       <footer
         id="appFooter"
-        class="px-6 py-[22px] bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
+        class="relative px-6 py-[22px] bg-darkCard/80 flex items-center justify-center shrink-0 rounded-b-xl"
       >
+        <button
+          id="footerActiveSaveBtn"
+          type="button"
+          title="Click to manage save profiles"
+          class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-darkControl/80 hover:bg-darkControl border border-darkBorder/60 text-xs text-slate-300 hover:text-white transition-all cursor-pointer absolute left-6 max-w-[220px]"
+        >
+          <span class="w-2 h-2 rounded-full bg-[#6da712] shrink-0"></span>
+          <span class="text-slate-400 shrink-0">Save:</span>
+          <span id="footerActiveSaveName" class="font-semibold text-slate-100 truncate">Default Save</span>
+        </button>
+
         <button
           id="btnLaunch"
           type="button"
@@ -2195,6 +2327,252 @@
                 />
               </svg>
               <span>Update Now</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Name Modal (New / Duplicate / Rename) -->
+      <div
+        id="saveNameModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-darkBorder/60">
+          <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+            <h3 id="saveNameModalTitle" class="text-sm font-bold text-white">
+              New Save Profile
+            </h3>
+            <button
+              id="btnCloseSaveNameModal"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <p id="saveNameModalDesc" class="text-xs text-slate-300 leading-relaxed">
+              Create a fresh save profile with isolated game progress and achievements.
+            </p>
+            <div class="space-y-1.5">
+              <label for="saveNameInput" class="block text-xs font-semibold text-slate-200">
+                Save Name <span class="text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <input
+                id="saveNameInput"
+                type="text"
+                maxlength="64"
+                placeholder="e.g. Chapter 3, Player 2, Before Boss..."
+                class="w-full h-10 bg-darkControl border border-darkBorder/80 focus:border-accent rounded-xl px-3 text-xs text-white placeholder-slate-500 focus:outline-none"
+              />
+              <p id="saveNameDefaultHint" class="text-[11px] text-slate-400">
+                Leave blank to let the launcher assign a default name automatically.
+              </p>
+            </div>
+
+            <label
+              id="saveNameSetActiveWrap"
+              class="flex items-center gap-2.5 pt-1 cursor-pointer select-none"
+            >
+              <input
+                id="saveNameSetActiveCheck"
+                type="checkbox"
+                checked
+                class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+              />
+              <span class="text-xs text-slate-200">Set as Active Save</span>
+            </label>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              id="btnCancelSaveName"
+              type="button"
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              id="btnConfirmSaveName"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm"
+            >
+              Create Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import .savistic Modal -->
+      <div
+        id="importSaveModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div class="bg-darkCard rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl border border-darkBorder/60">
+          <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-accent shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path fill-rule="evenodd" d="M12 3.25C12.4142 3.25 12.75 3.58579 12.75 4V13.1893L15.4697 10.4697C15.7626 10.1768 16.2374 10.1768 16.5303 10.4697C16.8232 10.7626 16.8232 11.2374 16.5303 11.5303L12.5303 15.5303C12.2374 15.8232 11.7626 15.8232 11.4697 15.5303L7.46967 11.5303C7.17678 11.2374 7.17678 10.7626 7.46967 10.4697C7.76256 10.1768 8.23744 10.1768 8.53033 10.4697L11.25 13.1893V4C11.25 3.58579 11.5858 3.25 12 3.25ZM4.75 15C4.75 14.5858 4.41421 14.25 4 14.25C3.58579 14.25 3.25 14.5858 3.25 15V17C3.25 19.0711 4.92893 20.75 7 20.75H17C19.0711 20.75 20.75 19.0711 20.75 17V15C20.75 14.5858 20.4142 14.25 20 14.25C19.5858 14.25 19.25 14.5858 19.25 15V17C19.25 18.2426 18.2426 19.25 17 19.25H7C5.75736 19.25 4.75 18.2426 4.75 17V15Z" clip-rule="evenodd" />
+              </svg>
+              <h3 class="text-sm font-bold text-white">Import Save Package</h3>
+            </div>
+            <button
+              id="btnCloseImportSaveModal"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div class="space-y-3.5">
+            <!-- Package summary -->
+            <div class="bg-darkBg/70 rounded-xl p-3 border border-darkBorder/50 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span id="importFileName" class="text-xs font-mono text-white truncate">save.savistic</span>
+                <span id="importExportedAt" class="text-[10px] font-mono text-slate-400 shrink-0"></span>
+              </div>
+              <div id="importMetaBadges" class="flex flex-wrap gap-1.5"></div>
+            </div>
+
+            <!-- Editable profile name -->
+            <div class="space-y-1.5">
+              <label for="importSaveNameInput" class="block text-xs font-semibold text-slate-200">
+                Save Profile Name <span class="text-slate-500 font-normal">(Optional)</span>
+              </label>
+              <input
+                id="importSaveNameInput"
+                type="text"
+                maxlength="64"
+                placeholder="Leave blank for default name..."
+                class="w-full h-10 bg-darkControl border border-darkBorder/80 focus:border-accent rounded-xl px-3 text-xs text-white placeholder-slate-500 focus:outline-none"
+              />
+              <p class="text-[11px] text-slate-400">
+                Imported saves are added as a new profile so your existing saves are never overwritten.
+              </p>
+            </div>
+
+            <!-- Set Active option -->
+            <label class="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                id="importSetActiveCheck"
+                type="checkbox"
+                checked
+                class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-4 w-4"
+              />
+              <span class="text-xs text-slate-200">Set as Active Save after import</span>
+            </label>
+
+            <!-- Bundled Launcher Settings Choice -->
+            <div
+              id="importLauncherConfigSection"
+              class="hidden rounded-xl bg-darkBg/60 border border-darkBorder/60 p-3 space-y-2.5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold text-accent uppercase tracking-wider">Launcher Settings Included</span>
+              </div>
+              <div id="importConfigSummaryBadges" class="flex flex-wrap gap-1.5"></div>
+
+              <div class="space-y-2 pt-1">
+                <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-darkControl/60 hover:bg-darkControl border border-darkBorder/50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importLauncherConfigMode"
+                    value="keep"
+                    checked
+                    class="mt-0.5 text-accent bg-darkBg border-darkBorder focus:ring-0"
+                  />
+                  <div class="space-y-0.5">
+                    <div class="text-xs font-semibold text-white">Keep current launcher settings</div>
+                    <div class="text-[11px] text-slate-400">Import only the game save files and achievements.</div>
+                  </div>
+                </label>
+
+                <label class="flex items-start gap-2.5 p-2.5 rounded-lg bg-darkControl/60 hover:bg-darkControl border border-darkBorder/50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importLauncherConfigMode"
+                    value="apply"
+                    class="mt-0.5 text-accent bg-darkBg border-darkBorder focus:ring-0"
+                  />
+                  <div class="space-y-0.5">
+                    <div class="text-xs font-semibold text-white">Import launcher settings from .savistic</div>
+                    <div class="text-[11px] text-slate-400">Apply bundled graphics, controls &amp; fixes settings (keeps your Game Data Folder path).</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div
+              id="importNoLauncherConfigNote"
+              class="hidden text-[11px] text-slate-400 bg-darkControl/40 rounded-lg px-3 py-2"
+            >
+              This archive contains game save data only (no bundled launcher settings).
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              id="btnCancelImportSave"
+              type="button"
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              id="btnConfirmImportSave"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm"
+            >
+              Import Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete Save Confirmation Modal -->
+      <div
+        id="deleteSaveModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-rose-900/60">
+          <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+            <h3 class="text-sm font-bold text-rose-300">Delete Save Profile</h3>
+            <button
+              id="btnCloseDeleteSaveModal"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-300 leading-relaxed">
+            <p>
+              Are you sure you want to permanently delete
+              <strong id="deleteSaveTargetName" class="text-white">Save</strong>?
+            </p>
+            <p class="text-[11px] text-slate-400">
+              All save slots and achievements in this profile will be removed from disk. Consider exporting a
+              <span class="font-mono text-slate-300">.savistic</span> backup first.
+            </p>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              id="btnCancelDeleteSave"
+              type="button"
+              class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              id="btnConfirmDeleteSave"
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-all cursor-pointer shadow-sm"
+            >
+              Delete Permanently
             </button>
           </div>
         </div>

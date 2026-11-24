@@ -38,6 +38,7 @@ param(
     $PresentDither = $false,
     $DevMode = $false,
     [string]$GameDataRoot = 'game-data',
+    [string]$ActiveSaveProfile = 'default',
     [switch]$ShaderPrebuildOnly,
     [switch]$DisableLogging,
     [switch]$Preview,
@@ -143,7 +144,13 @@ $gpuBackend = if ($isVulkan) { 'vulkan' } else { 'd3d12' }
 $cacheKey = $gpuBackend + '-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
 $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
 $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
-New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, "$sessionRoot/user" | Out-Null
+$safeSaveProfile = if ([string]::IsNullOrWhiteSpace($ActiveSaveProfile)) { 'default' } else { $ActiveSaveProfile.Trim() }
+if ($safeSaveProfile -eq 'default' -or $safeSaveProfile -notmatch '^[a-zA-Z0-9_-]+$') {
+    $userDataRoot = Join-Path $sessionRoot 'user'
+} else {
+    $userDataRoot = Join-Path $sessionRoot (Join-Path 'saves' $safeSaveProfile)
+}
+New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, $userDataRoot | Out-Null
 
 $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -eq 'RTV') { 'rtv' } else { 'rtv' }
 $vulkanTargetPath = 'fbo'
@@ -160,7 +167,7 @@ $launchArgs = @(
     '--gpu_plugin', 'xenos',
     "--gpu_backend=$gpuBackend",
     '--game_data_root', $GameDataRoot,
-    '--user_data_root', "$sessionRoot/user",
+    '--user_data_root', $userDataRoot,
     '--cache_root', $cacheRoot,
     '--metadata_root', $metadataRoot
 )

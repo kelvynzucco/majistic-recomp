@@ -140,6 +140,7 @@ const defaultSettings = {
   PauseDistortion: true,
   WindowFps: false,
   DevMode: false,
+  ActiveSaveProfile: "default",
 };
 
 let currentSettings = { ...defaultSettings };
@@ -157,13 +158,60 @@ const elements = {
   tabBtnControls: document.getElementById("tabBtnControls"),
   tabBtnSettings: document.getElementById("tabBtnGraphics"),
   tabBtnFixes: document.getElementById("tabBtnFixes"),
+  tabBtnSaves: document.getElementById("tabBtnSaves"),
   tabBtnBuild: document.getElementById("tabBtnBuild"),
   tabGraphics: document.getElementById("tabGraphics"),
   tabControls: document.getElementById("tabControls"),
   tabSettings: document.getElementById("tabGraphics"),
   tabFixes: document.getElementById("tabFixes"),
+  tabSaves: document.getElementById("tabSaves"),
   tabBuild: document.getElementById("tabBuild"),
+  tabSavesCountBadge: document.getElementById("tabSavesCountBadge"),
   tabBuildIndicator: document.getElementById("tabBuildIndicator"),
+
+  // Footer Active Save Pill
+  footerActiveSaveBtn: document.getElementById("footerActiveSaveBtn"),
+  footerActiveSaveName: document.getElementById("footerActiveSaveName"),
+
+  // Saves Tab & Modals
+  btnNewSave: document.getElementById("btnNewSave"),
+  btnImportSave: document.getElementById("btnImportSave"),
+  btnOpenSavesFolder: document.getElementById("btnOpenSavesFolder"),
+  savesGameRunningBanner: document.getElementById("savesGameRunningBanner"),
+  savesFeedbackBanner: document.getElementById("savesFeedbackBanner"),
+  savesFeedbackText: document.getElementById("savesFeedbackText"),
+  btnDismissSavesFeedback: document.getElementById("btnDismissSavesFeedback"),
+  savesProfilesList: document.getElementById("savesProfilesList"),
+
+  saveNameModal: document.getElementById("saveNameModal"),
+  saveNameModalTitle: document.getElementById("saveNameModalTitle"),
+  saveNameModalDesc: document.getElementById("saveNameModalDesc"),
+  saveNameInput: document.getElementById("saveNameInput"),
+  saveNameDefaultHint: document.getElementById("saveNameDefaultHint"),
+  saveNameSetActiveWrap: document.getElementById("saveNameSetActiveWrap"),
+  saveNameSetActiveCheck: document.getElementById("saveNameSetActiveCheck"),
+  btnCloseSaveNameModal: document.getElementById("btnCloseSaveNameModal"),
+  btnCancelSaveName: document.getElementById("btnCancelSaveName"),
+  btnConfirmSaveName: document.getElementById("btnConfirmSaveName"),
+
+  importSaveModal: document.getElementById("importSaveModal"),
+  importFileName: document.getElementById("importFileName"),
+  importExportedAt: document.getElementById("importExportedAt"),
+  importMetaBadges: document.getElementById("importMetaBadges"),
+  importSaveNameInput: document.getElementById("importSaveNameInput"),
+  importSetActiveCheck: document.getElementById("importSetActiveCheck"),
+  importLauncherConfigSection: document.getElementById("importLauncherConfigSection"),
+  importConfigSummaryBadges: document.getElementById("importConfigSummaryBadges"),
+  importNoLauncherConfigNote: document.getElementById("importNoLauncherConfigNote"),
+  btnCloseImportSaveModal: document.getElementById("btnCloseImportSaveModal"),
+  btnCancelImportSave: document.getElementById("btnCancelImportSave"),
+  btnConfirmImportSave: document.getElementById("btnConfirmImportSave"),
+
+  deleteSaveModal: document.getElementById("deleteSaveModal"),
+  deleteSaveTargetName: document.getElementById("deleteSaveTargetName"),
+  btnCloseDeleteSaveModal: document.getElementById("btnCloseDeleteSaveModal"),
+  btnCancelDeleteSave: document.getElementById("btnCancelDeleteSave"),
+  btnConfirmDeleteSave: document.getElementById("btnConfirmDeleteSave"),
 
   // Header & Status
   appVersionBadge: document.getElementById("appVersionBadge"),
@@ -323,6 +371,7 @@ function switchTab(tab) {
     { key: "graphics", el: elements.tabGraphics, btn: elements.tabBtnGraphics },
     { key: "controls", el: elements.tabControls, btn: elements.tabBtnControls },
     { key: "fixes", el: elements.tabFixes, btn: elements.tabBtnFixes },
+    { key: "saves", el: elements.tabSaves, btn: elements.tabBtnSaves },
     { key: "build", el: elements.tabBuild, btn: elements.tabBtnBuild },
   ];
 
@@ -348,14 +397,18 @@ function switchTab(tab) {
     updateShaderCacheInfo();
   } else if (target === "controls") {
     updateConnectedGamepads();
+  } else if (target === "saves") {
+    loadSaveProfiles();
   }
 }
 
 if (elements.tabBtnGraphics) elements.tabBtnGraphics.addEventListener("click", () => switchTab("graphics"));
 if (elements.tabBtnControls) elements.tabBtnControls.addEventListener("click", () => switchTab("controls"));
 if (elements.tabBtnFixes) elements.tabBtnFixes.addEventListener("click", () => switchTab("fixes"));
+if (elements.tabBtnSaves) elements.tabBtnSaves.addEventListener("click", () => switchTab("saves"));
 if (elements.tabBtnBuild) elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
 if (elements.btnGoToSetup) elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
+if (elements.footerActiveSaveBtn) elements.footerActiveSaveBtn.addEventListener("click", () => switchTab("saves"));
 
 function safeFloat(val, fallback) {
   const num = typeof val === "number" ? val : parseFloat(val);
@@ -684,6 +737,7 @@ function readForm() {
     Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
     BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) : safeFloat(currentSettings.BloomIntensity, 1.0),
     DevMode: !!isDevModeCached,
+    ActiveSaveProfile: currentSettings.ActiveSaveProfile || "default",
   };
 }
 
@@ -935,6 +989,7 @@ listen("build-complete", async () => {
   if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
 
   await updateGameStatus();
+  await loadSaveProfiles();
   await updateShaderCacheInfo();
 });
 
@@ -949,6 +1004,7 @@ listen("build-error", async (event) => {
 
   setTerminalLogOpen(true);
   await updateGameStatus();
+  await loadSaveProfiles();
   await updateShaderCacheInfo();
 });
 
@@ -1849,6 +1905,572 @@ if (elements.btnToggleDevMode) {
 }
 
 // ==========================================
+// Save Profiles & .savistic Management
+// ==========================================
+let saveProfilesState = null;
+let saveNameModalContext = null; // { mode: 'new' | 'duplicate' | 'rename', profileId?: string }
+let pendingImportPreview = null;
+let pendingDeleteProfileId = null;
+let savesFeedbackTimer = null;
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function showSavesFeedback(message, isError = false) {
+  if (!elements.savesFeedbackBanner || !elements.savesFeedbackText) return;
+  if (savesFeedbackTimer) {
+    clearTimeout(savesFeedbackTimer);
+    savesFeedbackTimer = null;
+  }
+  elements.savesFeedbackText.textContent = message;
+  elements.savesFeedbackBanner.className = isError
+    ? "flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-xs border bg-rose-950/60 border-rose-700/60 text-rose-200"
+    : "flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl text-xs border bg-[#6da712]/15 border-[#6da712]/50 text-[#c9eb86]";
+  savesFeedbackTimer = setTimeout(() => {
+    elements.savesFeedbackBanner?.classList.add("hidden");
+  }, isError ? 8000 : 5000);
+}
+
+function hideSavesFeedback() {
+  if (savesFeedbackTimer) {
+    clearTimeout(savesFeedbackTimer);
+    savesFeedbackTimer = null;
+  }
+  elements.savesFeedbackBanner?.classList.add("hidden");
+}
+
+if (elements.btnDismissSavesFeedback) {
+  elements.btnDismissSavesFeedback.addEventListener("click", hideSavesFeedback);
+}
+
+function applySaveProfilesState(state) {
+  if (!state || typeof state !== "object") return;
+  saveProfilesState = state;
+  currentSettings.ActiveSaveProfile = state.activeProfileId || "default";
+
+  const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+  if (elements.tabSavesCountBadge) {
+    elements.tabSavesCountBadge.textContent = String(profiles.length);
+  }
+
+  const activeProfile = profiles.find((p) => p.isActive) || profiles[0];
+  if (elements.footerActiveSaveName && activeProfile) {
+    elements.footerActiveSaveName.textContent = activeProfile.name;
+  }
+  if (elements.footerActiveSaveBtn && activeProfile) {
+    elements.footerActiveSaveBtn.title = `Active Save: ${activeProfile.name} (click to manage)`;
+  }
+
+  if (elements.savesGameRunningBanner) {
+    elements.savesGameRunningBanner.classList.toggle("hidden", !state.gameRunning);
+  }
+
+  renderSaveProfiles(state);
+}
+
+function renderSaveProfiles(state) {
+  if (!elements.savesProfilesList) return;
+  const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+  const gameRunning = Boolean(state.gameRunning);
+  const canDelete = profiles.length > 1 && !gameRunning;
+
+  if (profiles.length === 0) {
+    elements.savesProfilesList.innerHTML = `
+      <div class="bg-darkCard rounded-xl p-6 text-center text-xs text-slate-400 border border-darkBorder/40">
+        No save profiles found. Click <strong class="text-white">New Save</strong> to create one.
+      </div>
+    `;
+    return;
+  }
+
+  // Sort active profile first, then preserve order
+  const ordered = [...profiles].sort((a, b) => {
+    if (a.isActive && !b.isActive) return -1;
+    if (!a.isActive && b.isActive) return 1;
+    if (a.isDefault && !b.isDefault) return -1;
+    if (!a.isDefault && b.isDefault) return 1;
+    return 0;
+  });
+
+  elements.savesProfilesList.innerHTML = ordered
+    .map((p) => {
+      const cardClasses = p.isActive
+        ? "bg-[#6da712]/10 border border-[#6da712]/50 shadow-sm"
+        : "bg-darkCard border border-darkBorder/50 hover:border-slate-600/80";
+
+      const slotText = p.hasSaveData
+        ? `${p.saveSlotCount} save ${p.saveSlotCount === 1 ? "file" : "files"} · ${escapeHtml(p.sizeFormatted)}`
+        : "Empty (New Game)";
+
+      const achText = p.achievementCount > 0
+        ? `${p.achievementCount} ${p.achievementCount === 1 ? "achievement" : "achievements"}`
+        : "No achievements";
+
+      const timeText = p.lastModified
+        ? `Updated ${escapeHtml(p.lastModified)}`
+        : `Created ${escapeHtml(p.createdAt)}`;
+
+      const activeBadge = p.isActive
+        ? `<span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#6da712]/25 text-[#b5de63] border border-[#6da712]/50">Active</span>`
+        : "";
+
+      const defaultBadge = p.isDefault
+        ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/60">Default</span>`
+        : "";
+
+      const activateBtn = p.isActive
+        ? ""
+        : `<button
+            type="button"
+            data-save-action="activate"
+            data-profile-id="${escapeHtml(p.id)}"
+            ${gameRunning ? "disabled" : ""}
+            class="h-8 px-3 rounded-lg bg-[#6da712]/20 hover:bg-[#6da712] text-[#b5de63] hover:text-white border border-[#6da712]/40 text-xs font-bold transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+          >
+            Set Active
+          </button>`;
+
+      return `
+        <div class="rounded-xl p-3.5 transition-all ${cardClasses}">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0 flex-1 space-y-1.5">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-bold text-white truncate max-w-[320px]" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span>
+                ${activeBadge}
+                ${defaultBadge}
+              </div>
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                <span class="${p.hasSaveData ? "text-slate-300" : "text-slate-500"}">${slotText}</span>
+                <span class="text-slate-600">&bull;</span>
+                <span class="${p.achievementCount > 0 ? "text-amber-300/90" : "text-slate-500"}">${achText}</span>
+                <span class="text-slate-600">&bull;</span>
+                <span class="font-mono text-[10px] text-slate-400">${timeText}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${activateBtn}
+              <button
+                type="button"
+                data-save-action="duplicate"
+                data-profile-id="${escapeHtml(p.id)}"
+                title="Create a snapshot copy of this save"
+                ${gameRunning ? "disabled" : ""}
+                class="h-8 px-2.5 rounded-lg bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Duplicate
+              </button>
+              <button
+                type="button"
+                data-save-action="rename"
+                data-profile-id="${escapeHtml(p.id)}"
+                title="Rename this save profile"
+                class="h-8 px-2.5 rounded-lg bg-darkControl hover:bg-slate-700 text-slate-300 hover:text-white border border-darkBorder/60 text-xs font-semibold transition-all cursor-pointer"
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                data-save-action="export"
+                data-profile-id="${escapeHtml(p.id)}"
+                title="Export save, achievements &amp; launcher config as .savistic"
+                ${gameRunning ? "disabled" : ""}
+                class="h-8 px-2.5 rounded-lg bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Export
+              </button>
+              <button
+                type="button"
+                data-save-action="delete"
+                data-profile-id="${escapeHtml(p.id)}"
+                title="${canDelete ? "Delete save profile" : "Cannot delete the only remaining save"}"
+                ${canDelete ? "" : "disabled"}
+                class="h-8 w-8 rounded-lg bg-darkControl hover:bg-rose-900/70 text-slate-400 hover:text-rose-200 border border-darkBorder/60 hover:border-rose-700/60 flex items-center justify-center transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9.5 2.75C8.5335 2.75 7.75 3.5335 7.75 4.5V5.25H4.5C4.08579 5.25 3.75 5.58579 3.75 6C3.75 6.41421 4.08579 6.75 4.5 6.75H5.29168L6.1052 18.9529C6.21242 20.5612 7.54779 21.8125 9.1597 21.8125H14.8403C16.4522 21.8125 17.7876 20.5612 17.8948 18.9529L18.7083 6.75H19.5C19.9142 6.75 20.25 6.41421 20.25 6C20.25 5.58579 19.9142 5.25 19.5 5.25H16.25V4.5C16.25 3.5335 15.4665 2.75 14.5 2.75H9.5ZM9.25 4.5C9.25 4.36193 9.36193 4.25 9.5 4.25H14.5C14.6381 4.25 14.75 4.36193 14.75 4.5V5.25H9.25V4.5ZM10.25 10C10.25 9.58579 9.91421 9.25 9.5 9.25C9.08579 9.25 8.75 9.58579 8.75 10V17C8.75 17.4142 9.08579 17.75 9.5 17.75C9.91421 17.75 10.25 17.4142 10.25 17V10ZM15.25 10C15.25 9.58579 14.9142 9.25 14.5 9.25C14.0858 9.25 13.75 9.58579 13.75 10V17C13.75 17.4142 14.0858 17.75 14.5 17.75C14.9142 17.75 15.25 17.4142 15.25 17V10Z" clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadSaveProfiles() {
+  try {
+    const state = await invoke("list_save_profiles");
+    applySaveProfilesState(state);
+  } catch (err) {
+    console.warn("Failed to load save profiles:", err);
+    showSavesFeedback(`Failed to load save profiles: ${err}`, true);
+  }
+}
+
+// --- Save Name Modal (New / Duplicate / Rename) ---
+function openSaveNameModal(mode, profile = null) {
+  saveNameModalContext = { mode, profileId: profile?.id || null };
+  if (!elements.saveNameModal) return;
+
+  if (mode === "new") {
+    elements.saveNameModalTitle.textContent = "New Save Profile";
+    elements.saveNameModalDesc.textContent =
+      "Create a clean save profile with separate game progress and achievements (great for another player or a fresh playthrough).";
+    elements.saveNameInput.value = "";
+    elements.saveNameInput.placeholder = "e.g. Player 2, Hard Run, Speedrun...";
+    elements.saveNameDefaultHint.textContent =
+      "Leave blank to let the launcher assign a default name automatically.";
+    elements.saveNameSetActiveWrap.classList.remove("hidden");
+    elements.saveNameSetActiveCheck.checked = true;
+    elements.btnConfirmSaveName.textContent = "Create Save";
+  } else if (mode === "duplicate") {
+    elements.saveNameModalTitle.textContent = "Duplicate Save (Checkpoint)";
+    elements.saveNameModalDesc.textContent = `Create an independent copy of "${profile?.name || "Save"}" including its current save slots and achievements.`;
+    elements.saveNameInput.value = "";
+    elements.saveNameInput.placeholder = `e.g. ${profile?.name || "Save"} - Before Boss`;
+    elements.saveNameDefaultHint.textContent =
+      "Leave blank to use an automatic copy name.";
+    elements.saveNameSetActiveWrap.classList.remove("hidden");
+    elements.saveNameSetActiveCheck.checked = false;
+    elements.btnConfirmSaveName.textContent = "Create Copy";
+  } else if (mode === "rename") {
+    elements.saveNameModalTitle.textContent = "Rename Save Profile";
+    elements.saveNameModalDesc.textContent =
+      "Enter a new display name for this save profile.";
+    elements.saveNameInput.value = profile?.name || "";
+    elements.saveNameInput.placeholder = "Enter save name...";
+    elements.saveNameDefaultHint.textContent =
+      "Clearing the name will revert it to a default name.";
+    elements.saveNameSetActiveWrap.classList.add("hidden");
+    elements.btnConfirmSaveName.textContent = "Save Name";
+  }
+
+  elements.saveNameModal.classList.remove("hidden");
+  setTimeout(() => {
+    elements.saveNameInput?.focus();
+    elements.saveNameInput?.select();
+  }, 30);
+}
+
+function closeSaveNameModal() {
+  saveNameModalContext = null;
+  elements.saveNameModal?.classList.add("hidden");
+}
+
+async function confirmSaveNameModal() {
+  if (!saveNameModalContext) return;
+  const { mode, profileId } = saveNameModalContext;
+  const rawName = elements.saveNameInput?.value ?? "";
+  const setActive = Boolean(elements.saveNameSetActiveCheck?.checked);
+
+  if (elements.btnConfirmSaveName) elements.btnConfirmSaveName.disabled = true;
+  try {
+    let state;
+    if (mode === "new") {
+      state = await invoke("create_save_profile", {
+        name: rawName.trim() ? rawName.trim() : null,
+        setActive,
+      });
+      applySaveProfilesState(state);
+      showSavesFeedback("New save profile created.");
+    } else if (mode === "duplicate" && profileId) {
+      state = await invoke("duplicate_save_profile", {
+        sourceId: profileId,
+        name: rawName.trim() ? rawName.trim() : null,
+        setActive,
+      });
+      applySaveProfilesState(state);
+      showSavesFeedback("Save checkpoint duplicated successfully.");
+    } else if (mode === "rename" && profileId) {
+      state = await invoke("rename_save_profile", {
+        profileId,
+        newName: rawName,
+      });
+      applySaveProfilesState(state);
+      showSavesFeedback("Save profile renamed.");
+    }
+    closeSaveNameModal();
+  } catch (err) {
+    showSavesFeedback(String(err), true);
+  } finally {
+    if (elements.btnConfirmSaveName) elements.btnConfirmSaveName.disabled = false;
+  }
+}
+
+if (elements.btnNewSave) {
+  elements.btnNewSave.addEventListener("click", () => openSaveNameModal("new"));
+}
+if (elements.btnCloseSaveNameModal) {
+  elements.btnCloseSaveNameModal.addEventListener("click", closeSaveNameModal);
+}
+if (elements.btnCancelSaveName) {
+  elements.btnCancelSaveName.addEventListener("click", closeSaveNameModal);
+}
+if (elements.btnConfirmSaveName) {
+  elements.btnConfirmSaveName.addEventListener("click", confirmSaveNameModal);
+}
+if (elements.saveNameInput) {
+  elements.saveNameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmSaveNameModal();
+    } else if (e.key === "Escape") {
+      closeSaveNameModal();
+    }
+  });
+}
+
+// --- Import .savistic Modal ---
+function openImportSaveModal(preview) {
+  pendingImportPreview = preview;
+  if (!elements.importSaveModal) return;
+
+  if (elements.importFileName) {
+    elements.importFileName.textContent = preview.fileName || "save.savistic";
+  }
+  if (elements.importExportedAt) {
+    elements.importExportedAt.textContent = preview.exportedAt
+      ? `Exported ${preview.exportedAt}`
+      : "";
+  }
+  if (elements.importMetaBadges) {
+    const badges = [];
+    badges.push(
+      preview.saveSlotCount > 0
+        ? `<span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-200 border border-slate-700/70">${preview.saveSlotCount} save ${preview.saveSlotCount === 1 ? "file" : "files"}</span>`
+        : `<span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/70">Empty save</span>`
+    );
+    if (preview.hasAchievements) {
+      badges.push(
+        `<span class="text-[10px] px-2 py-0.5 rounded-md bg-amber-950/60 text-amber-300 border border-amber-700/50">${preview.achievementCount} ${preview.achievementCount === 1 ? "achievement" : "achievements"}</span>`
+      );
+    }
+    if (preview.hasLauncherConfig) {
+      badges.push(
+        `<span class="text-[10px] px-2 py-0.5 rounded-md bg-[#6da712]/20 text-[#b5de63] border border-[#6da712]/40">Launcher Config Included</span>`
+      );
+    }
+    elements.importMetaBadges.innerHTML = badges.join("");
+  }
+
+  if (elements.importSaveNameInput) {
+    elements.importSaveNameInput.value = preview.saveName || "";
+  }
+  if (elements.importSetActiveCheck) {
+    elements.importSetActiveCheck.checked = true;
+  }
+
+  // Reset radio selection to "keep" by default so user opts in cleanly
+  const keepRadio = document.querySelector('input[name="importLauncherConfigMode"][value="keep"]');
+  if (keepRadio) keepRadio.checked = true;
+
+  if (preview.hasLauncherConfig) {
+    elements.importLauncherConfigSection?.classList.remove("hidden");
+    elements.importNoLauncherConfigNote?.classList.add("hidden");
+    if (elements.importConfigSummaryBadges && preview.launcherConfigSummary) {
+      const c = preview.launcherConfigSummary;
+      const pills = [
+        c.windowSize,
+        c.fullscreen ? "Fullscreen" : "Windowed",
+        `${c.renderScale}x Scale`,
+        c.frameRateMode === "Uncapped" ? "Uncapped FPS" : `${c.frameRateMode} FPS`,
+        c.renderingPath,
+        c.inputMode === "KeyboardMouse" ? "Keyboard & Mouse" : "Controller",
+        c.language,
+      ];
+      elements.importConfigSummaryBadges.innerHTML = pills
+        .map(
+          (label) =>
+            `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-darkControl text-slate-300 border border-darkBorder/50">${escapeHtml(label)}</span>`
+        )
+        .join("");
+    }
+  } else {
+    elements.importLauncherConfigSection?.classList.add("hidden");
+    elements.importNoLauncherConfigNote?.classList.remove("hidden");
+  }
+
+  elements.importSaveModal.classList.remove("hidden");
+  setTimeout(() => {
+    elements.importSaveNameInput?.focus();
+    elements.importSaveNameInput?.select();
+  }, 30);
+}
+
+function closeImportSaveModal() {
+  pendingImportPreview = null;
+  elements.importSaveModal?.classList.add("hidden");
+}
+
+async function handlePickImportSave() {
+  if (elements.btnImportSave) elements.btnImportSave.disabled = true;
+  try {
+    const preview = await invoke("pick_and_inspect_savistic");
+    if (preview) {
+      openImportSaveModal(preview);
+    }
+  } catch (err) {
+    showSavesFeedback(String(err), true);
+  } finally {
+    if (elements.btnImportSave) elements.btnImportSave.disabled = false;
+  }
+}
+
+async function confirmImportSave() {
+  if (!pendingImportPreview) return;
+  const filePath = pendingImportPreview.filePath;
+  const customName = elements.importSaveNameInput?.value ?? "";
+  const setActive = Boolean(elements.importSetActiveCheck?.checked);
+  const selectedMode =
+    document.querySelector('input[name="importLauncherConfigMode"]:checked')?.value || "keep";
+  const applyLauncherConfig =
+    Boolean(pendingImportPreview.hasLauncherConfig) && selectedMode === "apply";
+
+  if (elements.btnConfirmImportSave) elements.btnConfirmImportSave.disabled = true;
+  try {
+    const res = await invoke("import_save_profile", {
+      filePath,
+      customName,
+      applyLauncherConfig,
+      setActive,
+    });
+    applySaveProfilesState(res.state);
+
+    if (res.settingsUpdated && res.settings) {
+      currentSettings = { ...defaultSettings, ...res.settings };
+      populateForm(currentSettings);
+      document.querySelectorAll("select").forEach(refreshCustomSelect);
+      showSavesFeedback(
+        `Imported "${res.importedProfileName}" and applied its bundled launcher settings.`
+      );
+    } else {
+      showSavesFeedback(`Imported "${res.importedProfileName}" successfully.`);
+    }
+    closeImportSaveModal();
+  } catch (err) {
+    showSavesFeedback(String(err), true);
+  } finally {
+    if (elements.btnConfirmImportSave) elements.btnConfirmImportSave.disabled = false;
+  }
+}
+
+if (elements.btnImportSave) {
+  elements.btnImportSave.addEventListener("click", handlePickImportSave);
+}
+if (elements.btnCloseImportSaveModal) {
+  elements.btnCloseImportSaveModal.addEventListener("click", closeImportSaveModal);
+}
+if (elements.btnCancelImportSave) {
+  elements.btnCancelImportSave.addEventListener("click", closeImportSaveModal);
+}
+if (elements.btnConfirmImportSave) {
+  elements.btnConfirmImportSave.addEventListener("click", confirmImportSave);
+}
+
+// --- Delete Save Modal ---
+function openDeleteSaveModal(profile) {
+  pendingDeleteProfileId = profile.id;
+  if (elements.deleteSaveTargetName) {
+    elements.deleteSaveTargetName.textContent = profile.name;
+  }
+  elements.deleteSaveModal?.classList.remove("hidden");
+}
+
+function closeDeleteSaveModal() {
+  pendingDeleteProfileId = null;
+  elements.deleteSaveModal?.classList.add("hidden");
+}
+
+async function confirmDeleteSave() {
+  if (!pendingDeleteProfileId) return;
+  if (elements.btnConfirmDeleteSave) elements.btnConfirmDeleteSave.disabled = true;
+  try {
+    const state = await invoke("delete_save_profile", {
+      profileId: pendingDeleteProfileId,
+    });
+    applySaveProfilesState(state);
+    showSavesFeedback("Save profile deleted.");
+    closeDeleteSaveModal();
+  } catch (err) {
+    showSavesFeedback(String(err), true);
+  } finally {
+    if (elements.btnConfirmDeleteSave) elements.btnConfirmDeleteSave.disabled = false;
+  }
+}
+
+if (elements.btnCloseDeleteSaveModal) {
+  elements.btnCloseDeleteSaveModal.addEventListener("click", closeDeleteSaveModal);
+}
+if (elements.btnCancelDeleteSave) {
+  elements.btnCancelDeleteSave.addEventListener("click", closeDeleteSaveModal);
+}
+if (elements.btnConfirmDeleteSave) {
+  elements.btnConfirmDeleteSave.addEventListener("click", confirmDeleteSave);
+}
+
+// --- Open Folder ---
+if (elements.btnOpenSavesFolder) {
+  elements.btnOpenSavesFolder.addEventListener("click", async () => {
+    try {
+      await invoke("open_saves_folder", { profileId: null });
+    } catch (err) {
+      showSavesFeedback(String(err), true);
+    }
+  });
+}
+
+// --- Event Delegation for Save Card Action Buttons ---
+if (elements.savesProfilesList) {
+  elements.savesProfilesList.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-save-action]");
+    if (!btn || btn.disabled) return;
+    const action = btn.dataset.saveAction;
+    const profileId = btn.dataset.profileId;
+    const profile = saveProfilesState?.profiles?.find((p) => p.id === profileId);
+    if (!profile) return;
+
+    if (action === "activate") {
+      btn.disabled = true;
+      try {
+        const state = await invoke("set_active_save_profile", { profileId });
+        applySaveProfilesState(state);
+        showSavesFeedback(`"${profile.name}" is now your active save.`);
+      } catch (err) {
+        showSavesFeedback(String(err), true);
+      } finally {
+        btn.disabled = false;
+      }
+    } else if (action === "duplicate") {
+      openSaveNameModal("duplicate", profile);
+    } else if (action === "rename") {
+      openSaveNameModal("rename", profile);
+    } else if (action === "export") {
+      btn.disabled = true;
+      try {
+        const savedPath = await invoke("export_save_profile", { profileId });
+        if (savedPath) {
+          showSavesFeedback(`Exported "${profile.name}" to ${savedPath}`);
+        }
+      } catch (err) {
+        showSavesFeedback(String(err), true);
+      } finally {
+        btn.disabled = false;
+      }
+    } else if (action === "delete") {
+      openDeleteSaveModal(profile);
+    }
+  });
+}
+
+// ==========================================
 // Initialization
 // ==========================================
 async function init() {
@@ -1877,6 +2499,7 @@ async function init() {
   populateForm(currentSettings);
   applyDevModeUI(initialDev);
   await updateGameStatus();
+  await loadSaveProfiles();
   await updateShaderCacheInfo();
   await updateMaximizeIcon();
   logToBackend("init() completed successfully");

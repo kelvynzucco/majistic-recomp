@@ -1,0 +1,735 @@
+diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
+index 719e588..2282efd 100644
+--- a/include/rex/graphics/vulkan/render_target_cache.h
++++ b/include/rex/graphics/vulkan/render_target_cache.h
+@@ -923,10 +923,10 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+                               draw_util::ResolveCopyShaderIndex copy_shader,
+                               bool draw_resolution_scaled);
+   bool CreateShadowDirectResolvePipelines();
+-  bool TryResolveShadowDepthDirectly(const draw_util::ResolveInfo& resolve_info,
+-                                     uint32_t res_scale_x, uint32_t res_scale_y,
+-                                     VulkanTextureCache& texture_cache,
+-                                     uint32_t& written_address_out, uint32_t& written_length_out);
++  bool TryResolveScaledDirectly(const draw_util::ResolveInfo& resolve_info, bool is_shadow_depth,
++                                uint32_t res_scale_x, uint32_t res_scale_y,
++                                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
++                                uint32_t& written_length_out);
+ 
+   // Writes contents of host render targets within rectangles from
+   // ResolveInfo::GetCopyEdramTileSpan to edram_buffer_.
+@@ -992,6 +992,8 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   VkPipelineLayout shadow_direct_resolve_pipeline_layout_ = VK_NULL_HANDLE;
+   // Indexed by xenos::DepthRenderTargetFormat (0 = kD24S8, 1 = kD24FS8).
+   VkPipeline shadow_direct_resolve_pipelines_[2] = {};
++  VkPipelineLayout direct_resolve_color_rgba8_pipeline_layout_ = VK_NULL_HANDLE;
++  VkPipeline direct_resolve_color_rgba8_pipeline_ = VK_NULL_HANDLE;
+   std::vector<VulkanTextureCache::DirectShadowResolveHandle> direct_shadow_resolve_targets_;
+ 
+   // Temporary storage for Resolve.
+diff --git a/include/rex/graphics/vulkan/texture_cache.h b/include/rex/graphics/vulkan/texture_cache.h
+index 16aacfb..bd56bb1 100644
+--- a/include/rex/graphics/vulkan/texture_cache.h
++++ b/include/rex/graphics/vulkan/texture_cache.h
+@@ -139,10 +139,14 @@ class VulkanTextureCache final : public TextureCache {
+   void UseScaledResolveBufferForWrite(uint64_t written_start_scaled,
+                                       uint64_t written_length_scaled);
+   using DirectShadowResolveHandle = Texture*;
+-  void FindDirectShadowResolveTargets(uint32_t copy_dest_base, uint32_t copy_dest_extent_length,
+-                                      uint32_t guest_width, uint32_t guest_height,
+-                                      xenos::TextureFormat expected_format, uint32_t shadow_scale,
++  void FindDirectScaledResolveTargets(uint32_t copy_dest_base, uint32_t copy_dest_range_unscaled,
++                                      uint32_t copy_dest_extent_length, uint32_t copy_width,
++                                      uint32_t copy_height, xenos::TextureFormat expected_format,
++                                      xenos::Endian expected_endian, uint32_t scale_x,
++                                      uint32_t scale_y, bool is_shadow_depth,
+                                       std::vector<DirectShadowResolveHandle>& targets_out);
++  void GetDirectResolveTargetExtent(DirectShadowResolveHandle texture, uint32_t& host_width_out,
++                                    uint32_t& host_height_out) const;
+   VkImageView PrepareDirectShadowResolveTarget(DirectShadowResolveHandle texture);
+   bool FinalizeDirectShadowResolveTarget(DirectShadowResolveHandle texture);
+   void ClearCache() override;
+diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
+index 52cf4cc..923a280 100644
+--- a/src/graphics/pipeline/render_target/cache.cpp
++++ b/src/graphics/pipeline/render_target/cache.cpp
+@@ -948,70 +948,108 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+   // case).
+ 
+   bool skip_depth_clear_transfer = false;
++  uint32_t skip_color_clear_transfer_mask = 0;
+   if (!interlock_barrier_only && AliasShadowMap4xMsaaDepthTargetTo1x() &&
+-      edram_bases_sorted_count == 1 && depth_and_color_rts_used_bits == 1 &&
+-      !current_draw_pixel_shader_kills_or_alpha_ && normalized_depth_control.z_enable &&
+-      normalized_depth_control.z_write_enable &&
+-      normalized_depth_control.zfunc == xenos::CompareFunction::kAlways) {
+-    const RenderTargetKey& depth_key = rt_keys[0];
+-    const bool is_shadow_rt = IsShadowMapDepthTarget(depth_key);
+-    auto stencil_op_overwrites = [](xenos::StencilOp op) {
+-      return op == xenos::StencilOp::kReplace || op == xenos::StencilOp::kZero;
+-    };
+-    const auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
+-    const auto rb_stencilrefmask_bf =
+-        regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
+-    const bool stencil_fully_overwritten =
+-        normalized_depth_control.stencil_enable &&
+-        normalized_depth_control.stencilfunc == xenos::CompareFunction::kAlways &&
+-        stencil_op_overwrites(normalized_depth_control.stencilzpass) &&
+-        rb_stencilrefmask.stencilwritemask == 0xFF &&
+-        (!normalized_depth_control.backface_enable ||
+-         (normalized_depth_control.stencilfunc_bf == xenos::CompareFunction::kAlways &&
+-          stencil_op_overwrites(normalized_depth_control.stencilzpass_bf) &&
+-          rb_stencilrefmask_bf.stencilwritemask == 0xFF));
+-    const bool stencil_ok =
+-        is_shadow_rt ? (!normalized_depth_control.stencil_enable || stencil_fully_overwritten)
+-                     : stencil_fully_overwritten;
+-    const uint32_t tile_w =
+-        xenos::kEdramTileWidthSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k4X);
+-    const uint32_t tile_h =
+-        xenos::kEdramTileHeightSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k2X);
+-    uint32_t req_w = pitch_tiles_at_32bpp * tile_w;
+-    if (is_shadow_rt && pitch_tiles_at_32bpp == 10 && msaa_samples == xenos::MsaaSamples::k1X) {
+-      req_w = 768;
+-    }
+-    const uint32_t req_rows =
+-        (rt_lengths_tiles[0] + pitch_tiles_at_32bpp - 1) / pitch_tiles_at_32bpp;
+-    const uint32_t req_h = req_rows * tile_h;
+-    draw_util::Scissor scissor;
+-    draw_util::GetScissor(regs, scissor);
+-    const bool scissor_covers = scissor.offset[0] == 0 && scissor.offset[1] == 0 &&
+-                                scissor.extent[0] >= req_w && scissor.extent[1] >= req_h;
++      !current_draw_pixel_shader_kills_or_alpha_) {
+     const DrawExtentEstimator::RectCoverage& rc = draw_extent_estimator_.last_rect_coverage();
+-    const int32_t min_edge_limit = (msaa_samples == xenos::MsaaSamples::k1X) ? 128 : 0;
+     const bool clip_disabled = regs.Get<reg::PA_CL_CLIP_CNTL>().clip_disable != 0;
+-    const bool rect_covers =
+-        clip_disabled && rc.valid && rc.min_x_24p8 <= min_edge_limit &&
+-        rc.min_y_24p8 <= min_edge_limit && rc.max_x_24p8 >= int32_t(req_w) * 256 &&
+-        rc.max_y_24p8 >= int32_t(req_h) * 256;
+-    // Xbox 360 D3D9 splits clears of non-80-aligned shadow maps (e.g. 768 = 720 + 48) into a
+-    // 1xMSAA right-strip draw [720..768] followed immediately by a 4xMSAA clear of [0..720].
+-    // When the range is only owned by non-depth (color) targets from the previous frame, copying
+-    // color bits into shadow depth before the split clear is dead work.
+-    const bool shadow_split_clear_over_color =
+-        is_shadow_rt && clip_disabled && rc.valid && rc.min_y_24p8 <= 128 &&
+-        rc.max_y_24p8 >= int32_t(req_h) * 256 && rc.max_x_24p8 >= int32_t(req_w) * 256 &&
+-        AreAllRangeOwnersNonDepth(depth_key.base_tiles, rt_lengths_tiles[0]);
+-    skip_depth_clear_transfer =
+-        stencil_ok && scissor_covers && (rect_covers || shadow_split_clear_over_color);
++    if (clip_disabled && rc.valid) {
++      draw_util::Scissor scissor;
++      draw_util::GetScissor(regs, scissor);
++      const uint32_t tile_w =
++          xenos::kEdramTileWidthSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k4X);
++      const uint32_t tile_h =
++          xenos::kEdramTileHeightSamples >> uint32_t(msaa_samples >= xenos::MsaaSamples::k2X);
++      const int32_t min_edge_limit = (msaa_samples == xenos::MsaaSamples::k1X) ? 128 : 0;
++      auto stencil_op_overwrites = [](xenos::StencilOp op) {
++        return op == xenos::StencilOp::kReplace || op == xenos::StencilOp::kZero;
++      };
++      const auto rb_stencilrefmask = regs.Get<reg::RB_STENCILREFMASK>();
++      const auto rb_stencilrefmask_bf =
++          regs.Get<reg::RB_STENCILREFMASK>(XE_GPU_REG_RB_STENCILREFMASK_BF);
++      const bool stencil_fully_overwritten =
++          normalized_depth_control.stencil_enable &&
++          normalized_depth_control.stencilfunc == xenos::CompareFunction::kAlways &&
++          stencil_op_overwrites(normalized_depth_control.stencilzpass) &&
++          rb_stencilrefmask.stencilwritemask == 0xFF &&
++          (!normalized_depth_control.backface_enable ||
++           (normalized_depth_control.stencilfunc_bf == xenos::CompareFunction::kAlways &&
++            stencil_op_overwrites(normalized_depth_control.stencilzpass_bf) &&
++            rb_stencilrefmask_bf.stencilwritemask == 0xFF));
++      const bool depth_cannot_reject =
++          !normalized_depth_control.z_enable ||
++          normalized_depth_control.zfunc == xenos::CompareFunction::kAlways;
++      const bool stencil_cannot_reject =
++          !normalized_depth_control.stencil_enable ||
++          (normalized_depth_control.stencilfunc == xenos::CompareFunction::kAlways &&
++           (!normalized_depth_control.backface_enable ||
++            normalized_depth_control.stencilfunc_bf == xenos::CompareFunction::kAlways));
++
++      for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
++        const uint32_t rt_bit_index = edram_bases_sorted[i].second;
++        const RenderTargetKey& rt_key = rt_keys[rt_bit_index];
++        const uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
++        const uint32_t rt_pitch_tiles = pitch_tiles_at_32bpp << rt_is_64bpp;
++        uint32_t req_w = pitch_tiles_at_32bpp * tile_w;
++        const bool is_shadow_rt = (rt_bit_index == 0) && IsShadowMapDepthTarget(rt_key);
++        if (is_shadow_rt && pitch_tiles_at_32bpp == 10 &&
++            msaa_samples == xenos::MsaaSamples::k1X) {
++          req_w = 768;
++        }
++        const uint32_t req_rows = (rt_lengths_tiles[i] + rt_pitch_tiles - 1) / rt_pitch_tiles;
++        const uint32_t req_h = req_rows * tile_h;
++        const bool scissor_covers = scissor.offset[0] == 0 && scissor.offset[1] == 0 &&
++                                    scissor.extent[0] >= req_w && scissor.extent[1] >= req_h;
++        const bool rect_covers =
++            rc.min_x_24p8 <= min_edge_limit && rc.min_y_24p8 <= min_edge_limit &&
++            rc.max_x_24p8 >= int32_t(req_w) * 256 && rc.max_y_24p8 >= int32_t(req_h) * 256;
++        if (rt_bit_index == 0) {
++          if (normalized_depth_control.z_enable && normalized_depth_control.z_write_enable &&
++              normalized_depth_control.zfunc == xenos::CompareFunction::kAlways) {
++            const bool stencil_ok =
++                is_shadow_rt
++                    ? (!normalized_depth_control.stencil_enable || stencil_fully_overwritten)
++                    : stencil_fully_overwritten;
++            // Xbox 360 D3D9 splits clears of non-80-aligned shadow maps (e.g. 768 = 720 + 48)
++            // into a 1xMSAA right-strip draw [720..768] followed immediately by a 4xMSAA clear of
++            // [0..720]. When the range is only owned by non-depth (color) targets from the
++            // previous frame, copying color bits into shadow depth before the split clear is dead
++            // work.
++            const bool shadow_split_clear_over_color =
++                is_shadow_rt && edram_bases_sorted_count == 1 && rc.min_y_24p8 <= 128 &&
++                rc.max_y_24p8 >= int32_t(req_h) * 256 && rc.max_x_24p8 >= int32_t(req_w) * 256 &&
++                AreAllRangeOwnersNonDepth(rt_key.base_tiles, rt_lengths_tiles[i]);
++            skip_depth_clear_transfer =
++                stencil_ok && scissor_covers && (rect_covers || shadow_split_clear_over_color);
++          }
++        } else {
++          const uint32_t color_idx = rt_bit_index - 1;
++          const bool all_channels_written =
++              ((normalized_color_mask >> (4 * color_idx)) & 0xFu) == 0xFu;
++          const auto bc = regs.Get<reg::RB_BLENDCONTROL>(
++              reg::RB_BLENDCONTROL::rt_register_indices[color_idx]);
++          const bool blend_overwrites =
++              bc.color_srcblend == xenos::BlendFactor::kOne &&
++              bc.color_destblend == xenos::BlendFactor::kZero &&
++              bc.color_comb_fcn == xenos::BlendOp::kAdd &&
++              bc.alpha_srcblend == xenos::BlendFactor::kOne &&
++              bc.alpha_destblend == xenos::BlendFactor::kZero &&
++              bc.alpha_comb_fcn == xenos::BlendOp::kAdd;
++          if (all_channels_written && blend_overwrites && depth_cannot_reject &&
++              stencil_cannot_reject && scissor_covers && rect_covers) {
++            skip_color_clear_transfer_mask |= 1u << color_idx;
++          }
++        }
++      }
++    }
+   }
+ 
+   for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
+     const std::pair<uint32_t, uint32_t>& rt_base_index = edram_bases_sorted[i];
+     uint32_t rt_bit_index = rt_base_index.second;
+     const bool suppress_transfers =
+-        interlock_barrier_only || (skip_depth_clear_transfer && rt_bit_index == 0);
++        interlock_barrier_only || (rt_bit_index == 0 && skip_depth_clear_transfer) ||
++        (rt_bit_index > 0 && ((skip_color_clear_transfer_mask & (1u << (rt_bit_index - 1))) != 0));
+     ChangeOwnership(rt_keys[rt_bit_index], 0, rt_lengths_tiles[i],
+                     suppress_transfers ? nullptr : &last_update_transfers_[rt_bit_index]);
+   }
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index 5ebb415..6d346cc 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -1057,6 +1057,10 @@ void VulkanRenderTargetCache::Shutdown(bool from_destructor) {
+   for (VkPipeline& shadow_direct_pipeline : shadow_direct_resolve_pipelines_) {
+     ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device, shadow_direct_pipeline);
+   }
++  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipeline, device,
++                                         direct_resolve_color_rgba8_pipeline_);
++  ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
++                                         direct_resolve_color_rgba8_pipeline_layout_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+                                          shadow_direct_resolve_pipeline_layout_);
+   ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyPipelineLayout, device,
+@@ -1267,9 +1271,9 @@ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+   // Copying.
+   bool copied = false;
+   if (resolve_info.copy_dest_extent_length) {
+-    if (GetPath() == Path::kHostRenderTargets && is_shadow_depth && target_scaled &&
+-        TryResolveShadowDepthDirectly(resolve_info, res_scale_x, res_scale_y, texture_cache,
+-                                      written_address_out, written_length_out)) {
++    if (GetPath() == Path::kHostRenderTargets && target_scaled &&
++        TryResolveScaledDirectly(resolve_info, is_shadow_depth, res_scale_x, res_scale_y,
++                                 texture_cache, written_address_out, written_length_out)) {
+       copied = true;
+     } else {
+     draw_util::ResolveCopyShaderConstants copy_shader_constants;
+@@ -6779,24 +6783,208 @@ bool VulkanRenderTargetCache::CreateShadowDirectResolvePipelines() {
+         VK_OBJECT_TYPE_PIPELINE, shadow_direct_resolve_pipelines_[format_idx],
+         is_float24 ? "Shadow Direct Depth Resolve (D24FS8)" : "Shadow Direct Depth Resolve (D24S8)");
+   }
++
++  // Create direct color k_8_8_8_8 resolve compute pipeline (RT R8G8B8A8_UNORM -> Texture R32_UINT).
++  VkDescriptorSetLayout color_set_layouts[] = {
++      command_processor_.GetSingleTransientDescriptorLayout(
++          VulkanCommandProcessor::SingleTransientDescriptorLayout::kStorageImageCompute),
++      descriptor_set_layout_sampled_image_,
++  };
++  VkPipelineLayoutCreateInfo color_layout_info = {};
++  color_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
++  color_layout_info.setLayoutCount = uint32_t(rex::countof(color_set_layouts));
++  color_layout_info.pSetLayouts = color_set_layouts;
++  color_layout_info.pushConstantRangeCount = 1;
++  color_layout_info.pPushConstantRanges = &pc_range;
++  if (dfn.vkCreatePipelineLayout(device, &color_layout_info, nullptr,
++                                 &direct_resolve_color_rgba8_pipeline_layout_) != VK_SUCCESS) {
++    direct_resolve_color_rgba8_pipeline_layout_ = VK_NULL_HANDLE;
++  } else {
++    SpirvBuilder builder(spv::Spv_1_0, (SpirvShaderTranslator::kSpirvMagicToolId << 16) | 1,
++                         nullptr);
++    spv::Id ext_glsl = builder.import("GLSL.std.450");
++    builder.addCapability(spv::CapabilityShader);
++    builder.setMemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
++    builder.setSource(spv::SourceLanguageUnknown, 0);
++
++    spv::Id type_void = builder.makeVoidType();
++    spv::Id type_bool = builder.makeBoolType();
++    spv::Id type_int = builder.makeIntType(32);
++    spv::Id type_int2 = builder.makeVectorType(type_int, 2);
++    spv::Id type_uint = builder.makeUintType(32);
++    spv::Id type_uint3 = builder.makeVectorType(type_uint, 3);
++    spv::Id type_uint4 = builder.makeVectorType(type_uint, 4);
++    spv::Id type_float = builder.makeFloatType(32);
++    spv::Id type_float4 = builder.makeVectorType(type_float, 4);
++
++    spv::Id dest_image = builder.createVariable(
++        spv::NoPrecision, spv::StorageClassUniformConstant,
++        builder.makeImageType(type_uint, spv::Dim2D, false, false, false, 2,
++                              spv::ImageFormatR32ui),
++        "dest_img");
++    builder.addDecoration(dest_image, spv::DecorationDescriptorSet, 0);
++    builder.addDecoration(dest_image, spv::DecorationBinding, 0);
++    builder.addDecoration(dest_image, spv::DecorationNonReadable);
++
++    spv::Id src_color = builder.createVariable(
++        spv::NoPrecision, spv::StorageClassUniformConstant,
++        builder.makeImageType(type_float, spv::Dim2D, false, false, false, 1,
++                              spv::ImageFormatUnknown),
++        "src_color");
++    builder.addDecoration(src_color, spv::DecorationDescriptorSet, 1);
++    builder.addDecoration(src_color, spv::DecorationBinding, 0);
++
++    std::vector<spv::Id> pc_members(5, type_uint);
++    spv::Id type_pc = builder.makeStructType(pc_members, "ColorDirectResolvePC");
++    for (uint32_t i = 0; i < 5; ++i) {
++      builder.addMemberDecoration(type_pc, i, spv::DecorationOffset, int(sizeof(uint32_t) * i));
++    }
++    builder.addDecoration(type_pc, spv::DecorationBlock);
++    spv::Id pc_var =
++        builder.createVariable(spv::NoPrecision, spv::StorageClassPushConstant, type_pc, "pc");
++
++    spv::Id input_gid = builder.createVariable(spv::NoPrecision, spv::StorageClassInput, type_uint3,
++                                               "gl_GlobalInvocationID");
++    builder.addDecoration(input_gid, spv::DecorationBuiltIn, spv::BuiltInGlobalInvocationId);
++
++    std::vector<spv::Id> main_params;
++    std::vector<std::vector<spv::Decoration>> main_precs;
++    spv::Block* main_entry;
++    spv::Function* main_fn = builder.makeFunctionEntry(spv::NoPrecision, type_void, "main",
++                                                       main_params, main_precs, &main_entry);
++
++    auto load_pc = [&](int member_idx) -> spv::Id {
++      std::vector<spv::Id> idx = {builder.makeIntConstant(member_idx)};
++      return builder.createLoad(
++          builder.createAccessChain(spv::StorageClassPushConstant, pc_var, idx), spv::NoPrecision);
++    };
++
++    spv::Id gid = builder.createLoad(input_gid, spv::NoPrecision);
++    spv::Id x = builder.createCompositeExtract(gid, type_uint, 0);
++    spv::Id y = builder.createCompositeExtract(gid, type_uint, 1);
++    spv::Id width = load_pc(2);
++    spv::Id height = load_pc(3);
++
++    spv::Id in_bounds = builder.createBinOp(
++        spv::OpLogicalAnd, type_bool, builder.createBinOp(spv::OpULessThan, type_bool, x, width),
++        builder.createBinOp(spv::OpULessThan, type_bool, y, height));
++    spv::Block& then_block = builder.makeNewBlock();
++    spv::Block& merge_block = builder.makeNewBlock();
++    builder.createSelectionMerge(&merge_block, spv::SelectionControlMaskNone);
++    builder.createConditionalBranch(in_bounds, &then_block, &merge_block);
++    builder.setBuildPoint(&then_block);
++
++    spv::Id src_offset_x = load_pc(0);
++    spv::Id src_offset_y = load_pc(1);
++    spv::Id flags = load_pc(4);
++    spv::Id const_u0 = builder.makeUintConstant(0);
++    spv::Id const_u1 = builder.makeUintConstant(1);
++    spv::Id const_u3 = builder.makeUintConstant(3);
++    spv::Id const_u4 = builder.makeUintConstant(4);
++    spv::Id const_u128 = builder.makeUintConstant(128);
++
++    spv::Id fill_hpo = builder.createBinOp(
++        spv::OpINotEqual, type_bool,
++        builder.createBinOp(spv::OpBitwiseAnd, type_uint, flags, const_u1), const_u0);
++    spv::Id hx = builder.createTriOp(spv::OpBitFieldUExtract, type_uint, flags, const_u1, const_u3);
++    spv::Id hy = builder.createTriOp(spv::OpBitFieldUExtract, type_uint, flags, const_u4, const_u3);
++    spv::Id px = builder.createTriOp(
++        spv::OpSelect, type_uint, fill_hpo,
++        builder.createBinBuiltinCall(type_uint, ext_glsl, GLSLstd450UMax, x, hx), x);
++    spv::Id py = builder.createTriOp(
++        spv::OpSelect, type_uint, fill_hpo,
++        builder.createBinBuiltinCall(type_uint, ext_glsl, GLSLstd450UMax, y, hy), y);
++
++    spv::Id sx = builder.createBinOp(spv::OpIAdd, type_uint, src_offset_x, px);
++    spv::Id sy = builder.createBinOp(spv::OpIAdd, type_uint, src_offset_y, py);
++    std::vector<spv::Id> src_coords_vec = {
++        builder.createUnaryOp(spv::OpBitcast, type_int, sx),
++        builder.createUnaryOp(spv::OpBitcast, type_int, sy),
++    };
++    spv::Builder::TextureParameters tp = {};
++    tp.sampler = builder.createLoad(src_color, spv::NoPrecision);
++    tp.coords = builder.createCompositeConstruct(type_int2, src_coords_vec);
++    tp.lod = builder.makeIntConstant(0);
++    spv::Id fetched = builder.createTextureCall(spv::NoPrecision, type_float4, false, true, false,
++                                                false, false, tp, spv::ImageOperandsMaskNone);
++    spv::Id r = builder.createCompositeExtract(fetched, type_float, 0);
++    spv::Id g = builder.createCompositeExtract(fetched, type_float, 1);
++    spv::Id b = builder.createCompositeExtract(fetched, type_float, 2);
++    spv::Id a = builder.createCompositeExtract(fetched, type_float, 3);
++    spv::Id swap_rb = builder.createBinOp(
++        spv::OpINotEqual, type_bool,
++        builder.createBinOp(spv::OpBitwiseAnd, type_uint, flags, const_u128), const_u0);
++    spv::Id out_r = builder.createTriOp(spv::OpSelect, type_float, swap_rb, b, r);
++    spv::Id out_b = builder.createTriOp(spv::OpSelect, type_float, swap_rb, r, b);
++    std::vector<spv::Id> out_c_vec = {out_r, g, out_b, a};
++    spv::Id out_c = builder.createCompositeConstruct(type_float4, out_c_vec);
++    spv::Id packed =
++        builder.createUnaryBuiltinCall(type_uint, ext_glsl, GLSLstd450PackUnorm4x8, out_c);
++
++    std::vector<spv::Id> dst_coords_vec = {
++        builder.createUnaryOp(spv::OpBitcast, type_int, x),
++        builder.createUnaryOp(spv::OpBitcast, type_int, y),
++    };
++    spv::Id dst_coords = builder.createCompositeConstruct(type_int2, dst_coords_vec);
++    std::vector<spv::Id> texel_vec = {packed, const_u0, const_u0, const_u0};
++    spv::Id texel_u4 = builder.createCompositeConstruct(type_uint4, texel_vec);
++    spv::Id dst_loaded = builder.createLoad(dest_image, spv::NoPrecision);
++    std::vector<spv::Id> write_ops = {dst_loaded, dst_coords, texel_u4};
++    builder.createNoResultOp(spv::OpImageWrite, write_ops);
++
++    builder.createBranch(&merge_block);
++    builder.setBuildPoint(&merge_block);
++    builder.leaveFunction();
++
++    builder.addExecutionMode(main_fn, spv::ExecutionModeLocalSize, 16, 16, 1);
++    spv::Instruction* entry = builder.addEntryPoint(spv::ExecutionModelGLCompute, main_fn, "main");
++    entry->addIdOperand(input_gid);
++
++    std::vector<unsigned int> spirv;
++    builder.dump(spirv);
++    direct_resolve_color_rgba8_pipeline_ = ui::vulkan::util::CreateComputePipeline(
++        vulkan_device, direct_resolve_color_rgba8_pipeline_layout_,
++        reinterpret_cast<const uint32_t*>(spirv.data()), sizeof(uint32_t) * spirv.size());
++    if (direct_resolve_color_rgba8_pipeline_ != VK_NULL_HANDLE) {
++      vulkan_device->SetObjectName(VK_OBJECT_TYPE_PIPELINE, direct_resolve_color_rgba8_pipeline_,
++                                   "Direct Color Resolve (RGBA8)");
++    }
++  }
+   return true;
+ }
+ 
+-bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+-    const draw_util::ResolveInfo& resolve_info, uint32_t res_scale_x, uint32_t res_scale_y,
+-    VulkanTextureCache& texture_cache, uint32_t& written_address_out,
++bool VulkanRenderTargetCache::TryResolveScaledDirectly(
++    const draw_util::ResolveInfo& resolve_info, bool is_shadow_depth, uint32_t res_scale_x,
++    uint32_t res_scale_y, VulkanTextureCache& texture_cache, uint32_t& written_address_out,
+     uint32_t& written_length_out) {
+-  if (shadow_direct_resolve_pipeline_layout_ == VK_NULL_HANDLE) {
+-    return false;
+-  }
+-  if (!resolve_info.IsCopyingDepth() || resolve_info.copy_dest_info.copy_dest_array ||
++  const bool is_depth = resolve_info.IsCopyingDepth();
++  if (resolve_info.copy_dest_info.copy_dest_array ||
+       resolve_info.copy_dest_coordinate_info.offset_x_div_8 != 0 ||
+       resolve_info.copy_dest_coordinate_info.offset_y_div_8 != 0 ||
+       resolve_info.copy_dest_base != resolve_info.copy_dest_extent_start ||
+-      (resolve_info.copy_dest_base & 0xFFFu) != 0 || res_scale_x != res_scale_y ||
+-      res_scale_x <= 1 || resolve_info.depth_edram_info.msaa_samples != xenos::MsaaSamples::k1X) {
++      (resolve_info.copy_dest_base & 0xFFFu) != 0 || (res_scale_x <= 1 && res_scale_y <= 1) ||
++      uint32_t(resolve_info.copy_dest_info.copy_dest_endian) >= 4) {
++    return false;
++  }
++  const draw_util::ResolveEdramInfo edram_info =
++      is_depth ? resolve_info.depth_edram_info : resolve_info.color_edram_info;
++  if (edram_info.msaa_samples != xenos::MsaaSamples::k1X || edram_info.format_is_64bpp) {
+     return false;
+   }
++  if (!is_depth) {
++    if (is_shadow_depth || direct_resolve_color_rgba8_pipeline_ == VK_NULL_HANDLE ||
++        direct_resolve_color_rgba8_pipeline_layout_ == VK_NULL_HANDLE ||
++        resolve_info.copy_dest_info.copy_dest_exp_bias != 0 ||
++        resolve_info.copy_dest_info.copy_dest_format != xenos::ColorFormat::k_8_8_8_8 ||
++        !xenos::IsSingleCopySampleSelected(
++            resolve_info.copy_dest_coordinate_info.copy_sample_select)) {
++      return false;
++    }
++  } else {
++    if (shadow_direct_resolve_pipeline_layout_ == VK_NULL_HANDLE) {
++      return false;
++    }
++  }
+ 
+   uint32_t dump_base, dump_row_length_used, dump_rows, dump_pitch;
+   resolve_info.GetCopyEdramTileSpan(dump_base, dump_row_length_used, dump_rows, dump_pitch);
+@@ -6811,17 +6999,30 @@ bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+     return false;
+   }
+   auto* src_rt = static_cast<VulkanRenderTarget*>(rect.render_target);
+-  if (!src_rt || !src_rt->key().is_depth || !IsShadowMapDepthTarget(src_rt->key()) ||
++  if (!src_rt || src_rt->key().is_depth != is_depth ||
+       src_rt->key().msaa_samples != xenos::MsaaSamples::k1X ||
+       src_rt->key().GetPitchTiles() != dump_pitch || src_rt->resolution_scale() != res_scale_x) {
+     return false;
+   }
++  if (is_depth) {
++    if (IsShadowMapDepthTarget(src_rt->key()) != is_shadow_depth) {
++      return false;
++    }
++  } else {
++    const xenos::ColorRenderTargetFormat src_cfmt = src_rt->key().GetColorFormat();
++    const bool valid_rgba8_rt =
++        src_cfmt == xenos::ColorRenderTargetFormat::k_8_8_8_8 ||
++        (src_cfmt == xenos::ColorRenderTargetFormat::k_8_8_8_8_GAMMA &&
++         !gamma_render_target_as_unorm16_);
++    if (!valid_rgba8_rt || res_scale_y != draw_resolution_scale_y()) {
++      return false;
++    }
++  }
+ 
+   const uint32_t copy_w = uint32_t(resolve_info.coordinate_info.width_div_8) << 3;
+   const uint32_t copy_h = uint32_t(resolve_info.height_div_8) << 3;
+   const uint32_t tile_delta =
+-      (resolve_info.depth_edram_info.base_tiles - src_rt->key().base_tiles) &
+-      (xenos::kEdramTileCount - 1);
++      (edram_info.base_tiles - src_rt->key().base_tiles) & (xenos::kEdramTileCount - 1);
+   const uint32_t tile_y = tile_delta / dump_pitch;
+   const uint32_t tile_x = tile_delta % dump_pitch;
+   const uint32_t guest_src_x =
+@@ -6837,15 +7038,32 @@ bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+     return false;
+   }
+ 
+-  const uint32_t depth_fmt_idx = uint32_t(src_rt->key().GetDepthFormat());
+-  if (depth_fmt_idx >= 2 || shadow_direct_resolve_pipelines_[depth_fmt_idx] == VK_NULL_HANDLE) {
+-    return false;
++  VkPipeline pipeline = VK_NULL_HANDLE;
++  VkPipelineLayout pipeline_layout = VK_NULL_HANDLE;
++  xenos::TextureFormat expected_format = xenos::TextureFormat::k_8_8_8_8;
++  if (is_depth) {
++    const uint32_t depth_fmt_idx = uint32_t(src_rt->key().GetDepthFormat());
++    if (depth_fmt_idx >= 2 || shadow_direct_resolve_pipelines_[depth_fmt_idx] == VK_NULL_HANDLE) {
++      return false;
++    }
++    pipeline = shadow_direct_resolve_pipelines_[depth_fmt_idx];
++    pipeline_layout = shadow_direct_resolve_pipeline_layout_;
++    expected_format = DepthRenderTargetToTextureFormat(src_rt->key().GetDepthFormat());
++  } else {
++    pipeline = direct_resolve_color_rgba8_pipeline_;
++    pipeline_layout = direct_resolve_color_rgba8_pipeline_layout_;
++    expected_format = xenos::TextureFormat::k_8_8_8_8;
+   }
+-  const xenos::TextureFormat expected_format =
+-      DepthRenderTargetToTextureFormat(src_rt->key().GetDepthFormat());
+-  texture_cache.FindDirectShadowResolveTargets(
+-      resolve_info.copy_dest_base, resolve_info.copy_dest_extent_length, copy_w, copy_h,
+-      expected_format, res_scale_x, direct_shadow_resolve_targets_);
++
++  const uint32_t copy_dest_range_unscaled = resolve_info.copy_dest_extent_start -
++                                            resolve_info.copy_dest_base +
++                                            resolve_info.copy_dest_extent_length;
++  const xenos::Endian expected_endian =
++      xenos::Endian(uint32_t(resolve_info.copy_dest_info.copy_dest_endian));
++  texture_cache.FindDirectScaledResolveTargets(
++      resolve_info.copy_dest_base, copy_dest_range_unscaled, resolve_info.copy_dest_extent_length,
++      copy_w, copy_h, expected_format, expected_endian, res_scale_x, res_scale_y, is_shadow_depth,
++      direct_shadow_resolve_targets_);
+   if (direct_shadow_resolve_targets_.empty()) {
+     return false;
+   }
+@@ -6867,14 +7085,14 @@ bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+     }
+   }
+ 
+-  const uint32_t copy_dest_range_unscaled = resolve_info.copy_dest_extent_start -
+-                                            resolve_info.copy_dest_base +
+-                                            resolve_info.copy_dest_extent_length;
+   // Mark resolved ranges and notify shared memory first so all watches see the GPU write,
+-  // then mark each directly populated shadow texture up-to-date and re-watched.
+-  texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_base, copy_dest_range_unscaled);
+-  texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_extent_start,
+-                                             resolve_info.copy_dest_extent_length);
++  // then mark each directly populated texture up-to-date and re-watched.
++  if (is_shadow_depth) {
++    texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_base,
++                                               copy_dest_range_unscaled);
++    texture_cache.MarkShadowMapRangeAsResolved(resolve_info.copy_dest_extent_start,
++                                               resolve_info.copy_dest_extent_length);
++  }
+   texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_base, copy_dest_range_unscaled);
+   texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
+                                     resolve_info.copy_dest_extent_length);
+@@ -6884,11 +7102,12 @@ bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+   const uint32_t host_w = copy_w * res_scale_x;
+   const uint32_t host_h = copy_h * res_scale_y;
+ 
+-  // Transition source shadow depth RT for compute shader read.
++  // Transition source RT for compute shader read.
+   command_processor_.PushImageMemoryBarrier(
+       src_rt->image(),
+-      ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
+-                                                   VK_IMAGE_ASPECT_STENCIL_BIT),
++      ui::vulkan::util::InitializeSubresourceRange(
++          is_depth ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)
++                   : VK_IMAGE_ASPECT_COLOR_BIT),
+       src_rt->current_stage_mask(), VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+       src_rt->current_access_mask(), VK_ACCESS_SHADER_READ_BIT, src_rt->current_layout(),
+       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+@@ -6915,27 +7134,28 @@ bool VulkanRenderTargetCache::TryResolveShadowDepthDirectly(
+   }
+ 
+   command_processor_.SubmitBarriers(true);
+-  command_processor_.BindExternalComputePipeline(shadow_direct_resolve_pipelines_[depth_fmt_idx]);
++  command_processor_.BindExternalComputePipeline(pipeline);
++  VkDescriptorSet src_set = src_rt->GetDescriptorSetTransferSource();
++  command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 1, 1,
++                                         &src_set, 0, nullptr);
+   ShadowDirectResolvePushConstants pc = {};
+   pc.src_offset_x = guest_src_x * res_scale_x;
+   pc.src_offset_y = guest_src_y * res_scale_y;
+-  pc.width = host_w;
+-  pc.height = host_h;
+-  pc.flags = uint32_t(resolve_info.depth_edram_info.fill_half_pixel_offset) |
+-             ((res_scale_x >> 1) << 1) | ((res_scale_y >> 1) << 4);
+-  command_buffer.CmdVkPushConstants(shadow_direct_resolve_pipeline_layout_,
+-                                    VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+-  VkDescriptorSet src_set = src_rt->GetDescriptorSetTransferSource();
+-  command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
+-                                         shadow_direct_resolve_pipeline_layout_, 1, 1, &src_set, 0,
+-                                         nullptr);
+-  const uint32_t groups_x = (host_w + 15) >> 4;
+-  const uint32_t groups_y = (host_h + 15) >> 4;
++  pc.flags = uint32_t(edram_info.fill_half_pixel_offset) | ((res_scale_x >> 1) << 1) |
++             ((res_scale_y >> 1) << 4) |
++             ((!is_depth && resolve_info.copy_dest_info.copy_dest_swap != 0) ? 128u : 0u);
+   for (size_t i = 0; i < target_count; ++i) {
+-    command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE,
+-                                           shadow_direct_resolve_pipeline_layout_, 0, 1,
++    uint32_t target_w = host_w;
++    uint32_t target_h = host_h;
++    texture_cache.GetDirectResolveTargetExtent(direct_shadow_resolve_targets_[i], target_w,
++                                               target_h);
++    pc.width = target_w;
++    pc.height = target_h;
++    command_buffer.CmdVkPushConstants(pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc),
++                                      &pc);
++    command_buffer.CmdVkBindDescriptorSets(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1,
+                                            &dest_sets[i], 0, nullptr);
+-    command_buffer.CmdVkDispatch(groups_x, groups_y, 1);
++    command_buffer.CmdVkDispatch((target_w + 15) >> 4, (target_h + 15) >> 4, 1);
+     texture_cache.FinalizeDirectShadowResolveTarget(direct_shadow_resolve_targets_[i]);
+   }
+ 
+diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
+index 306475e..208581b 100644
+--- a/src/graphics/vulkan/texture_cache.cpp
++++ b/src/graphics/vulkan/texture_cache.cpp
+@@ -1289,14 +1289,18 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+   // A storage view keeps the 32-bit texels unchanged and avoids the intermediate
+   // scratch-buffer copy. Other texture layouts and vendors keep the old path.
+   const bool separate_view_format = formats[1] != VK_FORMAT_UNDEFINED;
+-  const bool is_shadow_direct_r32 =
+-      TextureKey::IsShadowMapTexture(key) && load_image_pipeline_ && key.scaled_resolve &&
+-      key.tiled && key.dimension == xenos::DataDimension::k2DOrStacked && depth_or_array_size == 1 &&
+-      key.mip_max_level == 0 && formats[0] == VK_FORMAT_R32_SFLOAT &&
+-      (host_format.format_unsigned.load_shader == kLoadShaderIndexDepthUnorm ||
+-       host_format.format_unsigned.load_shader == kLoadShaderIndexDepthFloat);
++  const bool is_direct_resolve_r32 =
++      load_image_pipeline_ && key.scaled_resolve && key.tiled &&
++      key.dimension == xenos::DataDimension::k2DOrStacked && depth_or_array_size == 1 &&
++      key.mip_max_level == 0 &&
++      ((formats[0] == VK_FORMAT_R32_SFLOAT &&
++        (host_format.format_unsigned.load_shader == kLoadShaderIndexDepthUnorm ||
++         host_format.format_unsigned.load_shader == kLoadShaderIndexDepthFloat)) ||
++       (formats[0] == VK_FORMAT_R8G8B8A8_UNORM &&
++        host_format.format_unsigned.load_shader == kLoadShaderIndex32bpb &&
++        key.GetWidth() >= 32 && key.GetHeight() >= 32));
+   bool direct_upload =
+-      is_shadow_direct_r32 ||
++      is_direct_resolve_r32 ||
+       (REXCVAR_GET(vulkan_direct_scaled_texture_upload) && load_image_pipeline_ &&
+        vulkan_device->properties().vendorID == 0x10DE && key.scaled_resolve && key.tiled &&
+        key.dimension == xenos::DataDimension::k2DOrStacked && depth_or_array_size == 1 &&
+@@ -1453,37 +1457,67 @@ std::unique_ptr<TextureCache::Texture> VulkanTextureCache::CreateTexture(Texture
+   return result;
+ }
+ 
+-void VulkanTextureCache::FindDirectShadowResolveTargets(
+-    uint32_t copy_dest_base, uint32_t copy_dest_extent_length, uint32_t guest_width,
+-    uint32_t guest_height, xenos::TextureFormat expected_format, uint32_t shadow_scale,
++void VulkanTextureCache::FindDirectScaledResolveTargets(
++    uint32_t copy_dest_base, uint32_t copy_dest_range_unscaled, uint32_t copy_dest_extent_length,
++    uint32_t copy_width, uint32_t copy_height, xenos::TextureFormat expected_format,
++    xenos::Endian expected_endian, uint32_t scale_x, uint32_t scale_y, bool is_shadow_depth,
+     std::vector<DirectShadowResolveHandle>& targets_out) {
+   targets_out.clear();
+-  if ((copy_dest_base & 0xFFFu) != 0 || shadow_scale <= 1) {
++  if ((copy_dest_base & 0xFFFu) != 0 || (scale_x <= 1 && scale_y <= 1) ||
++      copy_dest_range_unscaled == 0) {
+     return;
+   }
+   const uint32_t target_base_page = copy_dest_base >> 12;
+-  const uint32_t expected_host_w = guest_width * shadow_scale;
+-  const uint32_t expected_host_h = guest_height * shadow_scale;
++  const uint64_t resolve_start = copy_dest_base;
++  const uint64_t resolve_end = uint64_t(copy_dest_base) + copy_dest_range_unscaled;
+   for (const auto& pair : textures()) {
+     const TextureKey& key = pair.first;
+-    if (key.base_page != target_base_page || !key.scaled_resolve || !key.tiled ||
+-        key.dimension != xenos::DataDimension::k2DOrStacked || key.mip_max_level != 0 ||
+-        key.format != expected_format || key.GetWidth() != guest_width ||
+-        key.GetHeight() != guest_height || !TextureKey::IsShadowMapTexture(key)) {
++    if (!key.scaled_resolve) {
+       continue;
+     }
+     auto* vulkan_tex = static_cast<VulkanTexture*>(pair.second.get());
+-    if (!vulkan_tex || vulkan_tex->storage_view() == VK_NULL_HANDLE ||
+-        vulkan_tex->force_load_3d_tiling() || vulkan_tex->resolution_scale() != shadow_scale ||
+-        vulkan_tex->host_width() != expected_host_w ||
+-        vulkan_tex->host_height() != expected_host_h ||
+-        copy_dest_extent_length < vulkan_tex->GetGuestBaseSize()) {
++    if (!vulkan_tex) {
++      continue;
++    }
++    const uint64_t base_start = uint64_t(key.base_page) << 12;
++    const uint64_t base_end = base_start + vulkan_tex->GetGuestBaseSize();
++    bool overlaps = (base_start < resolve_end && base_end > resolve_start);
++    if (!overlaps && key.mip_max_level != 0 && key.mip_page != 0) {
++      const uint64_t mip_start = uint64_t(key.mip_page) << 12;
++      const uint64_t mip_end = mip_start + vulkan_tex->GetGuestMipsSize();
++      overlaps = (mip_start < resolve_end && mip_end > resolve_start);
++    }
++    if (!overlaps) {
+       continue;
+     }
++    // Every overlapping scaled_resolve texture must be safely populated by this direct resolve;
++    // otherwise fall back to the scaled_resolve_buffer_ path so no texture reads stale data.
++    const uint32_t tex_w = key.GetWidth();
++    const uint32_t tex_h = key.GetHeight();
++    if (key.base_page != target_base_page || !key.tiled ||
++        key.dimension != xenos::DataDimension::k2DOrStacked || key.mip_max_level != 0 ||
++        key.format != expected_format || key.endianness != expected_endian ||
++        TextureKey::IsShadowMapTexture(key) != is_shadow_depth || tex_w > copy_width ||
++        (copy_width - tex_w) >= 8 || tex_h > copy_height || (copy_height - tex_h) >= 8 ||
++        vulkan_tex->storage_view() == VK_NULL_HANDLE || vulkan_tex->force_load_3d_tiling() ||
++        vulkan_tex->host_width() != tex_w * scale_x ||
++        vulkan_tex->host_height() != tex_h * scale_y ||
++        copy_dest_extent_length < vulkan_tex->GetGuestBaseSize()) {
++      targets_out.clear();
++      return;
++    }
+     targets_out.push_back(vulkan_tex);
+   }
+ }
+ 
++void VulkanTextureCache::GetDirectResolveTargetExtent(DirectShadowResolveHandle texture,
++                                                      uint32_t& host_width_out,
++                                                      uint32_t& host_height_out) const {
++  const auto& vulkan_texture = *static_cast<const VulkanTexture*>(texture);
++  host_width_out = vulkan_texture.host_width();
++  host_height_out = vulkan_texture.host_height();
++}
++
+ VkImageView VulkanTextureCache::PrepareDirectShadowResolveTarget(
+     DirectShadowResolveHandle texture) {
+   auto& vulkan_texture = *static_cast<VulkanTexture*>(texture);

@@ -302,4 +302,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan shadow direct resolve patch application'
 }
 
-Write-Host "[1.1 - 1.22] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.23: Apply Vulkan direct GPU-to-GPU scaled color/depth resolve and full-clear transfer skip (GPU Fix #4)
+$vulkanScaledDirectResolvePatch = Join-Path $patchRoot 'vulkan-scaled-direct-resolve-and-clear-skip.patch'
+git -C $source apply --reverse --check $vulkanScaledDirectResolvePatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanScaledDirectResolvePatch
+    Check-Native 'Vulkan scaled direct resolve and clear skip patch check'
+    git -C $source apply $vulkanScaledDirectResolvePatch
+    Check-Native 'Vulkan scaled direct resolve and clear skip patch application'
+}
+
+Write-Host "[1.1 - 1.23] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

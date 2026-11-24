@@ -282,4 +282,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan CP caches and shadow transfer patch application'
 }
 
-Write-Host "[1.1 - 1.20] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.21: Apply Vulkan shadow map 4x->1x RT aliasing and full-overwrite depth clear transfer skip (GPU Fix #2)
+$vulkanShadowAliasPatch = Join-Path $patchRoot 'vulkan-shadow-rt-alias-and-clear-skip.patch'
+git -C $source apply --reverse --check $vulkanShadowAliasPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanShadowAliasPatch
+    Check-Native 'Vulkan shadow RT alias and clear skip patch check'
+    git -C $source apply $vulkanShadowAliasPatch
+    Check-Native 'Vulkan shadow RT alias and clear skip patch application'
+}
+
+Write-Host "[1.1 - 1.21] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

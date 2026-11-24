@@ -271,4 +271,15 @@ if ($LASTEXITCODE -ne 0) {
 Copy-Item -LiteralPath (Join-Path $patchRoot 'xma_packet_nav.h') -Destination (Join-Path $source 'src\audio\xma_packet_nav.h') -Force
 Copy-Item -LiteralPath (Join-Path $patchRoot 'xma_packet_nav_test.cpp') -Destination (Join-Path $source 'src\audio\xma_packet_nav_test.cpp') -Force
 
-Write-Host "[1.1 - 1.19] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.20: Apply Vulkan CP caches (sampler, texture/sampler descriptor set, pipeline lookup)
+#       and shadow map stencil bit-plane transfer skip (GPU Fix #1)
+$vulkanCpAndShadowXferPatch = Join-Path $patchRoot 'vulkan-cp-caches-and-shadow-xfer.patch'
+git -C $source apply --reverse --check $vulkanCpAndShadowXferPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanCpAndShadowXferPatch
+    Check-Native 'Vulkan CP caches and shadow transfer patch check'
+    git -C $source apply $vulkanCpAndShadowXferPatch
+    Check-Native 'Vulkan CP caches and shadow transfer patch application'
+}
+
+Write-Host "[1.1 - 1.20] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

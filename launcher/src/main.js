@@ -230,6 +230,8 @@ const elements = {
   // Software Update Modal
   updateModal: document.getElementById("updateModal"),
   updateModalVersion: document.getElementById("updateModalVersion"),
+  updateCleanReinstallWarning: document.getElementById("updateCleanReinstallWarning"),
+  chkConfirmCleanUpdate: document.getElementById("chkConfirmCleanUpdate"),
   updateModalNotesContainer: document.getElementById("updateModalNotesContainer"),
   updateProgressContainer: document.getElementById("updateProgressContainer"),
   updateProgressStatus: document.getElementById("updateProgressStatus"),
@@ -239,6 +241,16 @@ const elements = {
   btnUpdateLater: document.getElementById("btnUpdateLater"),
   btnUpdateNow: document.getElementById("btnUpdateNow"),
   btnCloseUpdateModal: document.getElementById("btnCloseUpdateModal"),
+
+  // Post Clean Update Completion Modal
+  cleanUpdateDoneModal: document.getElementById("cleanUpdateDoneModal"),
+  cleanUpdateDoneVersion: document.getElementById("cleanUpdateDoneVersion"),
+  cleanUpdateSavesMigratedBox: document.getElementById("cleanUpdateSavesMigratedBox"),
+  cleanUpdateSavesMigratedText: document.getElementById("cleanUpdateSavesMigratedText"),
+  cleanUpdateNextStepText: document.getElementById("cleanUpdateNextStepText"),
+  btnCloseCleanUpdateDoneModal: document.getElementById("btnCloseCleanUpdateDoneModal"),
+  btnCleanUpdateViewSaves: document.getElementById("btnCleanUpdateViewSaves"),
+  btnCleanUpdateGoToSetup: document.getElementById("btnCleanUpdateGoToSetup"),
 
   // Settings form elements
   windowSize: document.getElementById("windowSize"),
@@ -355,10 +367,128 @@ const elements = {
   devShaderXshSize: document.getElementById("devShaderXshSize"),
   devShaderLastUpdated: document.getElementById("devShaderLastUpdated"),
   btnRefreshShaderCache: document.getElementById("btnRefreshShaderCache"),
-  devModeStatusBadge: document.getElementById("devModeStatusBadge"),
-  btnToggleDevMode: document.getElementById("btnToggleDevMode"),
-  btnToggleDevModeText: document.getElementById("btnToggleDevModeText"),
+  toggleDevMode: document.getElementById("toggleDevMode"),
+
+  // Custom Alert / Error / Confirm Modal Elements
+  appDialogModal: document.getElementById("appDialogModal"),
+  appDialogCard: document.getElementById("appDialogCard"),
+  appDialogIcon: document.getElementById("appDialogIcon"),
+  appDialogTitle: document.getElementById("appDialogTitle"),
+  appDialogMessage: document.getElementById("appDialogMessage"),
+  btnCloseAppDialog: document.getElementById("btnCloseAppDialog"),
+  btnAppDialogCancel: document.getElementById("btnAppDialogCancel"),
+  btnAppDialogConfirm: document.getElementById("btnAppDialogConfirm"),
 };
+
+// ==========================================
+// Custom Error / Alert / Confirm Modal
+// ==========================================
+let appDialogResolver = null;
+
+function closeAppDialog(result) {
+  if (elements.appDialogModal) {
+    elements.appDialogModal.classList.add("hidden");
+  }
+  const resolver = appDialogResolver;
+  appDialogResolver = null;
+  if (resolver) resolver(result);
+}
+
+function showAppDialog({
+  title = "Error",
+  message = "",
+  variant = "error",
+  confirmText = "OK",
+  cancelText = "Cancel",
+  showCancel = false,
+} = {}) {
+  if (!elements.appDialogModal) {
+    return Promise.resolve(false);
+  }
+  if (appDialogResolver) {
+    closeAppDialog(false);
+  }
+
+  if (elements.appDialogTitle) {
+    elements.appDialogTitle.textContent = title;
+  }
+  if (elements.appDialogMessage) {
+    elements.appDialogMessage.textContent = String(message ?? "");
+  }
+
+  if (elements.appDialogIcon) {
+    if (variant === "warning") {
+      elements.appDialogIcon.setAttribute("class", "w-5 h-5 text-amber-400 shrink-0");
+      elements.appDialogIcon.innerHTML = `<path fill-rule="evenodd" d="M12 2.25c-.86 0-1.65.46-2.08 1.2L2.34 16.58A2.4 2.4 0 0 0 4.42 20.2h15.16a2.4 2.4 0 0 0 2.08-3.62L14.08 3.45A2.4 2.4 0 0 0 12 2.25Zm0 5.5c.41 0 .75.34.75.75v5a.75.75 0 0 1-1.5 0v-5c0-.41.34-.75.75-.75Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/>`;
+    } else if (variant === "info") {
+      elements.appDialogIcon.setAttribute("class", "w-5 h-5 text-accent shrink-0");
+      elements.appDialogIcon.innerHTML = `<path fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM12 7C12.5523 7 13 7.44772 13 8C13 8.55228 12.5523 9 12 9C11.4477 9 11 8.55228 11 8C11 7.44772 11.4477 7 12 7ZM12 10.75C12.4142 10.75 12.75 11.0858 12.75 11.5V16.5C12.75 16.9142 12.4142 17.25 12 17.25C11.5858 17.25 11.25 16.9142 11.25 16.5V11.5C11.25 11.0858 11.5858 10.75 12 10.75Z" clip-rule="evenodd"/>`;
+    } else {
+      elements.appDialogIcon.setAttribute("class", "w-5 h-5 text-rose-400 shrink-0");
+      elements.appDialogIcon.innerHTML = `<path fill-rule="evenodd" d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25ZM12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" clip-rule="evenodd"/>`;
+    }
+  }
+
+  if (elements.btnAppDialogCancel) {
+    elements.btnAppDialogCancel.textContent = cancelText;
+    elements.btnAppDialogCancel.classList.toggle("hidden", !showCancel);
+  }
+  if (elements.btnAppDialogConfirm) {
+    elements.btnAppDialogConfirm.textContent = confirmText;
+    if (variant === "warning") {
+      elements.btnAppDialogConfirm.className =
+        "px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 transition-all cursor-pointer shadow-sm";
+    } else if (variant === "info") {
+      elements.btnAppDialogConfirm.className =
+        "px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm";
+    } else {
+      elements.btnAppDialogConfirm.className =
+        "px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-all cursor-pointer shadow-sm";
+    }
+  }
+
+  elements.appDialogModal.classList.remove("hidden");
+  return new Promise((resolve) => {
+    appDialogResolver = resolve;
+  });
+}
+
+function showErrorDialog(title, message) {
+  return showAppDialog({ title, message, variant: "error", confirmText: "OK", showCancel: false });
+}
+
+function showConfirmDialog(title, message, confirmText = "Proceed", cancelText = "Cancel") {
+  return showAppDialog({
+    title,
+    message,
+    variant: "warning",
+    confirmText,
+    cancelText,
+    showCancel: true,
+  });
+}
+
+if (elements.btnCloseAppDialog) {
+  elements.btnCloseAppDialog.addEventListener("click", () => closeAppDialog(false));
+}
+if (elements.btnAppDialogCancel) {
+  elements.btnAppDialogCancel.addEventListener("click", () => closeAppDialog(false));
+}
+if (elements.btnAppDialogConfirm) {
+  elements.btnAppDialogConfirm.addEventListener("click", () => closeAppDialog(true));
+}
+if (elements.appDialogModal) {
+  elements.appDialogModal.addEventListener("click", (e) => {
+    if (e.target === elements.appDialogModal) {
+      closeAppDialog(false);
+    }
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && elements.appDialogModal && !elements.appDialogModal.classList.contains("hidden")) {
+    closeAppDialog(false);
+  }
+});
 
 // ==========================================
 // Tab Switching
@@ -999,7 +1129,7 @@ if (elements.btnBrowseGameData) {
         await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
       }
     } catch (err) {
-      alert("Error selecting folder: " + err);
+      await showErrorDialog("Folder Selection Error", String(err));
     }
   });
 }
@@ -1016,7 +1146,7 @@ elements.btnBrowseIso.addEventListener("click", async () => {
       await invoke("save_settings", { settings });
     }
   } catch (err) {
-    alert("Error selecting ISO file: " + err);
+    await showErrorDialog("ISO Selection Error", String(err));
   }
 });
 
@@ -1024,16 +1154,22 @@ elements.btnBrowseIso.addEventListener("click", async () => {
 elements.btnStartBuild.addEventListener("click", async () => {
   const isoPath = elements.txtIsoPath.value.trim();
   if (!isoPath) {
-    alert("Please select your game disc image (.iso) first.");
+    await showErrorDialog(
+      "ISO File Required",
+      "Please select your Xbox 360 game disc image (.iso) first before extracting and building."
+    );
     return;
   }
 
   const compileBinary = elements.chkCompileBinary ? elements.chkCompileBinary.checked : false;
   if (compileBinary) {
-    const confirmCompile = confirm(
+    const confirmCompile = await showConfirmDialog(
+      "Recompile C++ Binary?",
       "Recompiling the game binary requires Visual Studio 2022 with C++ x64 tools installed on this PC.\n\n" +
       "If you only want to extract and play using the included precompiled executable (majin.exe), click Cancel and leave this checkbox unchecked.\n\n" +
-      "Proceed with C++ source compilation?"
+      "Proceed with C++ source compilation?",
+      "Proceed",
+      "Cancel"
     );
     if (!confirmCompile) {
       if (elements.chkCompileBinary) {
@@ -1080,6 +1216,7 @@ elements.btnStartBuild.addEventListener("click", async () => {
     elements.buildSpinner.classList.add("hidden");
     setTerminalLogOpen(true);
     await updateGameStatus();
+    await showErrorDialog("Setup Error", String(err));
   }
 });
 
@@ -1357,7 +1494,7 @@ if (elements.btnCleanShaders) {
       await invoke("clean_shader_cache");
       await updateShaderCacheInfo();
     } catch (err) {
-      alert("Failed to clean shader cache: " + err);
+      await showErrorDialog("Shader Cache Error", "Failed to clean shader cache:\n\n" + String(err));
     } finally {
       await updateShaderCacheInfo();
     }
@@ -1385,10 +1522,10 @@ elements.btnLaunch.addEventListener("click", async () => {
   try {
     await invoke("launch_game", { settings });
   } catch (err) {
-    alert("Failed to launch game: " + err);
     elements.btnLaunch.disabled = false;
     elements.btnLaunch.classList.remove("opacity-50");
     elements.btnLaunchText.textContent = "LAUNCH GAME";
+    await showErrorDialog("Failed to Launch Game", String(err));
   }
 });
 
@@ -1646,6 +1783,7 @@ window.addEventListener("resize", () => {
 
 // Auto-save settings on change
 document.addEventListener("change", async (e) => {
+  if (e.target && e.target.id === "toggleDevMode") return;
   if (
     e.target &&
     (e.target.closest("#tabGraphics") ||
@@ -1725,11 +1863,37 @@ function setUpdateBtnState(state, text) {
   }
 }
 
+function isCleanReinstallUpdate(update) {
+  const notes = String(update?.body || "");
+  return /CLEAN REINSTALL REQUIRED|\[CLEAN_REINSTALL\]/i.test(notes);
+}
+
+function syncUpdateNowButtonEnabled() {
+  if (!elements.btnUpdateNow) return;
+  const requiresAck =
+    elements.updateCleanReinstallWarning &&
+    !elements.updateCleanReinstallWarning.classList.contains("hidden");
+  const allowed = !requiresAck || Boolean(elements.chkConfirmCleanUpdate?.checked);
+  elements.btnUpdateNow.disabled = !allowed;
+  elements.btnUpdateNow.classList.toggle("opacity-50", !allowed);
+  elements.btnUpdateNow.classList.toggle("cursor-not-allowed", !allowed);
+  elements.btnUpdateNow.classList.toggle("cursor-pointer", allowed);
+}
+
 function showUpdateModal(update) {
   if (!elements.updateModal) return;
   if (elements.updateModalVersion) {
     elements.updateModalVersion.textContent = `v${update.version}`;
   }
+  const cleanReinstall = isCleanReinstallUpdate(update);
+  if (elements.updateCleanReinstallWarning) {
+    elements.updateCleanReinstallWarning.classList.toggle("hidden", !cleanReinstall);
+  }
+  if (elements.chkConfirmCleanUpdate) {
+    elements.chkConfirmCleanUpdate.checked = false;
+  }
+  syncUpdateNowButtonEnabled();
+
   if (elements.updateModalNotesContainer) {
     if (update.body && update.body.trim().length > 0) {
       elements.updateModalNotesContainer.textContent = update.body;
@@ -1750,6 +1914,45 @@ function showUpdateModal(update) {
 function hideUpdateModal() {
   if (!elements.updateModal) return;
   elements.updateModal.classList.add("hidden");
+}
+
+function showCleanUpdateDoneModal(notice) {
+  if (!notice || !elements.cleanUpdateDoneModal) return;
+  if (elements.cleanUpdateDoneVersion) {
+    elements.cleanUpdateDoneVersion.textContent = `v${String(notice.version || "").replace(/^v/, "")}`;
+  }
+
+  const migrated = Boolean(notice.savesMigrated);
+  const count = Number(notice.migratedProfileCount || 0);
+  if (elements.cleanUpdateSavesMigratedBox && elements.cleanUpdateSavesMigratedText) {
+    if (migrated) {
+      const profileWord = count === 1 ? "profile" : "profiles";
+      elements.cleanUpdateSavesMigratedText.textContent =
+        ` ${count} save ${profileWord} automatically backed up and migrated into the new Save Profiles folder (game-data/runtime/saves).`;
+      elements.cleanUpdateSavesMigratedBox.classList.remove("hidden");
+    } else {
+      elements.cleanUpdateSavesMigratedBox.classList.add("hidden");
+    }
+  }
+  if (elements.btnCleanUpdateViewSaves) {
+    elements.btnCleanUpdateViewSaves.classList.toggle("hidden", !migrated);
+  }
+  if (elements.cleanUpdateNextStepText) {
+    if (notice.preservedIsoPath && String(notice.preservedIsoPath).trim().length > 0) {
+      elements.cleanUpdateNextStepText.innerHTML =
+        " Open <strong>Setup Game</strong> to re-extract your game assets and rebuild shaders. Your previous Xbox 360 ISO path was already pre-filled for convenience.";
+    } else {
+      elements.cleanUpdateNextStepText.innerHTML =
+        " Open <strong>Setup Game</strong> to select your Xbox 360 game ISO and complete asset extraction and shader precompilation.";
+    }
+  }
+
+  elements.cleanUpdateDoneModal.classList.remove("hidden");
+}
+
+function hideCleanUpdateDoneModal() {
+  if (!elements.cleanUpdateDoneModal) return;
+  elements.cleanUpdateDoneModal.classList.add("hidden");
 }
 
 function isVersionNewer(remote, current) {
@@ -1773,7 +1976,7 @@ async function checkForUpdates(isUserClick = false) {
   logToBackend(`checkForUpdates: start (userClick=${isUserClick})`);
 
   try {
-    const currentVer = (elements.appVersionBadge?.textContent || "0.1.3").replace(/^v/, "").trim();
+    const currentVer = (elements.appVersionBadge?.textContent || "0.1.5").replace(/^v/, "").trim();
     let remoteVer = null;
     let releaseData = null;
 
@@ -1927,6 +2130,9 @@ if (elements.btnCheckUpdates) {
   });
 }
 
+if (elements.chkConfirmCleanUpdate) {
+  elements.chkConfirmCleanUpdate.addEventListener("change", syncUpdateNowButtonEnabled);
+}
 if (elements.btnCloseUpdateModal) {
   elements.btnCloseUpdateModal.addEventListener("click", hideUpdateModal);
 }
@@ -1935,6 +2141,21 @@ if (elements.btnUpdateLater) {
 }
 if (elements.btnUpdateNow) {
   elements.btnUpdateNow.addEventListener("click", installUpdate);
+}
+if (elements.btnCloseCleanUpdateDoneModal) {
+  elements.btnCloseCleanUpdateDoneModal.addEventListener("click", hideCleanUpdateDoneModal);
+}
+if (elements.btnCleanUpdateViewSaves) {
+  elements.btnCleanUpdateViewSaves.addEventListener("click", () => {
+    hideCleanUpdateDoneModal();
+    switchTab("saves");
+  });
+}
+if (elements.btnCleanUpdateGoToSetup) {
+  elements.btnCleanUpdateGoToSetup.addEventListener("click", () => {
+    hideCleanUpdateDoneModal();
+    switchTab("build");
+  });
 }
 
 // ==========================================
@@ -1948,29 +2169,9 @@ function applyDevModeUI(enabled) {
     elements.devModeBadge.classList.toggle("hidden", !isDevModeCached);
   }
 
-  // Toggle status badge & button state in Setup Game tab
-  if (elements.devModeStatusBadge) {
-    if (isDevModeCached) {
-      elements.devModeStatusBadge.textContent = "Enabled";
-      elements.devModeStatusBadge.className =
-        "text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono uppercase font-bold";
-    } else {
-      elements.devModeStatusBadge.textContent = "Disabled";
-      elements.devModeStatusBadge.className =
-        "text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/60 font-mono uppercase";
-    }
-  }
-
-  if (elements.btnToggleDevMode && elements.btnToggleDevModeText) {
-    if (isDevModeCached) {
-      elements.btnToggleDevModeText.textContent = "Disable Developer Mode";
-      elements.btnToggleDevMode.className =
-        "w-full py-2 px-3 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 hover:text-amber-200 border border-amber-700/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm";
-    } else {
-      elements.btnToggleDevModeText.textContent = "Enable Developer Mode";
-      elements.btnToggleDevMode.className =
-        "w-full py-2 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm";
-    }
+  // Sync Developer Mode toggle switch in Setup Game tab
+  if (elements.toggleDevMode) {
+    elements.toggleDevMode.checked = isDevModeCached;
   }
 
   // Show/hide all [data-dev-only] elements without removing them from DOM
@@ -2011,9 +2212,9 @@ function applyDevModeUI(enabled) {
   }
 }
 
-if (elements.btnToggleDevMode) {
-  elements.btnToggleDevMode.addEventListener("click", async () => {
-    const nextState = !isDevModeCached;
+if (elements.toggleDevMode) {
+  elements.toggleDevMode.addEventListener("change", async () => {
+    const nextState = Boolean(elements.toggleDevMode.checked);
     applyDevModeUI(nextState);
     try {
       await invoke("set_dev_mode", { enabled: nextState });
@@ -2627,6 +2828,16 @@ async function init() {
   await loadSaveProfiles();
   await updateShaderCacheInfo();
   await updateMaximizeIcon();
+
+  try {
+    const cleanNotice = await invoke("consume_clean_update_notice");
+    if (cleanNotice) {
+      showCleanUpdateDoneModal(cleanNotice);
+    }
+  } catch (err) {
+    console.warn("Could not check clean update notice:", err);
+  }
+
   logToBackend("init() completed successfully");
 
   // Note: Automatic silent check for updates on startup was disabled to prevent

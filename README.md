@@ -47,10 +47,12 @@ By translating game logic into native CPU instructions and mapping Xbox 360 GPU 
 - **Multi-threaded startup PSO compilation**, significantly reducing runtime shader stuttering.
 - **Native Host Render Target (RTV) rendering**, providing direct Direct3D 12 execution without requiring slow ROV interlocks.
 - **Reverse-engineered graphics subsystem**, featuring custom hooks for post-processing effects (`SysKemumaki`), dynamic camera FOV scaling, and Direct3D presentation pacing (analyzed with [REA](https://github.com/morluto/rea)).
-- **Synchronized fast-forward** for in-game dialogues and cutscenes with dynamic audio frequency scaling.
-- **Multi-language support** with selectable in-game text and localized voiceover (English, Spanish, French, German, Italian, Korean, and Japanese).
-- **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, and **FXAA** upscalers.
-- **Desktop Launcher** powered by Tauri v2 and Tailwind CSS, featuring configuration controls, automatic build pipelines, and portable game-data management.
+- **Full-Resolution SSSM Fix & Shadow Scaling (PAL & USA):** Eliminates the character silhouette light halo while preserving Pre-Z depth, with configurable shadow map resolution scaling (`1x`/`2x`/`4x`), De-Dither post-processing, and Vulkan/D3D12 feature parity.
+- **Synchronized fast-forward & instant boot:** Clean fast-forward for in-game dialogues and cutscenes with dynamic audio frequency scaling, plus instant intro logo bypass straight to the title screen.
+- **Multi-language & independent audio support:** Selectable Text/UI and Voiceover Audio languages independently, with automatic PAL/USA edition and disc asset language detection.
+- **Save Profiles Manager & `.savistic` packages:** Create, switch, duplicate, rename, import, and export isolated save profiles (with achievements and optional launcher settings) under `game-data/runtime/saves/`.
+- **Configurable resolutions** (720p, 1080p, 1440p, 4K) paired with built-in **AMD FidelityFX FSR 1.0**, **CAS**, **De-Dither**, and **FXAA** post-processing.
+- **Desktop Launcher** powered by Tauri v2 and Tailwind CSS, featuring configuration controls, automatic clean-reinstall updates with save migration, integrated Developer Mode toggle, and portable game-data management.
 
 ---
 
@@ -77,9 +79,10 @@ All **34,247 PowerPC functions** have been mapped and recompiled with **zero unr
 - **GPU Bandwidth Tuning:** Emulates gamma render targets with 32bpp (`R8G8B8A8_UNORM`) saving 50% VRAM bandwidth over 64bpp, restored native anisotropic filtering, and disabled synchronous GPU-to-CPU memexport readbacks.
 
 ### 2. Clean-Room Shader Pre-Compilation & Multi-Threaded Pipeline Warm-Up
-- **100% Clean-Room Shader Distribution:** No original shader microcode (`.xsh`) or proprietary game assets are distributed in the repository or release packages. Instead, the release includes only a portable pipeline state description list (`4E4D0816.fbo.vk.xpl`, containing 64-bit `XXH3` hashes and render state bitfields) and a reconstruction recipe map (`shader_recipes.json`).
+- **100% Clean-Room Shader Distribution:** No original shader microcode (`.xsh`) or proprietary game assets are distributed in the repository or release packages. Instead, the release includes only a portable pipeline state description list (`4E4D0816.fbo.vk.xpl`, currently cataloging **381 Vulkan pipelines**, containing 64-bit `XXH3` hashes and render state bitfields) and a reconstruction recipe map (`shader_recipes.json` with **257 core shader recipes**).
 - **Local Reconstruction & GPU Warm-Up:** During ISO Setup (or when clicking **Precompile Shaders** in the launcher), the launcher reconstructs the Xenos shader cache locally on the user's machine directly from the files extracted from their own game disc (`static.pak`, `eff.pak`, `HexaEngineXbox.knl`), verifies every shader via `XXH3_64bits`, and pre-compiles a monolithic Vulkan driver pipeline cache (`.monolithic.vkpc`) tailored to the user's specific GPU.
 - **Asynchronous Fallback:** Any remaining uncataloged pipelines (such as 2D UI blits or rare effect permutations) are compiled asynchronously on background worker threads to prevent main-thread traversal stuttering.
+- **Audio Stability (XMA2 Multi-Stream Fix):** Fixes XMA2 packet-skip navigation across multi-stream audio banks so looping background music (such as title screen BGM) plays continuously without cutting out.
 
 ### 3. Synchronized Cutscene & Dialogue Fast-Forward
 - Holding `Select`/`Back` (controller) or `Tab` (keyboard) during in-game cutscenes and dialogues triggers clean fast-forward (`2x`, `4x`, `6x`, `8x`).
@@ -117,16 +120,15 @@ All decompiled game files, extracted assets, binaries, and runtime caches are cl
 
 ```
 Majin Recomp/
-├── Majistic Launcher.exe       # Portable desktop launcher (Release)
-├── Majistic Launcher (Dev).exe # Development launcher (with diagnostics & telemetry)
+├── Majistic Launcher.exe       # Unified portable desktop launcher (with in-app Developer Mode toggle)
 ├── branding/                   # Official logo & high-resolution icons
-├── launcher/                   # Launcher source code (Tauri v2 + Tailwind CSS)
+├── launcher/                   # Launcher source code (Tauri v2 + Tailwind CSS) & prebuild manifests
 ├── prototype/                  # PAL (0.0.0.3) codegen manifests & translation units
 ├── prototype-usa/              # USA (0.0.0.2) codegen manifests & translation units
 ├── src/                        # Unified C++ source code & QoL hooks (shared)
 ├── scripts/                    # Automation scripts (extraction, build, run)
 └── game-data/                  # Self-contained game directory
-    ├── bin/                    # Compiled native game binary (majin.exe)
+    ├── bin/                    # Compiled native game binaries (majin.exe, majin-pal.exe, majin-usa.exe) & DLLs
     ├── unpacked/               # Unpacked executable image (loaded-image.bin)
     ├── runtime/                # Save profiles (saves/), shader cache, and logs
     └── [Game Assets]           # Audio, video, textures, level packages from disc
@@ -212,21 +214,14 @@ Generates the C++23 source translation via `rexglue codegen` and compiles `game-
 ```
 
 #### 5. Build and Launch via the Desktop Launcher
-The project provides two launcher builds depending on your workflow:
-- **Release Launcher (`Majistic Launcher.exe`):** A clean, silent, streamlined binary for normal players without debug consoles or local logging overhead.
-- **Development Launcher (`Majistic Launcher (Dev).exe`):** Built with `--features dev-mode`, enabling active process telemetry, verbose startup diagnostics in `launcher-debug.log`, and developer tooling.
+The project builds a single unified desktop launcher (`Majistic Launcher.exe`) with an in-app **Developer Mode** toggle (in **Setup Game**) that unlocks advanced rendering paths, diagnostic logging, shader cache monitoring, and C++ recompilation options when needed.
 
-To compile the **Release** launcher:
+To compile the launcher:
 ```powershell
 .\scripts\build-launcher-usa.ps1
 ```
 
-To compile the **Development** launcher:
-```powershell
-.\scripts\build-launcher-usa.ps1 -Dev
-```
-
-You can then run `Majistic Launcher.exe` or `Majistic Launcher (Dev).exe`, or develop live with:
+You can then run `Majistic Launcher.exe`, or develop live with:
 ```powershell
 cd launcher
 npm run tauri dev

@@ -8,6 +8,7 @@ use tauri::Emitter;
 
 mod prebuild;
 mod saves;
+pub mod updater;
 
 static DEV_MODE_RUNTIME: AtomicBool = AtomicBool::new(false);
 
@@ -1032,7 +1033,7 @@ fn run_vulkan_shader_precompile_pipeline(
                                     let parts: Vec<&str> = rest.split('/').collect();
                                     if parts.len() == 2 {
                                         let curr = parts[0].trim().parse::<u32>().unwrap_or(0);
-                                        let total = parts[1].trim().parse::<u32>().unwrap_or(288);
+                                        let total = parts[1].trim().parse::<u32>().unwrap_or(381);
                                         let status_text = format!(
                                             "Compiling Vulkan pipelines ({}/{})...",
                                             curr, total
@@ -1120,7 +1121,7 @@ fn precompile_shaders(app: tauri::AppHandle, settings: Settings) -> Result<(), S
     Ok(())
 }
 
-pub const BASELINE_PIPELINE_COUNT: usize = 288;
+pub const BASELINE_PIPELINE_COUNT: usize = 381;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaderCacheInfo {
@@ -2253,7 +2254,8 @@ pub fn run() {
             saves::export_save_profile,
             saves::pick_and_inspect_savistic,
             saves::import_save_profile,
-            saves::open_saves_folder
+            saves::open_saves_folder,
+            updater::consume_clean_update_notice
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

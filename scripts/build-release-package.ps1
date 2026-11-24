@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Assembles a complete, self-contained, clean-room release package for Majistic Recomp.
 .PARAMETER Version
@@ -7,7 +7,7 @@
     Whether to create a compressed .zip archive of the release package.
 #>
 param(
-    [string]$Version = "0.1.4",
+    [string]$Version = "0.1.5",
     [switch]$CreateZip = $true
 )
 
@@ -230,9 +230,21 @@ if ($CreateZip) {
                 if ($sigMatch.Success) { $sigMatch.Groups[1].Value.Trim() } else { $null }
             }
             if ($sig) {
+                $cleanReinstallHeader = "[!] IMPORTANT — CLEAN REINSTALL REQUIRED:`n" +
+                    "This update performs a clean installation of Majistic Recomp v$Version to avoid conflicts with older engine binaries and shader caches.`n" +
+                    "- Your existing save files and achievements will be backed up and migrated automatically into the new Save Profiles folder (game-data\runtime\saves).`n" +
+                    "- You will need your Xbox 360 game ISO file again after updating to re-extract assets and precompile shaders in Setup Game.`n" +
+                    "- Please make sure you have your ISO available before clicking Update Now.`n`n"
+                $releaseHighlights = "What's New in Majistic Recomp v$Version`:`n" +
+                    "- Full-Resolution SSSM Fix (PAL & USA) eliminating character silhouette light halos`n" +
+                    "- Shadow Map Resolution Scaling (1x/2x/4x) with D3D12 & Vulkan parity and configurable depth bias`n" +
+                    "- Save Profiles Manager with multi-profile switching, .savistic import/export, and automatic legacy save migration`n" +
+                    "- Independent Text & Audio language selection with automatic edition/asset language detection`n" +
+                    "- XMA2 multi-stream audio navigation fix resolving title screen BGM cutoffs`n" +
+                    "- Instant Skip Intro Logos bypassing opening logos and fade transitions cleanly"
                 $latestJson = [ordered]@{
                     version = $Version
-                    notes = "Majistic Recomp v$Version Update:`n- Initial rollout of Clean-Room Vulkan Shader Precompilation (Work in Progress): local reconstruction of game shaders directly from your extracted ISO assets and upfront Vulkan pipeline warm-up during ISO Setup or via the Precompile Shaders button`n- Enabled asynchronous background shader compilation by default as a fallback for uncataloged pipelines to reduce in-game traversal hitching`n- Launcher UI & visual improvements: added Precompile Shaders status indicator, live compilation progress modal, quick cache purge action, and refined layout polish"
+                    notes = ($cleanReinstallHeader + $releaseHighlights)
                     pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
                     platforms = @{
                         "windows-x86_64" = @{

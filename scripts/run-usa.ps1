@@ -125,7 +125,17 @@ if (Test-Path $buildEdition) {
     }
     $exe = $targetExe
 } elseif (Test-Path $editionExe) {
-    if (-not (Test-Path $targetExe) -or ((Get-Item $targetExe).Length -ne (Get-Item $editionExe).Length)) {
+    $needsDeploy = -not (Test-Path $targetExe)
+    if (-not $needsDeploy) {
+        try {
+            $targetHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $targetExe).Hash
+            $editionHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $editionExe).Hash
+            $needsDeploy = ($targetHash -ne $editionHash)
+        } catch {
+            $needsDeploy = ((Get-Item $targetExe).Length -ne (Get-Item $editionExe).Length)
+        }
+    }
+    if ($needsDeploy) {
         Copy-Item -LiteralPath $editionExe -Destination $targetExe -Force
         Write-Output "Deployed precompiled game binary for $editionName (majin-$editionSuffix.exe -> majin.exe)"
     }

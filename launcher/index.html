@@ -30,7 +30,7 @@
             <span
               id="appVersionBadge"
               class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-sky-950/70 text-sky-400 border border-sky-800/80 text-xs font-normal select-none"
-              >v0.1.4</span
+              >v0.1.5</span
             >
 
             <span
@@ -2013,25 +2013,27 @@
                       </svg>
                       <span>Developer Mode</span>
                     </h2>
-                    <span
-                      id="devModeStatusBadge"
-                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/60 font-mono uppercase"
-                      >Disabled</span
+                    <label
+                      for="toggleDevMode"
+                      class="relative inline-flex items-center cursor-pointer select-none"
+                      title="Toggle Developer Mode"
                     >
+                      <input
+                        id="toggleDevMode"
+                        type="checkbox"
+                        class="sr-only peer"
+                        aria-label="Toggle Developer Mode"
+                      />
+                      <div
+                        class="w-9 h-5 rounded-full bg-darkControl border border-darkBorder/70 peer-checked:bg-amber-600/80 peer-checked:border-amber-500/70 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:bg-slate-400 peer-checked:after:bg-white after:transition-all peer-checked:after:translate-x-4"
+                      ></div>
+                    </label>
                   </div>
 
                   <p class="text-[11px] text-slate-400 leading-normal">
                     Unlock advanced rendering paths, diagnostic logging, shader
                     cache monitor, and C++ recompilation options.
                   </p>
-
-                  <button
-                    id="btnToggleDevMode"
-                    type="button"
-                    class="w-full py-2 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm"
-                  >
-                    <span id="btnToggleDevModeText">Enable Developer Mode</span>
-                  </button>
                 </section>
               </div>
             </div>
@@ -2285,6 +2287,49 @@
                 >v0.2.0</span
               >
             </p>
+            <!-- Clean Reinstall Warning Banner (shown when update notes indicate a clean install) -->
+            <div
+              id="updateCleanReinstallWarning"
+              class="hidden rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 space-y-2 text-[11px] text-amber-200/95"
+            >
+              <div class="flex items-start gap-2">
+                <svg
+                  class="w-4 h-4 text-amber-400 shrink-0 mt-0.5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12 2.25c-.86 0-1.65.46-2.08 1.2L2.34 16.58A2.4 2.4 0 0 0 4.42 20.2h15.16a2.4 2.4 0 0 0 2.08-3.62L14.08 3.45A2.4 2.4 0 0 0 12 2.25Zm0 5.5c.41 0 .75.34.75.75v5a.75.75 0 0 1-1.5 0v-5c0-.41.34-.75.75-.75Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <div class="space-y-1">
+                  <div class="font-bold text-amber-300 uppercase tracking-wide text-[10px]">
+                    Clean Reinstall Required — ISO Needed
+                  </div>
+                  <p class="leading-relaxed text-amber-100/90">
+                    This version performs a clean installation. Your existing saves will be
+                    <strong class="text-white">automatically backed up and migrated</strong>,
+                    but you will need your <strong class="text-white">Xbox 360 game ISO</strong>
+                    again in <strong class="text-white">Setup Game</strong> to re-extract assets
+                    and rebuild shaders.
+                  </p>
+                </div>
+              </div>
+              <label
+                for="chkConfirmCleanUpdate"
+                class="flex items-center gap-2 pt-1 border-t border-amber-500/20 cursor-pointer select-none text-amber-100"
+              >
+                <input
+                  id="chkConfirmCleanUpdate"
+                  type="checkbox"
+                  class="w-3.5 h-3.5 rounded accent-amber-400 cursor-pointer"
+                />
+                <span>I understand and have my Xbox 360 game ISO ready.</span>
+              </label>
+            </div>
             <div
               id="updateModalNotesContainer"
               class="hidden bg-darkBg/90 rounded-xl p-3 text-[11px] font-mono text-slate-300 max-h-32 overflow-y-auto whitespace-pre-wrap"
@@ -2338,6 +2383,171 @@
                 />
               </svg>
               <span>Update Now</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Post Clean Update Completion Modal -->
+      <div
+        id="cleanUpdateDoneModal"
+        class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div
+          class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-darkBorder/80 animate-fade-in"
+        >
+          <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+            <div class="flex items-center gap-2">
+              <svg
+                class="w-5 h-5 text-emerald-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <h3 class="text-sm font-bold text-white">
+                Clean Update Complete
+              </h3>
+            </div>
+            <button
+              id="btnCloseCleanUpdateDoneModal"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              <svg
+                class="w-4 h-4"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  fill="currentColor"
+                  fill-rule="evenodd"
+                  d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM8.96963 8.96965C9.26252 8.67676 9.73739 8.67676 10.0303 8.96965L12 10.9393L13.9696 8.96967C14.2625 8.67678 14.7374 8.67678 15.0303 8.96967C15.3232 9.26256 15.3232 9.73744 15.0303 10.0303L13.0606 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73742 15.3232 9.26254 15.3232 8.96965 15.0303C8.67676 14.7374 8.67676 14.2625 8.96965 13.9697L10.9393 12L8.96963 10.0303C8.67673 9.73742 8.67673 9.26254 8.96963 8.96965Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+            <p>
+              <strong class="text-white">Majistic Recomp</strong> was cleanly updated to
+              <span
+                id="cleanUpdateDoneVersion"
+                class="font-mono text-accent font-semibold ml-0.5"
+                >v0.1.5</span
+              >.
+            </p>
+            <div
+              id="cleanUpdateSavesMigratedBox"
+              class="hidden rounded-xl border border-emerald-700/50 bg-emerald-950/40 p-3 text-[11px] text-emerald-200 leading-relaxed"
+            >
+              <strong class="text-emerald-300">Saves Preserved:</strong>
+              <span id="cleanUpdateSavesMigratedText"></span>
+            </div>
+            <div
+              class="rounded-xl border border-amber-500/30 bg-amber-950/30 p-3 text-[11px] text-amber-100/90 leading-relaxed"
+            >
+              <strong class="text-amber-300">Next Step:</strong>
+              <span id="cleanUpdateNextStepText">
+                Open <strong>Setup Game</strong> to select your Xbox 360 game ISO and complete asset extraction and shader precompilation.
+              </span>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              id="btnCleanUpdateViewSaves"
+              type="button"
+              class="hidden px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-darkControl/80 hover:bg-darkControl transition-all cursor-pointer"
+            >
+              View Saves
+            </button>
+            <button
+              id="btnCleanUpdateGoToSetup"
+              type="button"
+              class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-[#7cb818] transition-all cursor-pointer shadow-sm"
+            >
+              Go to Setup Game
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Launcher Alert / Error / Confirm Modal -->
+      <div
+        id="appDialogModal"
+        class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
+      >
+        <div
+          id="appDialogCard"
+          class="bg-darkCard rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-darkBorder/80 animate-fade-in"
+        >
+          <div class="flex items-center justify-between pb-3 border-b border-darkBorder">
+            <div class="flex items-center gap-2">
+              <svg
+                id="appDialogIcon"
+                class="w-5 h-5 text-rose-400 shrink-0"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12ZM12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25ZM12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <h3 id="appDialogTitle" class="text-sm font-bold text-white">
+                Error
+              </h3>
+            </div>
+            <button
+              id="btnCloseAppDialog"
+              type="button"
+              class="text-slate-400 hover:text-white transition-colors cursor-pointer p-1"
+            >
+              <svg
+                class="w-4 h-4"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path
+                  fill="currentColor"
+                  fill-rule="evenodd"
+                  d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM8.96963 8.96965C9.26252 8.67676 9.73739 8.67676 10.0303 8.96965L12 10.9393L13.9696 8.96967C14.2625 8.67678 14.7374 8.67678 15.0303 8.96967C15.3232 9.26256 15.3232 9.73744 15.0303 10.0303L13.0606 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73742 15.3232 9.26254 15.3232 8.96965 15.0303C8.67676 14.7374 8.67676 14.2625 8.96965 13.9697L10.9393 12L8.96963 10.0303C8.67673 9.73742 8.67673 9.26254 8.96963 8.96965Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <div
+            id="appDialogMessage"
+            class="text-xs text-slate-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto select-text"
+          ></div>
+
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              id="btnAppDialogCancel"
+              type="button"
+              class="hidden px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-darkControl transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              id="btnAppDialogConfirm"
+              type="button"
+              class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-all cursor-pointer shadow-sm"
+            >
+              OK
             </button>
           </div>
         </div>

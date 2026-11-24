@@ -127,8 +127,10 @@ const defaultSettings = {
   MouseSensitivity: 1.0,
   RecordPerformance: false,
   GameDataRoot: "game-data",
+  IsoPath: "",
   Configuration: "Release",
   Language: "English",
+  AudioLanguage: "Auto",
   StepFix: false,
   AnimSpeedFix: false,
   DtSmoothing: true,
@@ -280,6 +282,8 @@ const elements = {
   skipIntroLogos: document.getElementById("skipIntroLogos"),
   gameDataRoot: document.getElementById("gameDataRoot"),
   language: document.getElementById("language"),
+  audioLanguage: document.getElementById("audioLanguage"),
+  detectedEditionBadge: document.getElementById("detectedEditionBadge"),
 
   // Fixes & Graphics form elements
   stepFix: document.getElementById("stepFix"),
@@ -589,6 +593,96 @@ async function updateConnectedGamepads(preferredMode = null) {
 }
 
 // ==========================================
+// Edition & Available Languages Detection
+// ==========================================
+let availableLanguagesInfo = null;
+
+async function loadAvailableLanguages(preferredText = null, preferredAudio = null) {
+  if (!elements.language && !elements.audioLanguage) return;
+
+  let info = null;
+  try {
+    info = await invoke("get_available_languages");
+  } catch (err) {
+    console.warn("Could not detect available game languages:", err);
+    return;
+  }
+
+  if (!info || typeof info !== "object") return;
+  availableLanguagesInfo = info;
+
+  if (elements.detectedEditionBadge) {
+    if (info.editionCode && info.editionCode !== "NotInstalled") {
+      elements.detectedEditionBadge.textContent = info.editionName || info.editionCode;
+      elements.detectedEditionBadge.classList.remove("hidden");
+    } else {
+      elements.detectedEditionBadge.classList.add("hidden");
+    }
+  }
+
+  let settingsAdjusted = false;
+
+  if (elements.language && Array.isArray(info.textLanguages) && info.textLanguages.length > 0) {
+    const desiredText = preferredText ?? elements.language.value ?? currentSettings.Language ?? "English";
+    elements.language.innerHTML = "";
+    info.textLanguages.forEach((opt) => {
+      const el = document.createElement("option");
+      el.value = opt.value;
+      el.dataset.flag = opt.value;
+      el.textContent = opt.label;
+      elements.language.appendChild(el);
+    });
+
+    const hasDesiredText = info.textLanguages.some((opt) => opt.value === desiredText);
+    const resolvedText = hasDesiredText ? desiredText : info.textLanguages[0].value;
+    if (!hasDesiredText && desiredText) {
+      settingsAdjusted = true;
+    }
+    elements.language.value = resolvedText;
+    currentSettings.Language = resolvedText;
+    refreshCustomSelect(elements.language);
+  }
+
+  if (elements.audioLanguage && Array.isArray(info.audioLanguages) && info.audioLanguages.length > 0) {
+    const desiredAudio = preferredAudio ?? elements.audioLanguage.value ?? currentSettings.AudioLanguage ?? "Auto";
+    elements.audioLanguage.innerHTML = "";
+
+    const autoOpt = document.createElement("option");
+    autoOpt.value = "Auto";
+    autoOpt.dataset.flag = "Auto";
+    autoOpt.textContent = "Same as Text (Default)";
+    elements.audioLanguage.appendChild(autoOpt);
+
+    info.audioLanguages.forEach((opt) => {
+      const el = document.createElement("option");
+      el.value = opt.value;
+      el.dataset.flag = opt.value;
+      el.textContent = opt.label;
+      elements.audioLanguage.appendChild(el);
+    });
+
+    const hasDesiredAudio =
+      desiredAudio === "Auto" || info.audioLanguages.some((opt) => opt.value === desiredAudio);
+    const resolvedAudio = hasDesiredAudio ? desiredAudio : "Auto";
+    if (!hasDesiredAudio && desiredAudio) {
+      settingsAdjusted = true;
+    }
+    elements.audioLanguage.value = resolvedAudio;
+    currentSettings.AudioLanguage = resolvedAudio;
+    refreshCustomSelect(elements.audioLanguage);
+  }
+
+  if (settingsAdjusted && info.detectedFromAssets) {
+    try {
+      const synced = readForm();
+      await invoke("save_settings", { settings: synced });
+    } catch {
+      // ignore
+    }
+  }
+}
+
+// ==========================================
 // Settings Management
 // ==========================================
 function populateForm(settings) {
@@ -663,7 +757,24 @@ function populateForm(settings) {
   if (elements.skipCutscenes) elements.skipCutscenes.checked = settings.SkipCutscenes ?? false;
   if (elements.skipIntroLogos) elements.skipIntroLogos.checked = settings.SkipIntroLogos ?? false;
   if (elements.gameDataRoot) elements.gameDataRoot.value = settings.GameDataRoot || "game-data";
-  if (elements.language) elements.language.value = settings.Language || "English";
+  if (elements.txtIsoPath) {
+    elements.txtIsoPath.value = settings.IsoPath || "";
+    elements.txtIsoPath.title = settings.IsoPath || "";
+  }
+  if (elements.language) {
+    const targetLang = settings.Language || "English";
+    if ([...elements.language.options].some((o) => o.value === targetLang)) {
+      elements.language.value = targetLang;
+    }
+  }
+  if (elements.audioLanguage) {
+    const targetAudio = settings.AudioLanguage || "Auto";
+    if ([...elements.audioLanguage.options].some((o) => o.value === targetAudio)) {
+      elements.audioLanguage.value = targetAudio;
+    } else {
+      elements.audioLanguage.value = "Auto";
+    }
+  }
 
   // Visuals, Camera & Fixes form
   if (elements.stepFix) elements.stepFix.checked = settings.StepFix ?? false;
@@ -725,8 +836,10 @@ function readForm() {
     MouseSensitivity: elements.mouseSensitivity ? safeFloat(elements.mouseSensitivity.value, 1.0) : safeFloat(currentSettings.MouseSensitivity, 1.0),
     RecordPerformance: currentSettings.RecordPerformance ?? false,
     GameDataRoot: elements.gameDataRoot?.value ? elements.gameDataRoot.value.trim() : "game-data",
+    IsoPath: elements.txtIsoPath?.value ? elements.txtIsoPath.value.trim() : (currentSettings.IsoPath || ""),
     Configuration: "Release",
     Language: elements.language?.value || currentSettings.Language || "English",
+    AudioLanguage: elements.audioLanguage?.value || currentSettings.AudioLanguage || "Auto",
     StepFix: elements.stepFix ? elements.stepFix.checked : false,
     AnimSpeedFix: elements.animSpeedFix ? elements.animSpeedFix.checked : false,
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : true,
@@ -883,6 +996,7 @@ if (elements.btnBrowseGameData) {
         const settings = readForm();
         await invoke("save_settings", { settings });
         await updateGameStatus();
+        await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
       }
     } catch (err) {
       alert("Error selecting folder: " + err);
@@ -896,6 +1010,10 @@ elements.btnBrowseIso.addEventListener("click", async () => {
     const selected = await invoke("select_iso_file");
     if (selected) {
       elements.txtIsoPath.value = selected;
+      elements.txtIsoPath.title = selected;
+      currentSettings.IsoPath = selected;
+      const settings = readForm();
+      await invoke("save_settings", { settings });
     }
   } catch (err) {
     alert("Error selecting ISO file: " + err);
@@ -989,6 +1107,7 @@ listen("build-complete", async () => {
   if (elements.btnPrecompile) elements.btnPrecompile.disabled = false;
 
   await updateGameStatus();
+  await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
   await loadSaveProfiles();
   await updateShaderCacheInfo();
 });
@@ -1004,6 +1123,7 @@ listen("build-error", async (event) => {
 
   setTerminalLogOpen(true);
   await updateGameStatus();
+  await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
   await loadSaveProfiles();
   await updateShaderCacheInfo();
 });
@@ -1179,8 +1299,8 @@ async function updateShaderCacheInfo() {
 
       if (elements.btnPrecompile) {
         elements.btnPrecompile.title = info.is_precompiled
-          ? "Vulkan shaders precompiled in driver cache (Ready). Click to verify or re-compile."
-          : "Vulkan shaders not yet precompiled. Click to precompile now.";
+          ? "Vulkan shaders compiled in driver cache (Ready). Click to recompile."
+          : "Vulkan shaders not yet compiled. Click to compile now.";
       }
 
       // 2. Enable or disable Clean button depending on whether vkpc exists
@@ -1542,6 +1662,7 @@ document.addEventListener("change", async (e) => {
     }
     if (e.target.id === "gameDataRoot") {
       await updateGameStatus();
+      await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
     }
   }
 });
@@ -2284,7 +2405,9 @@ function openImportSaveModal(preview) {
         c.frameRateMode === "Uncapped" ? "Uncapped FPS" : `${c.frameRateMode} FPS`,
         c.renderingPath,
         c.inputMode === "KeyboardMouse" ? "Keyboard & Mouse" : "Controller",
-        c.language,
+        c.audioLanguage && c.audioLanguage !== "Auto"
+          ? `${c.language} / Audio: ${c.audioLanguage}`
+          : c.language,
       ];
       elements.importConfigSummaryBadges.innerHTML = pills
         .map(
@@ -2347,6 +2470,7 @@ async function confirmImportSave() {
     if (res.settingsUpdated && res.settings) {
       currentSettings = { ...defaultSettings, ...res.settings };
       populateForm(currentSettings);
+      await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
       document.querySelectorAll("select").forEach(refreshCustomSelect);
       showSavesFeedback(
         `Imported "${res.importedProfileName}" and applied its bundled launcher settings.`
@@ -2497,6 +2621,7 @@ async function init() {
 
   initCustomSelects();
   populateForm(currentSettings);
+  await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
   applyDevModeUI(initialDev);
   await updateGameStatus();
   await loadSaveProfiles();

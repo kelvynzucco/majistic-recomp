@@ -55,6 +55,44 @@ fn default_language() -> String {
     "English".into()
 }
 
+fn default_audio_language() -> String {
+    "Auto".into()
+}
+
+fn deserialize_nullable_language<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_string();
+    if trimmed.is_empty() {
+        Ok("English".into())
+    } else {
+        Ok(trimmed)
+    }
+}
+
+fn deserialize_nullable_audio_language<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_string();
+    if trimmed.is_empty() {
+        Ok("Auto".into())
+    } else {
+        Ok(trimmed)
+    }
+}
+
+fn deserialize_nullable_empty_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default().trim().to_string())
+}
+
 fn default_true() -> bool {
     true
 }
@@ -239,10 +277,14 @@ pub struct Settings {
     pub record_performance: bool,
     #[serde(default = "default_game_data_root")]
     pub game_data_root: String,
+    #[serde(rename = "IsoPath", default, deserialize_with = "deserialize_nullable_empty_string")]
+    pub iso_path: String,
     #[serde(default = "default_configuration")]
     pub configuration: String,
-    #[serde(default = "default_language")]
+    #[serde(default = "default_language", deserialize_with = "deserialize_nullable_language")]
     pub language: String,
+    #[serde(rename = "AudioLanguage", default = "default_audio_language", deserialize_with = "deserialize_nullable_audio_language")]
+    pub audio_language: String,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub step_fix: bool,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
@@ -300,8 +342,10 @@ impl Default for Settings {
             mouse_sensitivity: 1.0,
             record_performance: false,
             game_data_root: "game-data".into(),
+            iso_path: String::new(),
             configuration: "Release".into(),
             language: "English".into(),
+            audio_language: "Auto".into(),
             step_fix: false,
             anim_speed_fix: false,
             dt_smoothing: true,
@@ -448,6 +492,165 @@ fn check_game_status() -> Result<GameStatus, String> {
         game_data_path: display_game_data_path,
         executable_path: display_exe_path,
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LanguageOption {
+    pub value: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AvailableLanguagesInfo {
+    pub edition_code: String,
+    pub edition_name: String,
+    pub detected_from_assets: bool,
+    pub text_languages: Vec<LanguageOption>,
+    pub audio_languages: Vec<LanguageOption>,
+}
+
+struct LanguageCatalogEntry {
+    value: &'static str,
+    label: &'static str,
+    pak_name: &'static str,
+    audio_suffix: Option<&'static str>,
+    supported_pal: bool,
+    supported_usa: bool,
+}
+
+const LANGUAGE_CATALOG: &[LanguageCatalogEntry] = &[
+    LanguageCatalogEntry { value: "English",    label: "English",                 pak_name: "us", audio_suffix: Some("en"), supported_pal: true,  supported_usa: true  },
+    LanguageCatalogEntry { value: "Portuguese", label: "Portuguese (Português)",  pak_name: "po", audio_suffix: Some("po"), supported_pal: true,  supported_usa: false },
+    LanguageCatalogEntry { value: "Spanish",    label: "Spanish (Español)",       pak_name: "sp", audio_suffix: Some("sp"), supported_pal: true,  supported_usa: true  },
+    LanguageCatalogEntry { value: "French",     label: "French (Français)",       pak_name: "fr", audio_suffix: Some("fr"), supported_pal: true,  supported_usa: true  },
+    LanguageCatalogEntry { value: "German",     label: "German (Deutsch)",        pak_name: "ge", audio_suffix: Some("ge"), supported_pal: true,  supported_usa: false },
+    LanguageCatalogEntry { value: "Italian",    label: "Italian (Italiano)",      pak_name: "it", audio_suffix: Some("it"), supported_pal: true,  supported_usa: false },
+    LanguageCatalogEntry { value: "Dutch",      label: "Dutch (Nederlands)",      pak_name: "du", audio_suffix: Some("du"), supported_pal: true,  supported_usa: false },
+    LanguageCatalogEntry { value: "Russian",    label: "Russian (Русский)",       pak_name: "ru", audio_suffix: Some("ru"), supported_pal: true,  supported_usa: false },
+    LanguageCatalogEntry { value: "Korean",     label: "Korean (한국어)",          pak_name: "kr", audio_suffix: None,       supported_pal: false, supported_usa: true  },
+    LanguageCatalogEntry { value: "Japanese",   label: "Japanese (日本語)",        pak_name: "jp", audio_suffix: Some("jp"), supported_pal: false, supported_usa: false },
+];
+
+fn detect_game_edition(game_data_dir: &Path) -> (&'static str, &'static str) {
+    use std::io::Read;
+    let xex_path = game_data_dir.join("default.xex");
+    if !xex_path.exists() {
+        return ("NotInstalled", "Not Installed");
+    }
+    if let Ok(file) = fs::File::open(&xex_path) {
+        let mut header = Vec::with_capacity(16384);
+        if file.take(16384).read_to_end(&mut header).is_ok() {
+            for win in header.windows(4) {
+                if win == [0x67, 0xBD, 0x87, 0xEF] {
+                    return ("PAL", "Europe / PAL (0.0.0.3)");
+                }
+                if win == [0x76, 0xFD, 0xB6, 0x42] {
+                    return ("USA", "USA / NTSC-U (0.0.0.2)");
+                }
+            }
+        }
+    }
+    ("Unknown", "Unknown Edition")
+}
+
+fn dir_has_regular_file(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_file() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn detect_available_languages_in_dir(game_data_dir: &Path) -> AvailableLanguagesInfo {
+    let (edition_code, edition_name) = detect_game_edition(game_data_dir);
+    let pkg_dir = game_data_dir.join("finalizedXBox360/KB/package");
+    let sound_dir = game_data_dir.join("finalizedXBox360/KB/sound/xbox360");
+
+    let mut text_languages: Vec<LanguageOption> = Vec::new();
+    let mut audio_languages: Vec<LanguageOption> = Vec::new();
+    let mut detected_from_assets = false;
+
+    if pkg_dir.is_dir() {
+        for entry in LANGUAGE_CATALOG {
+            let edition_allows = match edition_code {
+                "PAL" => entry.supported_pal,
+                "USA" => entry.supported_usa,
+                _ => true,
+            };
+            if edition_allows && pkg_dir.join(format!("{}.pak", entry.pak_name)).is_file() {
+                text_languages.push(LanguageOption {
+                    value: entry.value.to_string(),
+                    label: entry.label.to_string(),
+                });
+            }
+        }
+        if !text_languages.is_empty() {
+            detected_from_assets = true;
+        }
+    }
+
+    if sound_dir.is_dir() {
+        for entry in LANGUAGE_CATALOG {
+            if let Some(suffix) = entry.audio_suffix {
+                let rtd_dir = sound_dir.join(format!("rtd_{}", suffix));
+                if dir_has_regular_file(&rtd_dir) {
+                    audio_languages.push(LanguageOption {
+                        value: entry.value.to_string(),
+                        label: entry.label.to_string(),
+                    });
+                }
+            }
+        }
+        if !audio_languages.is_empty() {
+            detected_from_assets = true;
+        }
+    }
+
+    if text_languages.is_empty() {
+        text_languages.push(LanguageOption {
+            value: "English".to_string(),
+            label: "English".to_string(),
+        });
+    }
+    if audio_languages.is_empty() {
+        audio_languages.push(LanguageOption {
+            value: "English".to_string(),
+            label: "English".to_string(),
+        });
+    }
+
+    AvailableLanguagesInfo {
+        edition_code: edition_code.to_string(),
+        edition_name: edition_name.to_string(),
+        detected_from_assets,
+        text_languages,
+        audio_languages,
+    }
+}
+
+#[tauri::command]
+fn get_available_languages() -> Result<AvailableLanguagesInfo, String> {
+    let root = get_project_root();
+    let settings = load_settings_internal().unwrap_or_default();
+    let folder_name = if settings.game_data_root.trim().is_empty() {
+        "game-data".to_string()
+    } else {
+        settings.game_data_root.trim().to_string()
+    };
+    let game_data_dir = if Path::new(&folder_name).is_absolute() {
+        PathBuf::from(&folder_name)
+    } else {
+        root.join(&folder_name)
+    };
+    Ok(detect_available_languages_in_dir(&game_data_dir))
 }
 
 #[tauri::command]
@@ -720,21 +923,27 @@ fn run_vulkan_shader_precompile_pipeline(
     // 2. Run Vulkan precompiler (--shader_prebuild_only=true)
     emit_progress(5, 100, "Starting Vulkan shader precompiler...");
 
-    let cmd_args = [
-        "-NoLogo",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        script.to_str().unwrap_or_default(),
-        "-RenderingPath",
-        "Vulkan",
-        "-GameDataRoot",
-        &game_data_rel,
-        "-Configuration",
-        &settings.configuration,
-        "-ShaderPrebuildOnly",
+    let is_dev = settings.dev_mode || is_dev_or_debug();
+    let dev_mode_arg = format!("-DevMode:${}", is_dev);
+    let mut cmd_args = vec![
+        "-NoLogo".to_string(),
+        "-NoProfile".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-File".to_string(),
+        script.to_string_lossy().to_string(),
+        "-RenderingPath".to_string(),
+        "Vulkan".to_string(),
+        "-GameDataRoot".to_string(),
+        game_data_rel,
+        "-Configuration".to_string(),
+        settings.configuration.clone(),
+        dev_mode_arg,
+        "-ShaderPrebuildOnly".to_string(),
     ];
+    if !is_dev {
+        cmd_args.push("-DisableLogging".to_string());
+    }
 
     let mut cmd = Command::new("powershell.exe");
     cmd.args(&cmd_args)
@@ -1184,6 +1393,12 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         game_data_rel,
         "-Language".to_string(),
         settings.language,
+        "-AudioLanguage".to_string(),
+        if settings.audio_language.trim().is_empty() {
+            "Auto".to_string()
+        } else {
+            settings.audio_language
+        },
         format!("-StepFix:${}", settings.step_fix),
         format!("-AnimSpeedFix:${}", settings.anim_speed_fix),
         format!("-DtSmoothing:${}", settings.dt_smoothing),
@@ -2004,6 +2219,7 @@ pub fn run() {
             load_settings,
             save_settings,
             check_game_status,
+            get_available_languages,
             select_iso_file,
             select_game_data_folder,
             start_game_build,
@@ -2216,5 +2432,88 @@ mod tests {
         assert_eq!(format_bytes(1536), "1.5 KB");
         assert_eq!(format_bytes(1048576), "1.00 MB");
         assert_eq!(format_bytes(21551962), "20.55 MB");
+    }
+
+    #[test]
+    fn test_deserialize_language_audio_and_iso_path() {
+        let json_missing = r#"{ "Language": "Portuguese" }"#;
+        let s1: Settings = serde_json::from_str(json_missing).unwrap();
+        assert_eq!(s1.language, "Portuguese");
+        assert_eq!(s1.audio_language, "Auto");
+        assert_eq!(s1.iso_path, "");
+
+        let json_nulls = r#"{ "Language": null, "AudioLanguage": null, "IsoPath": null }"#;
+        let s2: Settings = serde_json::from_str(json_nulls).unwrap();
+        assert_eq!(s2.language, "English");
+        assert_eq!(s2.audio_language, "Auto");
+        assert_eq!(s2.iso_path, "");
+
+        let json_explicit = r#"{ "Language": "Portuguese", "AudioLanguage": "English", "IsoPath": "D:\\Games\\Majin.iso" }"#;
+        let s3: Settings = serde_json::from_str(json_explicit).unwrap();
+        assert_eq!(s3.language, "Portuguese");
+        assert_eq!(s3.audio_language, "English");
+        assert_eq!(s3.iso_path, "D:\\Games\\Majin.iso");
+    }
+
+    #[test]
+    fn test_detect_available_languages_pal_and_usa() {
+        let base = std::env::temp_dir().join(format!("majin_lang_test_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+
+        // Mock PAL edition: has kr.pak leftover on disc, plus us/po/du/ru, no jp
+        let pal_dir = base.join("pal");
+        let pal_pkg = pal_dir.join("finalizedXBox360/KB/package");
+        let pal_snd = pal_dir.join("finalizedXBox360/KB/sound/xbox360");
+        fs::create_dir_all(&pal_pkg).unwrap();
+        fs::write(pal_dir.join("default.xex"), [0u8, 0, 0x67, 0xBD, 0x87, 0xEF, 0, 0]).unwrap();
+        for p in ["us", "po", "sp", "fr", "ge", "it", "du", "ru", "kr"] {
+            fs::write(pal_pkg.join(format!("{}.pak", p)), b"pak").unwrap();
+        }
+        for s in ["en", "po", "sp", "fr", "ge", "it", "du", "ru"] {
+            let d = pal_snd.join(format!("rtd_{}", s));
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("000.gtd"), b"gtd").unwrap();
+        }
+
+        let pal_info = detect_available_languages_in_dir(&pal_dir);
+        assert_eq!(pal_info.edition_code, "PAL");
+        assert!(pal_info.detected_from_assets);
+        let pal_texts: Vec<&str> = pal_info.text_languages.iter().map(|l| l.value.as_str()).collect();
+        assert_eq!(pal_texts, vec!["English", "Portuguese", "Spanish", "French", "German", "Italian", "Dutch", "Russian"]);
+        assert!(!pal_texts.contains(&"Korean"));
+        assert!(!pal_texts.contains(&"Japanese"));
+        let pal_audios: Vec<&str> = pal_info.audio_languages.iter().map(|l| l.value.as_str()).collect();
+        assert_eq!(pal_audios, vec!["English", "Portuguese", "Spanish", "French", "German", "Italian", "Dutch", "Russian"]);
+
+        // Mock USA edition: only EN/FR/SP/KR text and EN/FR/SP audio
+        let usa_dir = base.join("usa");
+        let usa_pkg = usa_dir.join("finalizedXBox360/KB/package");
+        let usa_snd = usa_dir.join("finalizedXBox360/KB/sound/xbox360");
+        fs::create_dir_all(&usa_pkg).unwrap();
+        fs::write(usa_dir.join("default.xex"), [0u8, 0, 0x76, 0xFD, 0xB6, 0x42, 0, 0]).unwrap();
+        for p in ["us", "fr", "sp", "kr", "po"] {
+            fs::write(usa_pkg.join(format!("{}.pak", p)), b"pak").unwrap();
+        }
+        for s in ["en", "fr", "sp"] {
+            let d = usa_snd.join(format!("rtd_{}", s));
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("000.gtd"), b"gtd").unwrap();
+        }
+
+        let usa_info = detect_available_languages_in_dir(&usa_dir);
+        assert_eq!(usa_info.edition_code, "USA");
+        let usa_texts: Vec<&str> = usa_info.text_languages.iter().map(|l| l.value.as_str()).collect();
+        assert_eq!(usa_texts, vec!["English", "Spanish", "French", "Korean"]);
+        let usa_audios: Vec<&str> = usa_info.audio_languages.iter().map(|l| l.value.as_str()).collect();
+        assert_eq!(usa_audios, vec!["English", "Spanish", "French"]);
+
+        // Uninstalled fallback
+        let empty_info = detect_available_languages_in_dir(&base.join("missing"));
+        assert_eq!(empty_info.edition_code, "NotInstalled");
+        assert!(!empty_info.detected_from_assets);
+        assert_eq!(empty_info.text_languages.len(), 1);
+        assert_eq!(empty_info.text_languages[0].value, "English");
+
+        let _ = fs::remove_dir_all(&base);
     }
 }

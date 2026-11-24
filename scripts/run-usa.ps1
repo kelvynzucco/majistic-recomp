@@ -20,7 +20,8 @@ param(
     $SkipCutscenes = $true,
     [ValidateRange(1,16)][int]$CutsceneSpeed = 4,
     $SkipIntroLogos = $false,
-    [ValidateSet('English','Spanish','French','German','Italian','Korean','Japanese','Portuguese')][string]$Language = 'English',
+    [ValidateSet('English','Spanish','French','German','Italian','Dutch','Russian','Korean','Japanese','Portuguese')][string]$Language = 'English',
+    [ValidateSet('Auto','English','Spanish','French','German','Italian','Dutch','Russian','Japanese','Portuguese')][string]$AudioLanguage = 'Auto',
     $StepFix = $false,
     $AnimSpeedFix = $false,
     $DtSmoothing = $false,
@@ -68,7 +69,9 @@ if (Test-Path $cfgFile) {
 $isFullscreen = ConvertTo-Bool $Fullscreen
 $isVSync = ConvertTo-Bool $VSync
 $isRecordPerf = ConvertTo-Bool $RecordPerformance
-if (-not $DisableLogging) {
+$isDevMode = ConvertTo-Bool $DevMode
+$enableRuntimeLogs = $isDevMode -and (-not $DisableLogging)
+if ($enableRuntimeLogs) {
     New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'reports') | Out-Null
 }
 
@@ -156,10 +159,15 @@ $renderTarget = if ($RenderingPath -eq 'ROV') { 'rov' } elseif ($RenderingPath -
 $vulkanTargetPath = 'fbo'
 $allowInvalid = 'true'
 $logPath = $null
-if (-not $DisableLogging) {
+$tempPrebuildLog = $false
+if ($enableRuntimeLogs) {
     $logDir = Join-Path $sessionRoot 'logs'
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     $logPath = Join-Path $logDir ('runtime-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+} elseif ($ShaderPrebuildOnly) {
+    # Ephemeral progress log in %TEMP% so shader precompile progress UI works without creating game-data\runtime\logs
+    $logPath = Join-Path ([System.IO.Path]::GetTempPath()) ('majistic-prebuild-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + $PID + '.log')
+    $tempPrebuildLog = $true
 }
 
 $dimensions = $WindowSize.Split('x')
@@ -236,9 +244,8 @@ if ($InputMode -eq 'KeyboardMouse') {
 
 $isWindowFps = if ($null -ne $WindowFps) { ConvertTo-Bool $WindowFps } else { (-not $isFullscreen) }
 $launchArgs += "--majin_window_fps=$($isWindowFps.ToString().ToLowerInvariant())"
-$isDevMode = ConvertTo-Bool $DevMode
 $launchArgs += "--majin_dev_mode=$($isDevMode.ToString().ToLowerInvariant())"
-if ($isRecordPerf -and -not $DisableLogging -and $logPath) {
+if ($isRecordPerf -and $enableRuntimeLogs -and $logPath -and (-not $ShaderPrebuildOnly)) {
     $launchArgs += @('--majin_record_performance=true', "--perf_log_csv=$logPath.performance.csv")
 } else {
     $launchArgs += '--majin_record_performance=false'
@@ -260,9 +267,30 @@ $langMap = @{
     'Italian'    = 6
     'Korean'     = 7
     'Portuguese' = 9
+    'Russian'    = 12
 }
 $langId = if ($langMap.ContainsKey($Language)) { $langMap[$Language] } else { 1 }
 $launchArgs += "--user_language=$langId"
+
+$majinLangCodeMap = @{
+    'Auto'       = 'auto'
+    'English'    = 'en'
+    'Japanese'   = 'jp'
+    'Dutch'      = 'du'
+    'French'     = 'fr'
+    'Italian'    = 'it'
+    'German'     = 'ge'
+    'Spanish'    = 'sp'
+    'Portuguese' = 'po'
+    'Russian'    = 'ru'
+    'Korean'     = 'kr'
+}
+$textLangKey = if ([string]::IsNullOrWhiteSpace($Language)) { 'English' } else { $Language.Trim() }
+$textLangCode = if ($majinLangCodeMap.ContainsKey($textLangKey)) { $majinLangCodeMap[$textLangKey] } else { 'en' }
+$audioLangKey = if ([string]::IsNullOrWhiteSpace($AudioLanguage)) { 'Auto' } else { $AudioLanguage.Trim() }
+$audioLangCode = if ($majinLangCodeMap.ContainsKey($audioLangKey)) { $majinLangCodeMap[$audioLangKey] } else { 'auto' }
+$launchArgs += "--majin_text_language=$textLangCode"
+$launchArgs += "--majin_audio_language=$audioLangCode"
 
 # Engine Fixes & Enhancements
 $isStepFix = ConvertTo-Bool $StepFix
@@ -327,5 +355,11 @@ $workingDir = if (Test-Path (Split-Path $exe -Parent)) {
     $projectRoot
 }
 $windowStyle = if ($ShaderPrebuildOnly) { 'Hidden' } else { 'Normal' }
-$process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle $windowStyle -PassThru -Wait
-Write-Output "majin.exe exited with ExitCode: $($process.ExitCode)"
+try {
+    $process = Start-Process -FilePath $exe -ArgumentList $quotedArgs -WorkingDirectory $workingDir -WindowStyle $windowStyle -PassThru -Wait
+    Write-Output "majin.exe exited with ExitCode: $($process.ExitCode)"
+} finally {
+    if ($tempPrebuildLog -and $logPath -and (Test-Path -LiteralPath $logPath)) {
+        Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
+    }
+}

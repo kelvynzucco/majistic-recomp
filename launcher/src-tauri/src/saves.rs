@@ -87,6 +87,8 @@ pub struct LauncherConfigSummary {
     pub frame_rate_mode: String,
     pub input_mode: String,
     pub language: String,
+    #[serde(default)]
+    pub audio_language: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -799,6 +801,7 @@ fn inspect_savistic_file_inner(file_path: &Path) -> Result<SavisticPreview, Stri
         frame_rate_mode: cfg.frame_rate_mode.clone(),
         input_mode: cfg.input_mode.clone(),
         language: cfg.language.clone(),
+        audio_language: cfg.audio_language.clone(),
     });
 
     Ok(SavisticPreview {
@@ -938,6 +941,7 @@ fn import_savistic_file_inner(
         if let Some(mut imported_cfg) = extracted_launcher_cfg {
             // Preserve local machine-specific fields
             imported_cfg.game_data_root = current_settings.game_data_root.clone();
+            imported_cfg.iso_path = current_settings.iso_path.clone();
             imported_cfg.active_save_profile = registry.active_profile_id.clone();
             imported_cfg.dev_mode = current_settings.dev_mode;
             imported_cfg.configuration = current_settings.configuration.clone();

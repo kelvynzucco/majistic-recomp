@@ -92,6 +92,7 @@ function enhance(select) {
     list = document.createElement("div");
     list.className = LIST_CLASS;
     Array.from(select.options).forEach((o, i) => {
+      if (o.hidden || o.disabled) return;
       const item = document.createElement("div");
       const active = i === select.selectedIndex;
       item.className =

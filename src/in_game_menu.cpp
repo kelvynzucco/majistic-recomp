@@ -55,6 +55,28 @@ void ReplaceJsonField(std::string& json, const std::string& key, const std::stri
   json.replace(val_start, val_end - val_start, new_val);
 }
 
+void DrawSectionHeader(const char* title) {
+  ImGui::TextColored(ImVec4(0.35f, 0.82f, 1.0f, 1.0f), "%s", title);
+  ImGui::Separator();
+  ImGui::Spacing();
+}
+
+void DrawSubSectionHeader(const char* title) {
+  ImGui::TextColored(ImVec4(0.65f, 0.72f, 0.82f, 1.0f), "%s", title);
+  ImGui::Spacing();
+}
+
+void DrawExperimentalBadge() {
+  ImGui::SameLine();
+  ImGui::TextColored(ImVec4(0.95f, 0.45f, 0.55f, 1.0f), "[Experimental]");
+}
+
+void DrawHintText(const char* text) {
+  ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+  ImGui::TextWrapped("%s", text);
+  ImGui::PopStyleColor();
+}
+
 }  // namespace
 
 InGameMenuDialog::InGameMenuDialog(rex::ui::ImGuiDrawer* imgui_drawer,
@@ -210,28 +232,39 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Tab Bar for categorized configuration
+    // Tab Bar for categorized configuration (standardized with Launcher)
     if (ImGui::BeginTabBar("MajinInGameTabs", ImGuiTabBarFlags_None)) {
-      if (ImGui::BeginTabItem("Gameplay & Controls")) {
-        DrawGameplayTab();
+      if (ImGui::BeginTabItem("Graphics")) {
+        if (ImGui::BeginChild("GraphicsScroll", ImVec2(0, -44.0f), false)) {
+          DrawGraphicsTab();
+        }
+        ImGui::EndChild();
         ImGui::EndTabItem();
       }
-      if (ImGui::BeginTabItem("Visuals & Graphics")) {
-        DrawVisualsTab();
+      if (ImGui::BeginTabItem("Controls")) {
+        if (ImGui::BeginChild("ControlsScroll", ImVec2(0, -44.0f), false)) {
+          DrawControlsTab();
+        }
+        ImGui::EndChild();
         ImGui::EndTabItem();
       }
       if (ImGui::BeginTabItem("Fixes & Patches")) {
-        DrawFixesTab();
+        if (ImGui::BeginChild("FixesScroll", ImVec2(0, -44.0f), false)) {
+          DrawFixesTab();
+        }
+        ImGui::EndChild();
         ImGui::EndTabItem();
       }
-      if (ImGui::BeginTabItem("System & Info")) {
-        DrawSystemTab();
+      if (ImGui::BeginTabItem("Game Preferences")) {
+        if (ImGui::BeginChild("PreferencesScroll", ImVec2(0, -44.0f), false)) {
+          DrawPreferencesTab();
+        }
+        ImGui::EndChild();
         ImGui::EndTabItem();
       }
       ImGui::EndTabBar();
     }
 
-    ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -280,58 +313,104 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
   ImGui::End();
 }
 
-void InGameMenuDialog::DrawGameplayTab() {
+void InGameMenuDialog::DrawGraphicsTab() {
   ImGui::Spacing();
+  DrawSectionHeader("DISPLAY");
 
-  // Mouse Look Sensitivity
-  float mouse_sens = static_cast<float>(rex::cvar::Query<double>("mnk_sensitivity"));
-  ImGui::Text("Mouse Look Sensitivity:");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##MouseSens", &mouse_sens, 0.1f, 5.0f, "%.1fx")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", mouse_sens);
-    rex::cvar::SetFlagByName("mnk_sensitivity", buf);
+  // Shadow Quality (majin_shadow_scale)
+  const int32_t current_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
+  const char* shadow_scale_labels[] = {
+      "1x - Native",
+      "2x - Enhanced",
+      "4x - Ultra Clean",
+  };
+  const int shadow_scale_values[] = {1, 2, 4};
+
+  int shadow_idx = 0;
+  if (current_shadow_scale >= 4) {
+    shadow_idx = 2;
+  } else if (current_shadow_scale >= 2) {
+    shadow_idx = 1;
+  } else {
+    shadow_idx = 0;
   }
-  ImGui::TextDisabled("Adjusts raw mouse look responsiveness for right analog stick camera.");
 
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  // In-game cutscene controls
-  bool skip_cutscenes = rex::cvar::Query<bool>("majin_skip_cutscenes");
-  if (ImGui::Checkbox("Allow Fast-Forwarding In-Game Cutscenes", &skip_cutscenes)) {
-    rex::cvar::SetFlagByName("majin_skip_cutscenes", skip_cutscenes ? "true" : "false");
+  ImGui::Text("Shadow Quality:");
+  ImGui::SetNextItemWidth(360.0f);
+  if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
+    const int new_val = shadow_scale_values[shadow_idx];
+    rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
+    if (on_clear_caches_) {
+      on_clear_caches_();
+    }
   }
-  ImGui::TextDisabled("Hold [Select/Back] on controller or [Tab/Backspace] on keyboard to speed through cutscenes.");
 
   ImGui::Spacing();
 
-  int32_t cutscene_speed = rex::cvar::Query<int32_t>("majin_cutscene_speed");
-  const char* speed_items[] = {"1x (Normal Speed)", "2x Speed", "4x Fast-Forward", "8x Hyper Speed"};
-  int current_speed_idx = (cutscene_speed == 1) ? 0 : (cutscene_speed == 2) ? 1 : (cutscene_speed == 8) ? 3 : 2;
+  // Upscaler (present_effect)
+  const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
+  const char* upscaler_labels[] = {
+      "Bilinear (Native)",
+      "FSR 1.0",
+      "Contrast Adaptive Sharpening (CAS)",
+  };
+  const char* upscaler_values[] = {
+      "bilinear",
+      "fsr",
+      "cas",
+  };
 
-  ImGui::Text("Cutscene Fast-Forward Multiplier:");
-  ImGui::SetNextItemWidth(260.0f);
-  if (ImGui::Combo("##CutsceneSpeed", &current_speed_idx, speed_items, IM_ARRAYSIZE(speed_items))) {
-    const int new_speed = (current_speed_idx == 0) ? 1 : (current_speed_idx == 1) ? 2 : (current_speed_idx == 3) ? 8 : 4;
-    rex::cvar::SetFlagByName("majin_cutscene_speed", std::to_string(new_speed));
+  int upscaler_idx = 0;
+  for (int i = 0; i < IM_ARRAYSIZE(upscaler_values); ++i) {
+    if (current_upscaler == upscaler_values[i]) {
+      upscaler_idx = i;
+      break;
+    }
   }
-}
 
-void InGameMenuDialog::DrawVisualsTab() {
+  ImGui::Text("Upscaler:");
+  ImGui::SetNextItemWidth(360.0f);
+  if (ImGui::Combo("##PresentEffect", &upscaler_idx, upscaler_labels, IM_ARRAYSIZE(upscaler_labels))) {
+    rex::cvar::SetFlagByName("present_effect", upscaler_values[upscaler_idx]);
+  }
+
+  // Sharpening controls based on active upscaler
+  if (current_upscaler == "cas") {
+    ImGui::Spacing();
+    float cas_sharp = static_cast<float>(rex::cvar::Query<double>("present_cas_additional_sharpness"));
+    ImGui::Text("CAS Sharp:");
+    ImGui::SetNextItemWidth(320.0f);
+    if (ImGui::SliderFloat("##CasSharpness", &cas_sharp, 0.0f, 1.0f, "%.2f")) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f", cas_sharp);
+      rex::cvar::SetFlagByName("present_cas_additional_sharpness", buf);
+    }
+    DrawHintText("Contrast Adaptive Sharpening intensity (0.00 = default, 1.00 = max).");
+  } else if (current_upscaler == "fsr") {
+    ImGui::Spacing();
+    float fsr_reduction = static_cast<float>(rex::cvar::Query<double>("present_fsr_sharpness_reduction"));
+    ImGui::Text("FSR RCAS Sharp:");
+    ImGui::SetNextItemWidth(320.0f);
+    if (ImGui::SliderFloat("##FsrSharpnessReduction", &fsr_reduction, 0.0f, 2.0f, "%.2f stops")) {
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.2f", fsr_reduction);
+      rex::cvar::SetFlagByName("present_fsr_sharpness_reduction", buf);
+    }
+    DrawHintText("0.00 = max sharpness; higher values reduce RCAS sharpening strength.");
+  }
+
   ImGui::Spacing();
 
-  // Anti-Aliasing & De-Dither (swap_post_effect)
+  // Anti-Aliasing (swap_post_effect)
   const std::string current_post = rex::cvar::GetFlagByName("swap_post_effect");
   const char* post_effect_labels[] = {
-      "Off (Native Raw)",
-      "FXAA Fast (FXAA 3.11 Default)",
-      "FXAA High (FXAA 3.11 Quality)",
-      "De-Dither (Edge-Preserving Cross Filter)",
+      "Off (Native)",
+      "FXAA 3.11 Default",
+      "FXAA 3.11 Quality",
+      "De-Dither",
       "De-Dither + FXAA Fast (Recommended)",
       "De-Dither + FXAA High",
-      "De-Dither Debug Heatmap (Magenta = Dither Detected)",
+      "De-Dither Debug Heatmap",
   };
   const char* post_effect_values[] = {
       "none",
@@ -351,188 +430,43 @@ void InGameMenuDialog::DrawVisualsTab() {
     }
   }
 
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Anti-Aliasing & De-Dither Pass (swap_post_effect):");
-  ImGui::SetNextItemWidth(400.0f);
+  ImGui::Text("Anti-Aliasing:");
+  ImGui::SetNextItemWidth(360.0f);
   if (ImGui::Combo("##SwapPostEffect", &post_idx, post_effect_labels, IM_ARRAYSIZE(post_effect_labels))) {
     rex::cvar::SetFlagByName("swap_post_effect", post_effect_values[post_idx]);
   }
-  ImGui::TextDisabled("Removes checkerboard dither transparency and smooths geometric aliasing in real-time.");
 
   const bool uses_dedither = (post_idx >= 3 && post_idx <= 6);
   if (uses_dedither) {
     ImGui::Spacing();
     double current_strength = rex::cvar::Query<double>("swap_dedither_strength");
     float slider_strength = static_cast<float>(current_strength);
-    ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "De-Dither Intensity / Strength (swap_dedither_strength):");
-    ImGui::SetNextItemWidth(400.0f);
+    ImGui::Text("De-Dither Intensity:");
+    ImGui::SetNextItemWidth(320.0f);
     if (ImGui::SliderFloat("##DeDitherStrength", &slider_strength, 0.0f, 1.0f, "%.2f")) {
       char str_buf[32];
       snprintf(str_buf, sizeof(str_buf), "%.2f", slider_strength);
       rex::cvar::SetFlagByName("swap_dedither_strength", str_buf);
     }
-    ImGui::TextDisabled("Controls cross-blend strength (0.00 = off, 1.00 = maximum foliage smoothing).");
+    DrawHintText("Controls foliage cross-blend strength (0.00 = off, 1.00 = max smoothing).");
   }
 
   ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
 
-  // Presenter Upscaler (present_effect)
-  const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
-  const char* upscaler_labels[] = {
-      "Bilinear (Direct Blit / Smooth Downsample)",
-      "AMD FidelityFX Super Resolution 1.0 (FSR)",
-      "Contrast Adaptive Sharpening (CAS)",
-  };
-  const char* upscaler_values[] = {
-      "bilinear",
-      "fsr",
-      "cas",
-  };
+  DrawSubSectionHeader("SHADOW DEPTH BIAS");
 
-  int upscaler_idx = 0;
-  for (int i = 0; i < IM_ARRAYSIZE(upscaler_values); ++i) {
-    if (current_upscaler == upscaler_values[i]) {
-      upscaler_idx = i;
-      break;
-    }
-  }
-
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Presenter Upscaler & Scaling Filter (present_effect):");
-  ImGui::SetNextItemWidth(400.0f);
-  if (ImGui::Combo("##PresentEffect", &upscaler_idx, upscaler_labels, IM_ARRAYSIZE(upscaler_labels))) {
-    rex::cvar::SetFlagByName("present_effect", upscaler_values[upscaler_idx]);
-  }
-  ImGui::TextDisabled("Bilinear blit is automatically enforced when downsampling to avoid sharpening dither patterns.");
-
-  // Sharpening controls based on active upscaler
-  if (current_upscaler == "cas") {
-    float cas_sharp = static_cast<float>(rex::cvar::Query<double>("present_cas_additional_sharpness"));
-    ImGui::Text("CAS Additional Sharpness:");
-    ImGui::SetNextItemWidth(320.0f);
-    if (ImGui::SliderFloat("##CasSharpness", &cas_sharp, 0.0f, 1.0f, "%.2f")) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "%.2f", cas_sharp);
-      rex::cvar::SetFlagByName("present_cas_additional_sharpness", buf);
-    }
-    ImGui::TextDisabled("Adjusts Contrast Adaptive Sharpening intensity (0.00 = default, 1.00 = max).");
-  } else if (current_upscaler == "fsr") {
-    float fsr_reduction = static_cast<float>(rex::cvar::Query<double>("present_fsr_sharpness_reduction"));
-    ImGui::Text("FSR RCAS Sharpness Reduction:");
-    ImGui::SetNextItemWidth(320.0f);
-    if (ImGui::SliderFloat("##FsrSharpnessReduction", &fsr_reduction, 0.0f, 2.0f, "%.2f stops")) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "%.2f", fsr_reduction);
-      rex::cvar::SetFlagByName("present_fsr_sharpness_reduction", buf);
-    }
-    ImGui::TextDisabled("0.00 = Maximum sharpness; higher values reduce RCAS sharpening strength.");
-  }
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  // Field of View
-  float fov_scale = static_cast<float>(rex::cvar::Query<double>("majin_fov_scale"));
-  ImGui::Text("Camera Field of View (FOV Multiplier):");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##FovScale", &fov_scale, 0.80f, 1.50f, "%.2fx")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", fov_scale);
-    rex::cvar::SetFlagByName("majin_fov_scale", buf);
-  }
-  ImGui::TextDisabled("Dynamically widens view frustum and projection culling (default: 1.00x).");
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  // Draw Distance Multiplier
-  float draw_distance_scale =
-      static_cast<float>(rex::cvar::Query<double>("majin_draw_distance_scale"));
-  ImGui::Text("Draw Distance & LOD Multiplier:");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##DrawDistanceScale", &draw_distance_scale, 0.50f, 3.00f, "%.2fx")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", draw_distance_scale);
-    rex::cvar::SetFlagByName("majin_draw_distance_scale", buf);
-  }
-  ImGui::TextDisabled("Scales far clip planes and object draw/fade distances (default: 1.00x).");
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "In-Engine Shaders & Effects:");
-
-  // Depth of field
-  bool dof = rex::cvar::Query<bool>("majin_dof");
-  if (ImGui::Checkbox("Depth of Field (Background Distance Blur)", &dof)) {
-    rex::cvar::SetFlagByName("majin_dof", dof ? "true" : "false");
-  }
-
-  // Specular Bloom & Glare Slider
-  float bloom_intensity = static_cast<float>(rex::cvar::Query<double>("majin_bloom"));
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("Glare & Specular Bloom", &bloom_intensity, 0.0f, 2.0f, "%.2f")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", bloom_intensity);
-    rex::cvar::SetFlagByName("majin_bloom", buf);
-  }
-
-  // Pause & Map Wave Distortion
-  bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
-  if (ImGui::Checkbox("Pause & Map Screen Wave Distortion", &pause_distortion)) {
-    rex::cvar::SetFlagByName("majin_pause_distortion", pause_distortion ? "true" : "false");
-  }
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadows & Lighting:");
-
-  // Shadow Map Resolution Scale
-  const int32_t current_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
-  const char* shadow_scale_labels[] = {
-      "1x Native (Vanilla 512-1024)",
-      "2x Enhanced (Crisp 1024-2048)",
-      "4x Ultra Clean (Sharp 2048-4096)",
-  };
-  const int shadow_scale_values[] = {1, 2, 4};
-
-  int shadow_idx = 0;
-  if (current_shadow_scale >= 4) {
-    shadow_idx = 2;
-  } else if (current_shadow_scale >= 2) {
-    shadow_idx = 1;
-  } else {
-    shadow_idx = 0;
-  }
-
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Map Resolution Scale (majin_shadow_scale):");
-  ImGui::SetNextItemWidth(340.0f);
-  if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
-    const int new_val = shadow_scale_values[shadow_idx];
-    rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
-    if (on_clear_caches_) {
-      on_clear_caches_();
-    }
-  }
-  ImGui::TextDisabled("Scales depth-only shadow passes in real-time, eliminating staircasing/pixelation on characters and geometry.");
-
-  ImGui::Spacing();
-
-  // Shadow Map Slope-Scaled Depth Bias
+  // Shadow Slope-Scaled Depth Bias
   double current_slope_bias = 0.30;
   const std::string slope_bias_str = rex::cvar::GetFlagByName("majin_shadow_slope_bias");
   if (!slope_bias_str.empty()) {
     current_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
   }
   float slope_val = static_cast<float>(current_slope_bias);
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Slope-Scaled Depth Bias (majin_shadow_slope_bias):");
-  ImGui::SetNextItemWidth(300.0f);
-  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, 0.0f, 2.0f, "%.2f")) {
+  ImGui::Text("Shadow Slope-Scaled Depth Bias:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, 0.0f, 3.0f, "%.2f")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.2f", slope_val);
     rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
@@ -551,19 +485,19 @@ void InGameMenuDialog::DrawVisualsTab() {
     snprintf(buf, sizeof(buf), "%.2f", slope_val);
     rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
   }
-  ImGui::TextDisabled("Eliminates shadow acne/flickering on angled walls as sunlight rotates (default: 0.30).");
+  DrawHintText("Eliminates shadow acne/flickering on angled walls as sunlight rotates (default: 0.30).");
 
   ImGui::Spacing();
 
-  // Shadow Map Constant Depth Bias
+  // Shadow Constant Depth Bias
   double current_const_bias = 0.000;
   const std::string const_bias_str = rex::cvar::GetFlagByName("majin_shadow_constant_bias");
   if (!const_bias_str.empty()) {
     current_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
   }
   float const_val = static_cast<float>(current_const_bias);
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Constant Depth Bias (majin_shadow_constant_bias):");
-  ImGui::SetNextItemWidth(300.0f);
+  ImGui::Text("Shadow Constant Depth Bias:");
+  ImGui::SetNextItemWidth(320.0f);
   if (ImGui::SliderFloat("##ShadowConstBias", &const_val, 0.000f, 0.050f, "%.3f")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.3f", const_val);
@@ -583,19 +517,19 @@ void InGameMenuDialog::DrawVisualsTab() {
     snprintf(buf, sizeof(buf), "%.3f", const_val);
     rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
   }
-  ImGui::TextDisabled("Fine constant offset added to shadow depth passes (default: 0.000).");
+  DrawHintText("Fine constant offset added to shadow depth passes (default: 0.000).");
 
   ImGui::Spacing();
 
-  // Shadow Map Depth Bias Clamp
+  // Shadow Depth Bias Clamp
   double current_bias_clamp = 0.002;
   const std::string bias_clamp_str = rex::cvar::GetFlagByName("majin_shadow_bias_clamp");
   if (!bias_clamp_str.empty()) {
     current_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
   }
   float clamp_val = static_cast<float>(current_bias_clamp);
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Shadow Depth Bias Clamp (majin_shadow_bias_clamp):");
-  ImGui::SetNextItemWidth(300.0f);
+  ImGui::Text("Shadow Depth Bias Clamp:");
+  ImGui::SetNextItemWidth(320.0f);
   if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, "%.3f")) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%.3f", clamp_val);
@@ -615,55 +549,145 @@ void InGameMenuDialog::DrawVisualsTab() {
     snprintf(buf, sizeof(buf), "%.3f", clamp_val);
     rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
   }
-  ImGui::TextDisabled("Caps maximum slope bias on silhouette edges, eliminating glowing halos/glow (default: 0.002).");
+  DrawHintText("Caps maximum slope bias on silhouette edges, eliminating glowing halos (default: 0.002).");
 
   ImGui::Spacing();
 
-  // Quick Action Buttons
-  if (ImGui::Button("Reset Shadow Bias (0.30 / 0.000 / 0.002)", ImVec2(275, 26))) {
+  // Shadow Bias Preset Buttons
+  if (ImGui::Button("Reset Default (0.30 / 0.000 / 0.002)", ImVec2(260, 26))) {
     rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.30");
     rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
     rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
   }
   ImGui::SameLine();
-  if (ImGui::Button("Zero Bias (Original) (0.00 / 0.000 / 0.000)", ImVec2(275, 26))) {
+  if (ImGui::Button("Zero Bias (Original)", ImVec2(180, 26))) {
     rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.00");
     rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
     rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
   }
 
   ImGui::Spacing();
+  ImGui::Spacing();
+  DrawSectionHeader("VISUALS");
+
+  // FOV
+  float fov_scale = static_cast<float>(rex::cvar::Query<double>("majin_fov_scale"));
+  ImGui::Text("FOV:");
+  DrawExperimentalBadge();
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##FovScale", &fov_scale, 0.80f, 1.50f, "%.2fx")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", fov_scale);
+    rex::cvar::SetFlagByName("majin_fov_scale", buf);
+  }
+  DrawHintText("A wider FOV may cause parts of the environment to remain unrendered or appear missing (default: 1.00x).");
+
+  ImGui::Spacing();
+
+  // Draw Distance
+  float draw_distance_scale =
+      static_cast<float>(rex::cvar::Query<double>("majin_draw_distance_scale"));
+  ImGui::Text("Draw Distance:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##DrawDistanceScale", &draw_distance_scale, 0.50f, 3.00f, "%.2fx")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", draw_distance_scale);
+    rex::cvar::SetFlagByName("majin_draw_distance_scale", buf);
+  }
+  DrawHintText("Scales far clip planes and object draw distance (default: 1.00x).");
+
+  ImGui::Spacing();
   ImGui::Separator();
   ImGui::Spacing();
 
-  ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "Display & Swapchain:");
+  DrawSubSectionHeader("VISUAL EFFECTS");
 
-  // Output Dithering
-  bool dither = rex::cvar::Query<bool>("present_dither");
-  if (ImGui::Checkbox("Swapchain Color Dithering (present_dither)", &dither)) {
-    rex::cvar::SetFlagByName("present_dither", dither ? "true" : "false");
+  // Depth of Field (Native)
+  bool dof = rex::cvar::Query<bool>("majin_dof");
+  if (ImGui::Checkbox("Depth of Field (Native)", &dof)) {
+    rex::cvar::SetFlagByName("majin_dof", dof ? "true" : "false");
   }
-  ImGui::TextDisabled("Apply output dithering pass. Keep disabled to eliminate screen grain/noise.");
+
+  // Pause Background
+  bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
+  if (ImGui::Checkbox("Pause Background", &pause_distortion)) {
+    rex::cvar::SetFlagByName("majin_pause_distortion", pause_distortion ? "true" : "false");
+  }
+
+  ImGui::Spacing();
+
+  // Bloom Intensity
+  float bloom_intensity = static_cast<float>(rex::cvar::Query<double>("majin_bloom"));
+  ImGui::Text("Bloom Intensity:");
+  ImGui::SetNextItemWidth(320.0f);
+  const char* bloom_fmt = (bloom_intensity <= 0.001f) ? "Off" : "%.2f";
+  if (ImGui::SliderFloat("##BloomIntensity", &bloom_intensity, 0.0f, 2.0f, bloom_fmt)) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", bloom_intensity);
+    rex::cvar::SetFlagByName("majin_bloom", buf);
+  }
+  DrawHintText("Controls glare and specular light intensity (0.00 = disabled, 1.00 = default, 2.00 = 2x glow).");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  DrawSubSectionHeader("DISPLAY");
 
   // VSync
   bool vsync = rex::cvar::Query<bool>("vsync");
-  if (ImGui::Checkbox("Vertical Synchronization (VSync)", &vsync)) {
+  if (ImGui::Checkbox("VSync", &vsync)) {
     rex::cvar::SetFlagByName("vsync", vsync ? "true" : "false");
   }
+
+  // Output Dithering
+  bool dither = rex::cvar::Query<bool>("present_dither");
+  if (ImGui::Checkbox("Output Dithering", &dither)) {
+    rex::cvar::SetFlagByName("present_dither", dither ? "true" : "false");
+  }
+  DrawHintText("Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise.");
+
+  ImGui::Spacing();
+
+  // Window Title FPS
+  bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
+  if (ImGui::Checkbox("Window Title FPS", &show_fps)) {
+    rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
+  }
+  DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
+}
+
+void InGameMenuDialog::DrawControlsTab() {
+  ImGui::Spacing();
+  DrawSectionHeader("INPUT");
+
+  // Mouse Sensitivity
+  float mouse_sens = static_cast<float>(rex::cvar::Query<double>("mnk_sensitivity"));
+  ImGui::Text("Mouse Sensitivity:");
+  DrawExperimentalBadge();
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##MouseSens", &mouse_sens, 0.1f, 10.0f, "%.1fx")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", mouse_sens);
+    rex::cvar::SetFlagByName("mnk_sensitivity", buf);
+  }
+  DrawHintText("Camera look sensitivity when playing with Keyboard & Mouse.");
 }
 
 void InGameMenuDialog::DrawFixesTab() {
   ImGui::Spacing();
+  DrawSectionHeader("PHYSICS");
 
   // Step Fix
   bool step_fix = rex::cvar::Query<bool>("majin_step_fix");
   if (ImGui::Checkbox("High FPS Edge Climbing (Step Fix)", &step_fix)) {
     rex::cvar::SetFlagByName("majin_step_fix", step_fix ? "true" : "false");
   }
-  ImGui::TextDisabled("Prevents Tepeu and enemies from getting stuck against small curbs and ledges above 30 FPS.");
+  DrawExperimentalBadge();
+  DrawHintText(
+      "Scales movement step when blocked on small edges for >80 FPS. Keep disabled if you feel your "
+      "character being pushed away or repelled when close to walls, enemies, or Majin at 30-60 FPS.");
 
-  ImGui::Spacing();
-  ImGui::Separator();
   ImGui::Spacing();
 
   // Engine Delta-Time Smoothing
@@ -671,25 +695,54 @@ void InGameMenuDialog::DrawFixesTab() {
   if (ImGui::Checkbox("Engine Delta-Time Smoothing (dt_smooth)", &dt_smooth)) {
     rex::cvar::SetFlagByName("majin_dt_smooth", dt_smooth ? "true" : "false");
   }
-  ImGui::TextDisabled("Replaces guest frame delta-time with a smoothed moving average. Leave off for purest vanilla console physics pacing.");
+  DrawHintText(
+      "Replaces guest frame delta-time with a smoothed moving average. Leave off for purest "
+      "vanilla console physics pacing.");
 
   ImGui::Spacing();
-  ImGui::Separator();
   ImGui::Spacing();
+  DrawSectionHeader("ANIMATION");
 
   // Sub-Motion Fix
   bool submotion_fix = rex::cvar::Query<bool>("majin_submotion_fix");
-  if (ImGui::Checkbox("Sub-Motion Animation Normalization (Experimental)", &submotion_fix)) {
+  if (ImGui::Checkbox("Sub-Motion Animation Normalization", &submotion_fix)) {
     rex::cvar::SetFlagByName("majin_submotion_fix", submotion_fix ? "true" : "false");
   }
-  ImGui::TextDisabled("Normalizes partial skeleton animation steps (facial expressions, healing) to console rate.");
+  DrawExperimentalBadge();
+  DrawHintText(
+      "Normalizes facial expressions and world object animations above 30 FPS. Keep disabled if "
+      "you experience interaction timing or dialogue delay issues with Majin.");
 }
 
-void InGameMenuDialog::DrawSystemTab() {
+void InGameMenuDialog::DrawPreferencesTab() {
+  ImGui::Spacing();
+  DrawSectionHeader("GAME PREFERENCES");
+
+  // Cutscene Speed
+  int32_t cutscene_speed = rex::cvar::Query<int32_t>("majin_cutscene_speed");
+  const char* speed_items[] = {"1x (Normal Speed)", "2x Speed", "4x Fast-Forward", "8x Hyper Speed"};
+  int current_speed_idx = (cutscene_speed == 1) ? 0 : (cutscene_speed == 2) ? 1 : (cutscene_speed == 8) ? 3 : 2;
+
+  ImGui::Text("Cutscene Speed:");
+  ImGui::SetNextItemWidth(260.0f);
+  if (ImGui::Combo("##CutsceneSpeed", &current_speed_idx, speed_items, IM_ARRAYSIZE(speed_items))) {
+    const int new_speed = (current_speed_idx == 0) ? 1 : (current_speed_idx == 1) ? 2 : (current_speed_idx == 3) ? 8 : 4;
+    rex::cvar::SetFlagByName("majin_cutscene_speed", std::to_string(new_speed));
+  }
+
   ImGui::Spacing();
 
-  ImGui::TextColored(ImVec4(0.35f, 0.82f, 1.0f, 1.0f), "Engine & Session Information");
+  // Allow Fast-Forwarding In-Game Cutscenes
+  bool skip_cutscenes = rex::cvar::Query<bool>("majin_skip_cutscenes");
+  if (ImGui::Checkbox("Allow Fast-Forwarding In-Game Cutscenes", &skip_cutscenes)) {
+    rex::cvar::SetFlagByName("majin_skip_cutscenes", skip_cutscenes ? "true" : "false");
+  }
+  DrawExperimentalBadge();
+  DrawHintText("Hold [Select/Back] or [Tab] to speed through cutscenes.");
+
   ImGui::Spacing();
+  ImGui::Spacing();
+  DrawSectionHeader("SESSION INFO");
 
   const std::string backend = rex::cvar::GetFlagByName("gpu_backend");
   const std::string res_scale = rex::cvar::GetFlagByName("resolution_scale");
@@ -697,21 +750,11 @@ void InGameMenuDialog::DrawSystemTab() {
   const std::string aa = rex::cvar::GetFlagByName("swap_post_effect");
   const int32_t active_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
 
-  ImGui::BulletText("Active Graphics Backend: %s", backend.empty() ? "vulkan" : backend.c_str());
-  ImGui::BulletText("Internal Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
-  ImGui::BulletText("Shadow Map Resolution Scale: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));
-  ImGui::BulletText("Presenter Upscaler: %s", upscaler.empty() ? "bilinear" : upscaler.c_str());
-  ImGui::BulletText("Anti-Aliasing Pass: %s", aa.empty() ? "none" : aa.c_str());
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  // Window title FPS toggle
-  bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
-  if (ImGui::Checkbox("Show Live Guest FPS in Window Title", &show_fps)) {
-    rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
-  }
+  ImGui::BulletText("Render Path: %s", backend.empty() ? "vulkan" : backend.c_str());
+  ImGui::BulletText("Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
+  ImGui::BulletText("Shadow Quality: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));
+  ImGui::BulletText("Upscaler: %s", upscaler.empty() ? "bilinear" : upscaler.c_str());
+  ImGui::BulletText("Anti-Aliasing: %s", aa.empty() ? "none" : aa.c_str());
 }
 
 void InGameMenuDialog::DrawQuitConfirmModal() {

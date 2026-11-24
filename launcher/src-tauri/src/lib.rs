@@ -2,10 +2,13 @@ use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 mod prebuild;
+
+static DEV_MODE_RUNTIME: AtomicBool = AtomicBool::new(false);
 
 fn default_window_size() -> String {
     "1280x720".into()
@@ -60,7 +63,7 @@ fn default_false() -> bool {
 }
 
 fn default_record_performance() -> bool {
-    cfg!(feature = "dev-mode")
+    false
 }
 
 fn default_fov_scale() -> f64 {
@@ -107,6 +110,42 @@ fn default_shadow_scale() -> u32 {
     2
 }
 
+fn default_shadow_slope_bias() -> f64 {
+    0.30
+}
+
+fn default_shadow_constant_bias() -> f64 {
+    0.0
+}
+
+fn default_shadow_bias_clamp() -> f64 {
+    0.002
+}
+
+fn deserialize_nullable_f64_slope_bias<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(0.30))
+}
+
+fn deserialize_nullable_f64_zero<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(0.0))
+}
+
+fn deserialize_nullable_f64_bias_clamp<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(0.002))
+}
+
 fn deserialize_nullable_u32_shadow_scale<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -150,6 +189,12 @@ pub struct Settings {
     pub render_scale: u32,
     #[serde(rename = "ShadowScale", default = "default_shadow_scale", deserialize_with = "deserialize_nullable_u32_shadow_scale")]
     pub shadow_scale: u32,
+    #[serde(rename = "ShadowSlopeBias", default = "default_shadow_slope_bias", deserialize_with = "deserialize_nullable_f64_slope_bias")]
+    pub shadow_slope_bias: f64,
+    #[serde(rename = "ShadowConstantBias", default = "default_shadow_constant_bias", deserialize_with = "deserialize_nullable_f64_zero")]
+    pub shadow_constant_bias: f64,
+    #[serde(rename = "ShadowBiasClamp", default = "default_shadow_bias_clamp", deserialize_with = "deserialize_nullable_f64_bias_clamp")]
+    pub shadow_bias_clamp: f64,
     #[serde(default = "default_rendering_path")]
     pub rendering_path: String,
     #[serde(default = "default_frame_rate_mode")]
@@ -208,6 +253,8 @@ pub struct Settings {
     pub present_dither: bool,
     #[serde(rename = "WindowFps", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub window_fps: bool,
+    #[serde(rename = "DevMode", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    pub dev_mode: bool,
 }
 
 impl Default for Settings {
@@ -217,6 +264,9 @@ impl Default for Settings {
             fullscreen: false,
             render_scale: 1,
             shadow_scale: 2,
+            shadow_slope_bias: 0.30,
+            shadow_constant_bias: 0.0,
+            shadow_bias_clamp: 0.002,
             rendering_path: "Vulkan".into(),
             frame_rate_mode: "30".into(),
             vsync: true,
@@ -228,7 +278,7 @@ impl Default for Settings {
             cutscene_speed: 4,
             input_mode: "Controller".into(),
             mouse_sensitivity: 1.0,
-            record_performance: cfg!(feature = "dev-mode"),
+            record_performance: false,
             game_data_root: "game-data".into(),
             configuration: "Release".into(),
             language: "English".into(),
@@ -246,6 +296,7 @@ impl Default for Settings {
             fsr_reduction: 0.0,
             present_dither: false,
             window_fps: false,
+            dev_mode: false,
         }
     }
 }
@@ -309,6 +360,7 @@ fn load_settings() -> Result<Settings, String> {
 
 #[tauri::command]
 fn save_settings(settings: Settings) -> Result<(), String> {
+    DEV_MODE_RUNTIME.store(settings.dev_mode, Ordering::Relaxed);
     let path = get_settings_path();
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
@@ -1049,7 +1101,7 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.game_data_root.trim().to_string()
     };
 
-    let is_dev = is_dev_or_debug();
+    let is_dev = settings.dev_mode || is_dev_or_debug();
     let log_file_path = if is_dev {
         let p = root.join("private/launcher-launch.log");
         if let Some(parent) = p.parent() {
@@ -1075,6 +1127,12 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.render_scale.to_string(),
         "-ShadowScale".to_string(),
         settings.shadow_scale.to_string(),
+        "-ShadowSlopeBias".to_string(),
+        format!("{:.2}", settings.shadow_slope_bias),
+        "-ShadowConstantBias".to_string(),
+        format!("{:.3}", settings.shadow_constant_bias),
+        "-ShadowBiasClamp".to_string(),
+        format!("{:.3}", settings.shadow_bias_clamp),
         "-PostEffect".to_string(),
         settings.post_effect,
         "-DeDitherStrength".to_string(),
@@ -1278,7 +1336,8 @@ fn process_failed_kind_to_str(kind: i32) -> &'static str {
 }
 
 pub fn is_dev_or_debug() -> bool {
-    cfg!(debug_assertions)
+    DEV_MODE_RUNTIME.load(Ordering::Relaxed)
+        || cfg!(debug_assertions)
         || cfg!(feature = "dev-mode")
         || std::env::args().any(|a| {
             a.eq_ignore_ascii_case("--debug")
@@ -1291,6 +1350,11 @@ pub fn is_dev_or_debug() -> bool {
 #[tauri::command]
 fn is_dev_mode() -> bool {
     is_dev_or_debug()
+}
+
+#[tauri::command]
+fn set_dev_mode(enabled: bool) {
+    DEV_MODE_RUNTIME.store(enabled, Ordering::Relaxed);
 }
 
 pub fn write_debug_log(msg: &str) {
@@ -1706,6 +1770,11 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            if let Ok(loaded) = load_settings() {
+                if loaded.dev_mode {
+                    DEV_MODE_RUNTIME.store(true, Ordering::Relaxed);
+                }
+            }
             write_debug_log("=== Setup Hook Entered ===");
             write_debug_log(&format!("OS Architecture: {}", std::env::consts::ARCH));
 
@@ -1913,6 +1982,7 @@ pub fn run() {
             start_drag_window,
             log_message,
             is_dev_mode,
+            set_dev_mode,
             exit_app,
             open_external_url,
             get_connected_gamepads
@@ -1973,6 +2043,10 @@ mod tests {
         assert_eq!(settings.cas_sharpness, 0.0);
         assert_eq!(settings.fsr_reduction, 0.0);
         assert!(!settings.window_fps);
+        assert_eq!(settings.shadow_slope_bias, 0.30);
+        assert_eq!(settings.shadow_constant_bias, 0.0);
+        assert_eq!(settings.shadow_bias_clamp, 0.002);
+        assert!(!settings.dev_mode);
     }
 
     #[test]
@@ -2024,6 +2098,10 @@ mod tests {
             "WindowSize": "2560x1440",
             "Fullscreen": true,
             "RenderScale": 3,
+            "ShadowScale": 4,
+            "ShadowSlopeBias": 0.45,
+            "ShadowConstantBias": 0.005,
+            "ShadowBiasClamp": 0.004,
             "RenderingPath": "Vulkan",
             "FrameRateMode": "120",
             "VSync": false,
@@ -2051,7 +2129,8 @@ mod tests {
             "CasSharpness": 0.35,
             "FsrReduction": 0.45,
             "WindowFps": true,
-            "PresentDither": true
+            "PresentDither": true,
+            "DevMode": true
         }"#;
 
         let parsed: Result<Settings, _> = serde_json::from_str(json);
@@ -2060,6 +2139,10 @@ mod tests {
         assert_eq!(settings.window_size, "2560x1440");
         assert!(settings.fullscreen);
         assert_eq!(settings.render_scale, 3);
+        assert_eq!(settings.shadow_scale, 4);
+        assert_eq!(settings.shadow_slope_bias, 0.45);
+        assert_eq!(settings.shadow_constant_bias, 0.005);
+        assert_eq!(settings.shadow_bias_clamp, 0.004);
         assert_eq!(settings.rendering_path, "Vulkan");
         assert_eq!(settings.frame_rate_mode, "120");
         assert!(!settings.vsync);
@@ -2077,6 +2160,7 @@ mod tests {
         assert_eq!(settings.fsr_reduction, 0.45);
         assert!(settings.window_fps);
         assert!(settings.present_dither);
+        assert!(settings.dev_mode);
     }
 
     #[test]

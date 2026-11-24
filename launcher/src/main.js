@@ -107,6 +107,10 @@ const defaultSettings = {
   WindowSize: "1280x720",
   Fullscreen: false,
   RenderScale: 1,
+  ShadowScale: 2,
+  ShadowSlopeBias: 0.30,
+  ShadowConstantBias: 0.000,
+  ShadowBiasClamp: 0.002,
   RenderingPath: "Vulkan",
   FrameRateMode: "30",
   VSync: true,
@@ -135,6 +139,7 @@ const defaultSettings = {
   BloomIntensity: 1.0,
   PauseDistortion: true,
   WindowFps: false,
+  DevMode: false,
 };
 
 let currentSettings = { ...defaultSettings };
@@ -162,6 +167,7 @@ const elements = {
 
   // Header & Status
   appVersionBadge: document.getElementById("appVersionBadge"),
+  devModeBadge: document.getElementById("devModeBadge"),
   btnCheckUpdates: document.getElementById("btnCheckUpdates"),
   btnCheckUpdatesText: document.getElementById("btnCheckUpdatesText"),
   btnBuyMeCoffee: document.getElementById("btnBuyMeCoffee"),
@@ -189,6 +195,14 @@ const elements = {
   fullscreen: document.getElementById("fullscreen"),
   renderScale: document.getElementById("renderScale"),
   shadowScale: document.getElementById("shadowScale"),
+  shadowSlopeBias: document.getElementById("shadowSlopeBias"),
+  shadowSlopeBiasVal: document.getElementById("shadowSlopeBiasVal"),
+  shadowConstantBias: document.getElementById("shadowConstantBias"),
+  shadowConstantBiasVal: document.getElementById("shadowConstantBiasVal"),
+  shadowBiasClamp: document.getElementById("shadowBiasClamp"),
+  shadowBiasClampVal: document.getElementById("shadowBiasClampVal"),
+  btnResetShadowBias: document.getElementById("btnResetShadowBias"),
+  btnZeroShadowBias: document.getElementById("btnZeroShadowBias"),
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
@@ -280,7 +294,7 @@ const elements = {
   precompileConsole: document.getElementById("precompileConsole"),
   btnClearPrecompileLog: document.getElementById("btnClearPrecompileLog"),
 
-  // Dev Shader Cache Elements
+  // Dev Shader Cache & Dev Mode Elements
   devShaderCacheCard: document.getElementById("devShaderCacheCard"),
   devShaderTotalSize: document.getElementById("devShaderTotalSize"),
   devShaderPipelineCount: document.getElementById("devShaderPipelineCount"),
@@ -288,6 +302,9 @@ const elements = {
   devShaderXshSize: document.getElementById("devShaderXshSize"),
   devShaderLastUpdated: document.getElementById("devShaderLastUpdated"),
   btnRefreshShaderCache: document.getElementById("btnRefreshShaderCache"),
+  devModeStatusBadge: document.getElementById("devModeStatusBadge"),
+  btnToggleDevMode: document.getElementById("btnToggleDevMode"),
+  btnToggleDevModeText: document.getElementById("btnToggleDevModeText"),
 };
 
 // ==========================================
@@ -514,6 +531,27 @@ function populateForm(settings) {
   if (elements.fullscreen) elements.fullscreen.value = String(!!settings.Fullscreen);
   if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
   if (elements.shadowScale) elements.shadowScale.value = String(settings.ShadowScale !== undefined ? settings.ShadowScale : 2);
+  if (elements.shadowSlopeBias) {
+    const slopeVal = Math.min(3.0, Math.max(0.0, safeFloat(settings.ShadowSlopeBias, 0.30)));
+    elements.shadowSlopeBias.value = slopeVal.toFixed(2);
+    if (elements.shadowSlopeBiasVal) {
+      elements.shadowSlopeBiasVal.textContent = slopeVal.toFixed(2);
+    }
+  }
+  if (elements.shadowConstantBias) {
+    const constVal = Math.min(0.05, Math.max(0.0, safeFloat(settings.ShadowConstantBias, 0.0)));
+    elements.shadowConstantBias.value = constVal.toFixed(3);
+    if (elements.shadowConstantBiasVal) {
+      elements.shadowConstantBiasVal.textContent = constVal.toFixed(3);
+    }
+  }
+  if (elements.shadowBiasClamp) {
+    const clampVal = Math.min(0.02, Math.max(0.0, safeFloat(settings.ShadowBiasClamp, 0.002)));
+    elements.shadowBiasClamp.value = clampVal.toFixed(3);
+    if (elements.shadowBiasClampVal) {
+      elements.shadowBiasClampVal.textContent = clampVal.toFixed(3);
+    }
+  }
   if (elements.frameRateMode) elements.frameRateMode.value = settings.FrameRateMode || "30";
   if (elements.renderingPath) {
     const rp = settings.RenderingPath || "Vulkan";
@@ -601,6 +639,9 @@ function readForm() {
     Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
     RenderScale: safeInt(elements.renderScale?.value, 1),
     ShadowScale: safeInt(elements.shadowScale?.value, 2),
+    ShadowSlopeBias: elements.shadowSlopeBias ? safeFloat(elements.shadowSlopeBias.value, 0.30) : safeFloat(currentSettings.ShadowSlopeBias, 0.30),
+    ShadowConstantBias: elements.shadowConstantBias ? safeFloat(elements.shadowConstantBias.value, 0.0) : safeFloat(currentSettings.ShadowConstantBias, 0.0),
+    ShadowBiasClamp: elements.shadowBiasClamp ? safeFloat(elements.shadowBiasClamp.value, 0.002) : safeFloat(currentSettings.ShadowBiasClamp, 0.002),
     RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : true,
@@ -629,6 +670,7 @@ function readForm() {
     PauseDistortion: elements.pauseDistortion ? elements.pauseDistortion.checked : true,
     Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
     BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) : safeFloat(currentSettings.BloomIntensity, 1.0),
+    DevMode: !!isDevModeCached,
   };
 }
 
@@ -1295,6 +1337,69 @@ if (elements.bloomIntensity) {
   });
 }
 
+if (elements.shadowSlopeBias) {
+  elements.shadowSlopeBias.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.shadowSlopeBiasVal && !isNaN(val)) {
+      elements.shadowSlopeBiasVal.textContent = val.toFixed(2);
+    }
+  });
+}
+
+if (elements.shadowConstantBias) {
+  elements.shadowConstantBias.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.shadowConstantBiasVal && !isNaN(val)) {
+      elements.shadowConstantBiasVal.textContent = val.toFixed(3);
+    }
+  });
+}
+
+if (elements.shadowBiasClamp) {
+  elements.shadowBiasClamp.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.shadowBiasClampVal && !isNaN(val)) {
+      elements.shadowBiasClampVal.textContent = val.toFixed(3);
+    }
+  });
+}
+
+async function applyShadowBiasPreset(slope, constant, clamp) {
+  if (elements.shadowSlopeBias) {
+    elements.shadowSlopeBias.value = slope.toFixed(2);
+    if (elements.shadowSlopeBiasVal) elements.shadowSlopeBiasVal.textContent = slope.toFixed(2);
+    updateSliderFill(elements.shadowSlopeBias);
+  }
+  if (elements.shadowConstantBias) {
+    elements.shadowConstantBias.value = constant.toFixed(3);
+    if (elements.shadowConstantBiasVal) elements.shadowConstantBiasVal.textContent = constant.toFixed(3);
+    updateSliderFill(elements.shadowConstantBias);
+  }
+  if (elements.shadowBiasClamp) {
+    elements.shadowBiasClamp.value = clamp.toFixed(3);
+    if (elements.shadowBiasClampVal) elements.shadowBiasClampVal.textContent = clamp.toFixed(3);
+    updateSliderFill(elements.shadowBiasClamp);
+  }
+  const settings = readForm();
+  try {
+    await invoke("save_settings", { settings });
+  } catch {
+    // ignore
+  }
+}
+
+if (elements.btnResetShadowBias) {
+  elements.btnResetShadowBias.addEventListener("click", () => {
+    applyShadowBiasPreset(0.30, 0.000, 0.002);
+  });
+}
+
+if (elements.btnZeroShadowBias) {
+  elements.btnZeroShadowBias.addEventListener("click", () => {
+    applyShadowBiasPreset(0.00, 0.000, 0.000);
+  });
+}
+
 // Global delegated listener to ensure live progress fill on all sliders
 document.addEventListener("input", (e) => {
   if (e.target && e.target.type === "range") {
@@ -1637,31 +1742,97 @@ if (elements.btnUpdateNow) {
 }
 
 // ==========================================
+// Developer Mode Toggle
+// ==========================================
+function applyDevModeUI(enabled) {
+  isDevModeCached = !!enabled;
+
+  // Toggle header DEV badge
+  if (elements.devModeBadge) {
+    elements.devModeBadge.classList.toggle("hidden", !isDevModeCached);
+  }
+
+  // Toggle status badge & button state in Setup Game tab
+  if (elements.devModeStatusBadge) {
+    if (isDevModeCached) {
+      elements.devModeStatusBadge.textContent = "Enabled";
+      elements.devModeStatusBadge.className =
+        "text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono uppercase font-bold";
+    } else {
+      elements.devModeStatusBadge.textContent = "Disabled";
+      elements.devModeStatusBadge.className =
+        "text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/60 font-mono uppercase";
+    }
+  }
+
+  if (elements.btnToggleDevMode && elements.btnToggleDevModeText) {
+    if (isDevModeCached) {
+      elements.btnToggleDevModeText.textContent = "Disable Developer Mode";
+      elements.btnToggleDevMode.className =
+        "w-full py-2 px-3 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 hover:text-amber-200 border border-amber-700/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm";
+    } else {
+      elements.btnToggleDevModeText.textContent = "Enable Developer Mode";
+      elements.btnToggleDevMode.className =
+        "w-full py-2 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm";
+    }
+  }
+
+  // Show/hide all [data-dev-only] elements without removing them from DOM
+  document.querySelectorAll("[data-dev-only]").forEach((el) => {
+    if (el.tagName === "OPTION") {
+      el.hidden = !isDevModeCached;
+      el.disabled = !isDevModeCached;
+    } else {
+      el.classList.toggle("hidden", !isDevModeCached);
+    }
+  });
+
+  // If Dev Mode was turned off while a dev-only option was selected, fall back cleanly
+  if (!isDevModeCached) {
+    const fallbacks = [
+      { el: elements.frameRateMode, fallback: "60" },
+      { el: elements.renderingPath, fallback: "Vulkan" },
+      { el: elements.postEffect, fallback: "dedither_fxaa" },
+    ];
+    for (const { el, fallback } of fallbacks) {
+      if (!el) continue;
+      const selectedOpt = el.options[el.selectedIndex];
+      if (selectedOpt && (selectedOpt.hidden || selectedOpt.disabled)) {
+        el.value = fallback;
+      }
+    }
+    if (elements.chkCompileBinary) {
+      elements.chkCompileBinary.checked = false;
+    }
+    updatePostProcessingVisibility();
+  }
+
+  document.querySelectorAll("select").forEach(refreshCustomSelect);
+
+  if (isDevModeCached) {
+    updateShaderCacheInfo();
+  }
+}
+
+if (elements.btnToggleDevMode) {
+  elements.btnToggleDevMode.addEventListener("click", async () => {
+    const nextState = !isDevModeCached;
+    applyDevModeUI(nextState);
+    try {
+      await invoke("set_dev_mode", { enabled: nextState });
+      const settings = readForm();
+      await invoke("save_settings", { settings });
+    } catch (err) {
+      console.warn("Failed to toggle dev mode:", err);
+    }
+  });
+}
+
+// ==========================================
 // Initialization
 // ==========================================
 async function init() {
   logToBackend("init() started");
-
-  let isDev = false;
-  try {
-    isDev = await invoke("is_dev_mode");
-  } catch (err) {
-    console.warn("Could not determine dev mode:", err);
-  }
-
-  if (!isDev) {
-    document.querySelectorAll("[data-dev-only]").forEach((el) => el.remove());
-    elements.chkCompileBinary = null;
-  } else {
-    const versionBadge = document.getElementById("launcherVersionBadge");
-    if (versionBadge && !document.getElementById("devModeBadge")) {
-      const devBadge = document.createElement("span");
-      devBadge.id = "devModeBadge";
-      devBadge.className = "text-[9px] px-1.5 py-0.5 rounded-md bg-amber-950/80 text-amber-300 border border-amber-800/60 font-mono font-bold";
-      devBadge.textContent = "DEV";
-      versionBadge.parentElement.appendChild(devBadge);
-    }
-  }
 
   try {
     const loaded = await invoke("load_settings");
@@ -1672,8 +1843,19 @@ async function init() {
     console.warn("Could not load settings:", err);
     logToBackend("Could not load settings: " + err);
   }
+
+  let backendDev = false;
+  try {
+    backendDev = await invoke("is_dev_mode");
+  } catch (err) {
+    console.warn("Could not determine dev mode:", err);
+  }
+
+  const initialDev = Boolean(currentSettings.DevMode || backendDev);
+
   initCustomSelects();
   populateForm(currentSettings);
+  applyDevModeUI(initialDev);
   await updateGameStatus();
   await updateShaderCacheInfo();
   await updateMaximizeIcon();

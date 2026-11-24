@@ -33,6 +33,12 @@
               >v0.1.4</span
             >
 
+            <span
+              id="devModeBadge"
+              class="hidden inline-flex items-center justify-center px-2 py-1 rounded-lg bg-amber-950/80 text-amber-300 border border-amber-800/60 text-[10px] font-mono font-bold tracking-wider select-none"
+              >DEV</span
+            >
+
             <button
               id="btnCheckUpdates"
               type="button"
@@ -619,6 +625,124 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- Shadow Depth Bias Controls (Standardized with In-Game) -->
+                <div class="space-y-2 pt-1 border-t border-darkBorder/40">
+                  <div class="flex items-center justify-between gap-2">
+                    <span
+                      class="block text-[10px] uppercase tracking-wider font-semibold text-slate-400"
+                      >Shadow Depth Bias</span
+                    >
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        id="btnResetShadowBias"
+                        type="button"
+                        title="Reset Shadow Bias to recommended defaults (0.30 / 0.000 / 0.002)"
+                        class="px-2 py-0.5 rounded-md bg-darkControl hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
+                      >
+                        Reset Default
+                      </button>
+                      <button
+                        id="btnZeroShadowBias"
+                        type="button"
+                        title="Set all shadow bias values to 0 (0.00 / 0.000 / 0.000)"
+                        class="px-2 py-0.5 rounded-md bg-darkControl hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-medium transition-colors cursor-pointer"
+                      >
+                        Zero Bias (Original)
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Shadow Slope-Scaled Depth Bias -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="shadowSlopeBias"
+                        class="text-xs text-slate-300"
+                      >
+                        Shadow Slope-Scaled Depth Bias
+                      </label>
+                      <span
+                        id="shadowSlopeBiasVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >0.30</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="shadowSlopeBias"
+                      min="0.00"
+                      max="3.00"
+                      step="0.05"
+                      value="0.30"
+                      class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Eliminates shadow acne/flickering on angled walls as
+                      sunlight rotates (default: 0.30).
+                    </p>
+                  </div>
+
+                  <!-- Shadow Constant Depth Bias -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="shadowConstantBias"
+                        class="text-xs text-slate-300"
+                      >
+                        Shadow Constant Depth Bias
+                      </label>
+                      <span
+                        id="shadowConstantBiasVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >0.000</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="shadowConstantBias"
+                      min="0.000"
+                      max="0.050"
+                      step="0.001"
+                      value="0.000"
+                      class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Fine constant offset added to shadow depth passes
+                      (default: 0.000).
+                    </p>
+                  </div>
+
+                  <!-- Shadow Depth Bias Clamp -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="shadowBiasClamp"
+                        class="text-xs text-slate-300"
+                      >
+                        Shadow Depth Bias Clamp
+                      </label>
+                      <span
+                        id="shadowBiasClampVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >0.002</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="shadowBiasClamp"
+                      min="0.000"
+                      max="0.020"
+                      step="0.001"
+                      value="0.002"
+                      class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Caps maximum slope bias on silhouette edges, eliminating
+                      glowing halos (default: 0.002).
+                    </p>
+                  </div>
+                </div>
               </section>
 
               <!-- Column 2: Camera & Visual Effects -->
@@ -822,7 +946,7 @@
                     </label>
                     <label
                       for="windowFps"
-                      class="flex items-center space-x-1.5 cursor-pointer"
+                      class="hidden flex items-center space-x-1.5 cursor-pointer"
                       data-dev-only
                     >
                       <input
@@ -1183,7 +1307,7 @@
 
                   <div
                     data-dev-only
-                    class="pt-1 flex items-center justify-between border-t border-darkBorder/40"
+                    class="hidden pt-1 flex items-center justify-between border-t border-darkBorder/40"
                   >
                     <div class="flex items-center space-x-2">
                       <input
@@ -1451,7 +1575,7 @@
                   <div
                     data-dev-only
                     id="devShaderCacheCard"
-                    class="p-2.5 rounded-xl bg-amber-950/20 text-xs space-y-2 shadow-sm"
+                    class="hidden p-2.5 rounded-xl bg-amber-950/20 text-xs space-y-2 shadow-sm"
                   >
                     <div
                       class="flex items-center justify-between border-b border-amber-800/30 pb-1.5"
@@ -1728,6 +1852,52 @@
                     </div>
                   </div>
                 </section>
+
+                <!-- Developer Mode Toggle -->
+                <section
+                  class="bg-darkCard rounded-xl p-3.5 space-y-2.5 shadow-sm"
+                >
+                  <div
+                    class="flex items-center justify-between border-b border-darkBorder/40 pb-2"
+                  >
+                    <h2
+                      class="text-sm font-bold tracking-wider text-accent uppercase flex items-center gap-2"
+                    >
+                      <svg
+                        class="w-5 h-5 text-accent shrink-0"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <path
+                          fill="currentColor"
+                          fill-rule="evenodd"
+                          d="M14.2485 3.2804C14.6512 3.38832 14.8902 3.80227 14.7823 4.205L10.7823 19.1333C10.6744 19.536 10.2604 19.775 9.85772 19.6671C9.45499 19.5592 9.216 19.1453 9.32391 18.7425L13.3239 3.81421C13.4318 3.41148 13.8458 3.17249 14.2485 3.2804ZM16.4697 6.46967C16.7626 6.17678 17.2374 6.17678 17.5303 6.46967L21.5303 10.4697C22.1566 11.0959 22.1566 12.1112 21.5303 12.7374L17.5303 16.7374C17.2374 17.0303 16.7626 17.0303 16.4697 16.7374C16.1768 16.4445 16.1768 15.9697 16.4697 15.6768L20.4697 11.6768C20.5101 11.6363 20.5101 11.5708 20.4697 11.5303L16.4697 7.53033C16.1768 7.23744 16.1768 6.76256 16.4697 6.46967ZM7.53033 6.46967C7.82322 6.76256 7.82322 7.23744 7.53033 7.53033L3.53033 11.5303C3.48988 11.5708 3.48988 11.6363 3.53033 11.6768L7.53033 15.6768C7.82322 15.9697 7.82322 16.4445 7.53033 16.7374C7.23744 17.0303 6.76256 17.0303 6.46967 16.7374L2.46967 12.7374C1.84344 12.1112 1.84344 11.0959 2.46967 10.4697L6.46967 6.46967C6.76256 6.17678 7.23744 6.17678 7.53033 6.46967Z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                      <span>Developer Mode</span>
+                    </h2>
+                    <span
+                      id="devModeStatusBadge"
+                      class="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700/60 font-mono uppercase"
+                      >Disabled</span
+                    >
+                  </div>
+
+                  <p class="text-[11px] text-slate-400 leading-normal">
+                    Unlock advanced rendering paths, diagnostic logging, shader
+                    cache monitor, and C++ recompilation options.
+                  </p>
+
+                  <button
+                    id="btnToggleDevMode"
+                    type="button"
+                    class="w-full py-2 px-3 rounded-xl bg-darkControl hover:bg-slate-700 text-slate-200 hover:text-white border border-darkBorder/60 text-xs font-bold tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer select-none shadow-sm"
+                  >
+                    <span id="btnToggleDevModeText">Enable Developer Mode</span>
+                  </button>
+                </section>
               </div>
             </div>
           </div>
@@ -1759,9 +1929,8 @@
         </button>
       </footer>
 
-      <!-- Shader Precompilation Modal (Dev Mode Only) -->
+      <!-- Shader Precompilation Modal -->
       <div
-        data-dev-only
         id="precompileModal"
         class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 select-none"
       >

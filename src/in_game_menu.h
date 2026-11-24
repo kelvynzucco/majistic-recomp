@@ -24,10 +24,10 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
   void OnDraw(ImGuiIO& io) override;
 
  private:
-  void DrawGameplayTab();
-  void DrawVisualsTab();
+  void DrawGraphicsTab();
+  void DrawControlsTab();
   void DrawFixesTab();
-  void DrawSystemTab();
+  void DrawPreferencesTab();
   void DrawQuitConfirmModal();
 
   bool SaveSettingsToLauncherConfig();

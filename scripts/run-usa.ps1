@@ -147,11 +147,32 @@ $gpuBackend = if ($isVulkan) { 'vulkan' } else { 'd3d12' }
 $cacheKey = $gpuBackend + '-' + $RenderingPath.ToLower() + '/' + $Configuration.ToLower()
 $cacheRoot = Join-Path $sessionRoot ('cache/' + $cacheKey)
 $metadataRoot = Join-Path $sessionRoot ('metadata/' + $cacheKey)
-$safeSaveProfile = if ([string]::IsNullOrWhiteSpace($ActiveSaveProfile)) { 'default' } else { $ActiveSaveProfile.Trim() }
-if ($safeSaveProfile -eq 'default' -or $safeSaveProfile -notmatch '^[a-zA-Z0-9_-]+$') {
-    $userDataRoot = Join-Path $sessionRoot 'user'
-} else {
-    $userDataRoot = Join-Path $sessionRoot (Join-Path 'saves' $safeSaveProfile)
+$safeSaveProfile = if ([string]::IsNullOrWhiteSpace($ActiveSaveProfile) -or $ActiveSaveProfile.Trim() -notmatch '^[a-zA-Z0-9_-]+$') { 'default' } else { $ActiveSaveProfile.Trim() }
+$savesRoot = Join-Path $sessionRoot 'saves'
+$userDataRoot = Join-Path $savesRoot $safeSaveProfile
+if ($safeSaveProfile -eq 'default') {
+    $legacyUserDir = Join-Path $sessionRoot 'user'
+    if (Test-Path -LiteralPath $legacyUserDir) {
+        $hasLegacyItems = @(Get-ChildItem -LiteralPath $legacyUserDir -Force -ErrorAction SilentlyContinue).Count -gt 0
+        if (-not $hasLegacyItems) {
+            Remove-Item -LiteralPath $legacyUserDir -Force -ErrorAction SilentlyContinue
+        } else {
+            $targetExists = Test-Path -LiteralPath $userDataRoot
+            $targetHasItems = $targetExists -and (@(Get-ChildItem -LiteralPath $userDataRoot -Force -ErrorAction SilentlyContinue).Count -gt 0)
+            if (-not $targetHasItems) {
+                if ($targetExists) {
+                    Remove-Item -LiteralPath $userDataRoot -Force -ErrorAction SilentlyContinue
+                }
+                New-Item -ItemType Directory -Force -Path $savesRoot | Out-Null
+                try {
+                    Move-Item -LiteralPath $legacyUserDir -Destination $userDataRoot -Force
+                    Write-Output "Migrated legacy default save from $legacyUserDir to $userDataRoot"
+                } catch {
+                    Write-Warning "Failed to migrate legacy user folder: $_"
+                }
+            }
+        }
+    }
 }
 New-Item -ItemType Directory -Force -Path $cacheRoot, $metadataRoot, $userDataRoot | Out-Null
 

@@ -181,15 +181,61 @@ fn registry_path(runtime_root: &Path) -> PathBuf {
     saves_container_dir(runtime_root).join("profiles.json")
 }
 
+fn legacy_user_dir(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("user")
+}
+
+fn dir_has_entries(dir: &Path) -> bool {
+    fs::read_dir(dir)
+        .ok()
+        .and_then(|mut it| it.next())
+        .is_some()
+}
+
+fn migrate_legacy_default_profile_inner(runtime_root: &Path) {
+    let legacy_dir = legacy_user_dir(runtime_root);
+    if !legacy_dir.exists() {
+        return;
+    }
+
+    let target_dir = saves_container_dir(runtime_root).join(DEFAULT_PROFILE_ID);
+    if !dir_has_entries(&legacy_dir) {
+        let _ = fs::remove_dir(&legacy_dir);
+        return;
+    }
+
+    if target_dir.exists() {
+        if dir_has_entries(&target_dir) {
+            return;
+        }
+        let _ = fs::remove_dir(&target_dir);
+    }
+
+    if let Some(parent) = target_dir.parent() {
+        if fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+
+    if fs::rename(&legacy_dir, &target_dir).is_err() {
+        if copy_dir_recursive(&legacy_dir, &target_dir).is_ok() {
+            let _ = fs::remove_dir_all(&legacy_dir);
+        }
+    }
+}
+
+fn migrate_legacy_default_profile(runtime_root: &Path) {
+    if is_majin_game_running() {
+        return;
+    }
+    migrate_legacy_default_profile_inner(runtime_root);
+}
+
 fn profile_dir(runtime_root: &Path, profile_id: &str) -> Result<PathBuf, String> {
     if !is_valid_profile_id(profile_id) {
         return Err(format!("Invalid save profile ID: '{}'", profile_id));
     }
-    if profile_id == DEFAULT_PROFILE_ID {
-        Ok(runtime_root.join("user"))
-    } else {
-        Ok(saves_container_dir(runtime_root).join(profile_id))
-    }
+    Ok(saves_container_dir(runtime_root).join(profile_id))
 }
 
 fn generate_profile_id(existing: &[SaveProfileRecord]) -> String {
@@ -334,6 +380,12 @@ fn load_or_init_registry(runtime_root: &Path, preferred_active: Option<&str>) ->
         save_registry(runtime_root, &registry)?;
     }
 
+    if registry.profiles.iter().any(|p| p.id == DEFAULT_PROFILE_ID) {
+        migrate_legacy_default_profile(runtime_root);
+        let default_dir = saves_container_dir(runtime_root).join(DEFAULT_PROFILE_ID);
+        let _ = fs::create_dir_all(&default_dir);
+    }
+
     Ok(registry)
 }
 
@@ -435,7 +487,8 @@ fn inspect_profile_dir(dir: &Path) -> DirStats {
 }
 
 fn build_profile_info(runtime_root: &Path, rec: &SaveProfileRecord, active_id: &str) -> SaveProfileInfo {
-    let dir = profile_dir(runtime_root, &rec.id).unwrap_or_else(|_| runtime_root.join("user"));
+    let dir = profile_dir(runtime_root, &rec.id)
+        .unwrap_or_else(|_| saves_container_dir(runtime_root).join(DEFAULT_PROFILE_ID));
     let stats = inspect_profile_dir(&dir);
 
     let last_modified = stats.latest_modified.map(|st| {
@@ -1432,5 +1485,40 @@ mod tests {
         let res = inspect_savistic_file_inner(&bad_zip);
         assert!(res.is_err());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_default_profile_lives_in_saves_folder_from_start() {
+        let runtime = temp_test_dir("default_in_saves");
+        let reg = load_or_init_registry(&runtime, None).unwrap();
+        assert_eq!(reg.active_profile_id, DEFAULT_PROFILE_ID);
+
+        let default_dir = profile_dir(&runtime, DEFAULT_PROFILE_ID).unwrap();
+        assert_eq!(default_dir, runtime.join("saves").join(DEFAULT_PROFILE_ID));
+        assert!(default_dir.exists());
+        assert!(!runtime.join("user").exists());
+
+        let _ = fs::remove_dir_all(&runtime);
+    }
+
+    #[test]
+    fn test_legacy_user_dir_migrates_to_saves_default() {
+        let runtime = temp_test_dir("legacy_migrate");
+        let legacy_slot = runtime.join("user/B13EBABEBABEBABE/4E4D0816/00000001/KB_SAVE_0");
+        fs::create_dir_all(&legacy_slot).unwrap();
+        fs::write(legacy_slot.join("save00.dat"), vec![0x42; 64]).unwrap();
+
+        migrate_legacy_default_profile_inner(&runtime);
+        let reg = load_or_init_registry(&runtime, None).unwrap();
+        assert_eq!(reg.active_profile_id, DEFAULT_PROFILE_ID);
+
+        let migrated_file = runtime
+            .join("saves")
+            .join(DEFAULT_PROFILE_ID)
+            .join("B13EBABEBABEBABE/4E4D0816/00000001/KB_SAVE_0/save00.dat");
+        assert!(migrated_file.exists());
+        assert!(!runtime.join("user").exists());
+
+        let _ = fs::remove_dir_all(&runtime);
     }
 }

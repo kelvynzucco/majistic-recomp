@@ -938,6 +938,12 @@ fn run_vulkan_shader_precompile_pipeline(
         game_data_rel,
         "-Configuration".to_string(),
         settings.configuration.clone(),
+        "-ActiveSaveProfile".to_string(),
+        if settings.active_save_profile.trim().is_empty() {
+            saves::DEFAULT_PROFILE_ID.to_string()
+        } else {
+            settings.active_save_profile.clone()
+        },
         dev_mode_arg,
         "-ShaderPrebuildOnly".to_string(),
     ];

@@ -128,7 +128,7 @@ Majin Recomp/
 └── game-data/                  # Self-contained game directory
     ├── bin/                    # Compiled native game binary (majin.exe)
     ├── unpacked/               # Unpacked executable image (loaded-image.bin)
-    ├── runtime/                # Save files (user/), shader cache, and logs
+    ├── runtime/                # Save profiles (saves/), shader cache, and logs
     └── [Game Assets]           # Audio, video, textures, level packages from disc
 ```
 

@@ -182,7 +182,7 @@ extract your legally owned Xbox 360 ISO image of Majin and the Forsaken Kingdom.
 Structure:
 - game-data/bin/        -> Native game executable (majin.exe) and runtime DLLs
 - game-data/unpacked/   -> Decrypted executable image (loaded-image.bin)
-- game-data/runtime/    -> Save files (user/), cache, and logs
+- game-data/runtime/    -> Save profiles (saves/), cache, and logs
 "@
 Set-Content -Path (Join-Path $destGameData 'README.txt') -Value $readmeText -Encoding UTF8
 Write-Host "[6/7] Initialized game-data/ with precompiled binary and runtime DLLs"

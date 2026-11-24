@@ -27,6 +27,15 @@ try {
         Write-Output '[1/5] Skipping XMA audio test (not in current branch).'
     }
 
+    $xmaNavTest = Join-Path $source 'src/audio/xma_packet_nav_test.cpp'
+    if (Test-Path $xmaNavTest) {
+        Write-Output '[1b/5] Compiling and running XMA2 multi-stream navigation unit tests...'
+        clang++ -std=c++20 $xmaNavTest -o out/xma_packet_nav_test.exe
+        Check-Native 'XMA2 multi-stream test compilation'
+        & ./out/xma_packet_nav_test.exe
+        Check-Native 'XMA2 multi-stream navigation tests'
+    }
+
     $texTest = Join-Path $patchRoot 'texture_warning_sink_test.cpp'
     if ((Test-Path $texTest) -and (Test-Path "$source/thirdparty/spdlog/include")) {
         Write-Output '[2/5] Compiling and running GPU log filter unit tests...'

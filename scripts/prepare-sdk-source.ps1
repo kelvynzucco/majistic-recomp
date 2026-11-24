@@ -259,4 +259,16 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan shadow map resolution scaling patch application'
 }
 
-Write-Host "[1.1 - 1.18] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.19: Apply XMA2 multi-stream skip_count navigation fix
+$xmaMultiStreamPatch = Join-Path $patchRoot 'xma-multistream-skip.patch'
+git -C $source apply --reverse --check $xmaMultiStreamPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $xmaMultiStreamPatch
+    Check-Native 'XMA2 multi-stream skip patch check'
+    git -C $source apply $xmaMultiStreamPatch
+    Check-Native 'XMA2 multi-stream skip patch application'
+}
+Copy-Item -LiteralPath (Join-Path $patchRoot 'xma_packet_nav.h') -Destination (Join-Path $source 'src\audio\xma_packet_nav.h') -Force
+Copy-Item -LiteralPath (Join-Path $patchRoot 'xma_packet_nav_test.cpp') -Destination (Join-Path $source 'src\audio\xma_packet_nav_test.cpp') -Force
+
+Write-Host "[1.1 - 1.19] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

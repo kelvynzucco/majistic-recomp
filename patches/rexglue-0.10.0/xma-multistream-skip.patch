@@ -1,0 +1,108 @@
+diff --git a/src/audio/xma_context.cpp b/src/audio/xma_context.cpp
+index 08706f9..0631ef1 100644
+--- a/src/audio/xma_context.cpp
++++ b/src/audio/xma_context.cpp
+@@ -10,6 +10,7 @@
+ */
+ 
+ #include "empty_packet_recovery.h"
++#include "xma_packet_nav.h"
+ #include <algorithm>
+ #include <cstdlib>
+ #include <cstring>
+@@ -386,22 +387,20 @@ const uint8_t* XmaContext::GetNextPacket(XMA_CONTEXT_DATA* data, uint32_t next_p
+     return nullptr;
+   }
+ 
+-  return memory()->TranslatePhysical(data->GetInputBufferAddress(next_buffer_index));
++  const uint32_t overflow = next_packet_index - current_input_packet_count;
++  const uint32_t next_packet_count = data->GetInputBufferPacketCount(next_buffer_index);
++  if (overflow >= next_packet_count) {
++    return nullptr;
++  }
++
++  return memory()->TranslatePhysical(data->GetInputBufferAddress(next_buffer_index)) +
++         overflow * kBytesPerPacket;
+ }
+ 
+ uint32_t XmaContext::GetNextPacketReadOffset(uint8_t* buffer, uint32_t next_packet_index,
+                                              uint32_t current_input_packet_count) {
+-  while (next_packet_index < current_input_packet_count) {
+-    uint8_t* next_packet = buffer + (next_packet_index * kBytesPerPacket);
+-    const uint32_t packet_frame_offset = xma::GetPacketFrameOffset(next_packet);
+-
+-    if (packet_frame_offset <= kMaxFrameSizeinBits) {
+-      return (next_packet_index * kBitsPerPacket) + packet_frame_offset;
+-    }
+-    next_packet_index++;
+-  }
+-
+-  return kBitsPerPacketHeader;
++  return xma::FindNextPacketReadOffset(buffer, next_packet_index, current_input_packet_count)
++      .read_offset;
+ }
+ 
+ memory::RingBuffer XmaContext::PrepareOutputRingBuffer(XMA_CONTEXT_DATA* data) {
+@@ -690,6 +689,30 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
+   const uint32_t packet_first_frame_offset = xma::GetPacketFrameOffset(packet);
+   uint32_t relative_offset = data->input_buffer_read_offset % kBitsPerPacket;
+ 
++  // Continuation packet with no frame start (e.g. XMA2 header 03 FF F8 <skip>):
++  // advance along this stream's skip_count chain instead of treating it as a bad frame.
++  if (packet_first_frame_offset > kMaxFrameSizeinBits) {
++    const xma::NextPacketOffsetResult next_pos = xma::FindNextPacketReadOffset(
++        current_input_buffer, static_cast<uint32_t>(packet_index), current_input_packet_count);
++    uint32_t next_input_offset = next_pos.read_offset;
++    if (next_pos.reached_buffer_end) {
++      SwapInputBuffer(data);
++      uint8_t* next_buffer = data->IsAnyInputBufferValid() ? GetCurrentInputBuffer(data) : nullptr;
++      if (next_buffer) {
++        const uint32_t next_buffer_packets = data->GetCurrentInputBufferPacketCount();
++        const xma::NextPacketOffsetResult next_buf_pos = xma::FindNextPacketReadOffset(
++            next_buffer, next_pos.next_buffer_packet_index, next_buffer_packets);
++        if (next_buf_pos.reached_buffer_end) {
++          SwapInputBuffer(data);
++          return;
++        }
++        next_input_offset = next_buf_pos.read_offset;
++      }
++    }
++    data->input_buffer_read_offset = next_input_offset;
++    return;
++  }
++
+   if (relative_offset < packet_first_frame_offset) {
+     data->input_buffer_read_offset = (packet_index * kBitsPerPacket) + packet_first_frame_offset;
+     relative_offset = packet_first_frame_offset;
+@@ -889,21 +912,23 @@ void XmaContext::Decode(XMA_CONTEXT_DATA* data) {
+     return;
+   }
+ 
+-  uint32_t next_input_offset =
+-      GetNextPacketReadOffset(current_input_buffer, next_packet_index, current_input_packet_count);
++  const xma::NextPacketOffsetResult next_pos = xma::FindNextPacketReadOffset(
++      current_input_buffer, next_packet_index, current_input_packet_count);
++  uint32_t next_input_offset = next_pos.read_offset;
+ 
+-  if (next_input_offset == kBitsPerPacketHeader) {
++  if (next_pos.reached_buffer_end) {
+     SwapInputBuffer(data);
+     // One the decoder cannot read is dropped by the next Decode().
+-    const uint8_t* next_buffer =
+-        data->IsAnyInputBufferValid() ? GetCurrentInputBuffer(data) : nullptr;
++    uint8_t* next_buffer = data->IsAnyInputBufferValid() ? GetCurrentInputBuffer(data) : nullptr;
+     if (next_buffer) {
+-      next_input_offset = xma::GetPacketFrameOffset(next_buffer);
+-
+-      if (next_input_offset > kMaxFrameSizeinBits) {
++      const uint32_t next_buffer_packets = data->GetCurrentInputBufferPacketCount();
++      const xma::NextPacketOffsetResult next_buf_pos = xma::FindNextPacketReadOffset(
++          next_buffer, next_pos.next_buffer_packet_index, next_buffer_packets);
++      if (next_buf_pos.reached_buffer_end) {
+         SwapInputBuffer(data);
+         return;
+       }
++      next_input_offset = next_buf_pos.read_offset;
+     }
+   }
+   data->input_buffer_read_offset = next_input_offset;

@@ -332,4 +332,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan dynamic UBO and TexReq opt patch application'
 }
 
-Write-Host "[1.1 - 1.25] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.26: Apply Vulkan direct vkCmdCopyImage color resolve fast-path and 4x->1x uniform full-clear aliasing
+$vulkanDirectCopyAndClearAliasPatch = Join-Path $patchRoot 'vulkan-direct-copy-and-4x-clear-alias.patch'
+git -C $source apply --reverse --check $vulkanDirectCopyAndClearAliasPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanDirectCopyAndClearAliasPatch
+    Check-Native 'Vulkan direct copy and 4x clear alias patch check'
+    git -C $source apply $vulkanDirectCopyAndClearAliasPatch
+    Check-Native 'Vulkan direct copy and 4x clear alias patch application'
+}
+
+Write-Host "[1.1 - 1.26] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

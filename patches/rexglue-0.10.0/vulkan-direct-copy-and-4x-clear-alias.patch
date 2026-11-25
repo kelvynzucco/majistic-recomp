@@ -1,0 +1,749 @@
+diff --git a/include/rex/graphics/pipeline/render_target/cache.h b/include/rex/graphics/pipeline/render_target/cache.h
+index fef752b..32d9f5f 100644
+--- a/include/rex/graphics/pipeline/render_target/cache.h
++++ b/include/rex/graphics/pipeline/render_target/cache.h
+@@ -183,6 +183,14 @@ class RenderTargetCache {
+   void SetCurrentDrawPixelShaderKillsOrAlphaCoverage(bool kills_or_alpha) {
+     current_draw_pixel_shader_kills_or_alpha_ = kills_or_alpha;
+   }
++  // Additional draw-level shader metadata for proving a 4xMSAA full-surface clear writes
++  // uniform depth/color/stencil across every pixel and can safely alias directly to 1xMSAA.
++  void SetCurrentDrawUniformClearInfo(bool ps_uniform_clear_eligible,
++                                      uint32_t ps_clear_interp_mask) {
++    current_draw_ps_uniform_clear_eligible_ = ps_uniform_clear_eligible;
++    current_draw_ps_clear_interp_mask_ = ps_clear_interp_mask;
++  }
++  bool IsLastUpdateAliased4xMsaaClear() const { return last_update_aliased_4x_clear_; }
+ 
+   // Returns bits where 0 is whether a depth render target is currently bound on
+   // the host and 1... are whether the same applies to color render targets, and
+@@ -549,6 +557,7 @@ class RenderTargetCache {
+ 
+   void ResetAccumulatedRenderTargets() {
+     are_accumulated_render_targets_valid_ = false;
++    last_update_aliased_4x_clear_ = false;
+     ++update_state_generation_;
+   }
+ 
+@@ -749,6 +758,7 @@ class RenderTargetCache {
+                                             uint32_t start_tiles_base_relative,
+                                             uint32_t length_tiles) const;
+   bool AreAllRangeOwnersNonDepth(uint32_t base_tiles, uint32_t length_tiles) const;
++  bool HasAnyRangeOwner4xMsaa(uint32_t base_tiles, uint32_t length_tiles) const;
+   // Updates ownership_ranges_, adds the transfers needed for the ownership
+   // change to transfers_append_out if it's not null.
+   void ChangeOwnership(RenderTargetKey dest, uint32_t start_tiles_base_relative,
+@@ -794,6 +804,9 @@ class RenderTargetCache {
+   // FH1 (#45): see update_state_generation().
+   uint64_t update_state_generation_ = 0;
+   bool current_draw_pixel_shader_kills_or_alpha_ = true;
++  bool current_draw_ps_uniform_clear_eligible_ = false;
++  uint32_t current_draw_ps_clear_interp_mask_ = 0;
++  bool last_update_aliased_4x_clear_ = false;
+ };
+ 
+ }  // namespace rex::graphics
+diff --git a/include/rex/graphics/util/draw_extent_estimator.h b/include/rex/graphics/util/draw_extent_estimator.h
+index 8d2b0ea..3fc5ff3 100644
+--- a/include/rex/graphics/util/draw_extent_estimator.h
++++ b/include/rex/graphics/util/draw_extent_estimator.h
+@@ -33,6 +33,8 @@ class DrawExtentEstimator {
+     int32_t min_y_24p8 = 0;
+     int32_t max_x_24p8 = 0;
+     int32_t max_y_24p8 = 0;
++    bool uniform_z = false;
++    uint32_t uniform_interpolators_mask = 0;
+   };
+ 
+   // The shader must have its ucode analyzed.
+@@ -46,26 +48,41 @@ class DrawExtentEstimator {
+     void Export(ucode::ExportRegister export_register, const float* value,
+                 uint32_t value_mask) override;
+ 
++    void SetTrackInterpolators(bool track) { track_interpolators_ = track; }
++
+     void Reset() {
+       position_x_.reset();
+       position_y_.reset();
++      position_z_.reset();
+       position_w_.reset();
+       point_size_.reset();
+       vertex_kill_.reset();
++      if (track_interpolators_) {
++        for (uint32_t i = 0; i < 16; ++i) {
++          interpolator_masks_[i] = 0;
++        }
++      }
+     }
+ 
+     const std::optional<float>& position_x() const { return position_x_; }
+     const std::optional<float>& position_y() const { return position_y_; }
++    const std::optional<float>& position_z() const { return position_z_; }
+     const std::optional<float>& position_w() const { return position_w_; }
+     const std::optional<float>& point_size() const { return point_size_; }
+     const std::optional<uint32_t>& vertex_kill() const { return vertex_kill_; }
++    uint8_t interpolator_mask(uint32_t index) const { return interpolator_masks_[index]; }
++    const float* interpolator(uint32_t index) const { return interpolators_[index]; }
+ 
+    private:
+     std::optional<float> position_x_;
+     std::optional<float> position_y_;
++    std::optional<float> position_z_;
+     std::optional<float> position_w_;
+     std::optional<float> point_size_;
+     std::optional<uint32_t> vertex_kill_;
++    bool track_interpolators_ = false;
++    uint8_t interpolator_masks_[16] = {};
++    float interpolators_[16][4] = {};
+   };
+ 
+   const RegisterFile& register_file_;
+diff --git a/include/rex/graphics/vulkan/deferred_command_buffer.h b/include/rex/graphics/vulkan/deferred_command_buffer.h
+index 22876d5..374090b 100644
+--- a/include/rex/graphics/vulkan/deferred_command_buffer.h
++++ b/include/rex/graphics/vulkan/deferred_command_buffer.h
+@@ -43,6 +43,14 @@ class DeferredCommandBuffer {
+         WriteCommand(Command::kVkBlitImage, sizeof(ArgsVkBlitImage)));
+     args.src = src; args.dst = dst; args.region = region;
+   }
++  mutable PFN_vkCmdCopyImage copy_image_ = nullptr;
++  void CmdVkCopyImage(VkImage src, VkImage dst, const VkImageCopy& region) {
++    auto& args = *reinterpret_cast<ArgsVkCopyImage*>(
++        WriteCommand(Command::kVkCopyImage, sizeof(ArgsVkCopyImage)));
++    args.src = src;
++    args.dst = dst;
++    args.region = region;
++  }
+   // A square cube view is populated from an integer-stride 2D-array resolve.
+   void CmdFh1NativeCubeBlit(VkImage src, VkImage dst, const VkImageBlit& region) {
+     auto& args = *reinterpret_cast<ArgsFh1NativeCubeBlit*>(
+@@ -528,6 +536,7 @@ class DeferredCommandBuffer {
+   enum class Command {
+     kFh1Dlss,
+     kVkBlitImage,
++    kVkCopyImage,
+     kFh1NativeCubeBlit,
+     kVkBeginRenderPass,
+     kVkBeginQuery,
+@@ -587,6 +596,10 @@ class DeferredCommandBuffer {
+     VkImage src, dst;
+     VkImageBlit region;
+   };
++  struct ArgsVkCopyImage {
++    VkImage src, dst;
++    VkImageCopy region;
++  };
+   static constexpr size_t kCommandHeaderSizeElements =
+       (sizeof(CommandHeader) + sizeof(uintmax_t) - 1) / sizeof(uintmax_t);
+ 
+diff --git a/include/rex/graphics/vulkan/texture_cache.h b/include/rex/graphics/vulkan/texture_cache.h
+index 4d9a872..8249235 100644
+--- a/include/rex/graphics/vulkan/texture_cache.h
++++ b/include/rex/graphics/vulkan/texture_cache.h
+@@ -148,6 +148,7 @@ class VulkanTextureCache final : public TextureCache {
+   void GetDirectResolveTargetExtent(DirectShadowResolveHandle texture, uint32_t& host_width_out,
+                                     uint32_t& host_height_out) const;
+   VkImageView PrepareDirectShadowResolveTarget(DirectShadowResolveHandle texture);
++  VkImage PrepareDirectColorCopyTarget(DirectShadowResolveHandle texture);
+   bool FinalizeDirectShadowResolveTarget(DirectShadowResolveHandle texture);
+   void ClearCache() override;
+ 
+diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
+index 923a280..4d7b2bb 100644
+--- a/src/graphics/pipeline/render_target/cache.cpp
++++ b/src/graphics/pipeline/render_target/cache.cpp
+@@ -660,6 +660,7 @@ const char* RenderTargetCache::CompareUpdateState(const UpdateStateSnapshot& sna
+ bool RenderTargetCache::Update(bool is_rasterization_done,
+                                reg::RB_DEPTHCONTROL normalized_depth_control,
+                                uint32_t normalized_color_mask, const Shader& vertex_shader) {
++  last_update_aliased_4x_clear_ = false;
+   const RegisterFile& regs = register_file();
+   bool interlock_barrier_only = GetPath() == Path::kPixelShaderInterlock;
+ 
+@@ -880,10 +881,11 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+                      << (((rts_are_64bpp >> rt_base_last.second) & 1) ^ 1));
+   }
+ 
+-  // Make sure all the needed render targets are created, and gather lengths of
+-  // ranges used by each render target.
++  // Build render target keys and gather lengths of ranges used by each render
++  // target before allocating host images so provably uniform 4xMSAA full clears
++  // can alias directly to 1xMSAA without creating redundant 4xMSAA targets.
+   RenderTargetKey rt_keys[1 + xenos::kMaxColorRenderTargets];
+-  RenderTarget* rts[1 + xenos::kMaxColorRenderTargets];
++  RenderTarget* rts[1 + xenos::kMaxColorRenderTargets] = {};
+   uint32_t rt_lengths_tiles[1 + xenos::kMaxColorRenderTargets];
+   uint32_t length_used_tiles_at_32bpp =
+       ((height_used << uint32_t(msaa_samples >= xenos::MsaaSamples::k2X)) +
+@@ -903,13 +905,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+         depth_and_color_rts_used_bits == 1 && IsShadowMap4xMsaaDepthTarget(rt_key)) {
+       rt_key.msaa_samples = xenos::MsaaSamples::k1X;
+     }
+-    if (!interlock_barrier_only) {
+-      RenderTarget* render_target = GetOrCreateRenderTarget(rt_key);
+-      if (!render_target) {
+-        return false;
+-      }
+-      rts[rt_bit_index] = render_target;
+-    }
+     uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
+     // The last render target can occupy the EDRAM until the base of the first
+     // render target (itself in case of 1 render target) with EDRAM addressing
+@@ -942,11 +937,6 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+     }
+   }
+ 
+-  // From now on ownership transfers should succeed for simplicity and
+-  // consistency, even if they fail in the implementation (just ignore that and
+-  // draw with whatever contents currently are in the render target in this
+-  // case).
+-
+   bool skip_depth_clear_transfer = false;
+   uint32_t skip_color_clear_transfer_mask = 0;
+   if (!interlock_barrier_only && AliasShadowMap4xMsaaDepthTargetTo1x() &&
+@@ -985,13 +975,24 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+            (!normalized_depth_control.backface_enable ||
+             normalized_depth_control.stencilfunc_bf == xenos::CompareFunction::kAlways));
+ 
++      bool any_shadow_rt = false;
++      bool all_rts_exact_rows = true;
++      bool depth_rect_full = false;
+       for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
+         const uint32_t rt_bit_index = edram_bases_sorted[i].second;
+         const RenderTargetKey& rt_key = rt_keys[rt_bit_index];
+         const uint32_t rt_is_64bpp = (rts_are_64bpp >> rt_bit_index) & 1;
+         const uint32_t rt_pitch_tiles = pitch_tiles_at_32bpp << rt_is_64bpp;
++        if (rt_lengths_tiles[i] == 0 || (rt_lengths_tiles[i] % rt_pitch_tiles) != 0) {
++          all_rts_exact_rows = false;
++        }
+         uint32_t req_w = pitch_tiles_at_32bpp * tile_w;
++        RenderTargetKey rt_key_1x = rt_key;
++        rt_key_1x.msaa_samples = xenos::MsaaSamples::k1X;
+         const bool is_shadow_rt = (rt_bit_index == 0) && IsShadowMapDepthTarget(rt_key);
++        if (is_shadow_rt || ((rt_bit_index == 0) && IsShadowMapDepthTarget(rt_key_1x))) {
++          any_shadow_rt = true;
++        }
+         if (is_shadow_rt && pitch_tiles_at_32bpp == 10 &&
+             msaa_samples == xenos::MsaaSamples::k1X) {
+           req_w = 768;
+@@ -1004,6 +1005,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+             rc.min_x_24p8 <= min_edge_limit && rc.min_y_24p8 <= min_edge_limit &&
+             rc.max_x_24p8 >= int32_t(req_w) * 256 && rc.max_y_24p8 >= int32_t(req_h) * 256;
+         if (rt_bit_index == 0) {
++          depth_rect_full = rect_covers;
+           if (normalized_depth_control.z_enable && normalized_depth_control.z_write_enable &&
+               normalized_depth_control.zfunc == xenos::CompareFunction::kAlways) {
+             const bool stencil_ok =
+@@ -1041,9 +1043,58 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+           }
+         }
+       }
++
++      // Xbox 360 D3D9 fast-clears 1xMSAA targets via a 4xMSAA full-screen rectangle.
++      // When every bound target is provably overwritten uniformly across all pixels and
++      // no bound range is currently owned by a real 4xMSAA target, render directly into
++      // the 1xMSAA target key to avoid allocating duplicate 4xMSAA images and paying
++      // 4x -> 1x ownership transfers (especially 8-pass stencil transfers on NVIDIA).
++      const bool depth_used = (depth_and_color_rts_used_bits & 1u) != 0;
++      const uint32_t color_used_mask = depth_and_color_rts_used_bits >> 1;
++      bool alias_4x_uniform_clear =
++          msaa_samples == xenos::MsaaSamples::k4X && !any_shadow_rt &&
++          current_draw_ps_uniform_clear_eligible_ && all_rts_exact_rows &&
++          (pitch_tiles_at_32bpp * xenos::kEdramTileWidthSamples * draw_resolution_scale_x() <=
++           GetMaxRenderTargetWidth()) &&
++          (!depth_used || (skip_depth_clear_transfer && depth_rect_full && rc.uniform_z)) &&
++          (color_used_mask == skip_color_clear_transfer_mask) &&
++          (color_used_mask == 0 ||
++           (current_draw_ps_clear_interp_mask_ & ~rc.uniform_interpolators_mask) == 0);
++      if (alias_4x_uniform_clear) {
++        for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
++          const uint32_t rt_bit_index = edram_bases_sorted[i].second;
++          if (HasAnyRangeOwner4xMsaa(rt_keys[rt_bit_index].base_tiles, rt_lengths_tiles[i])) {
++            alias_4x_uniform_clear = false;
++            break;
++          }
++        }
++      }
++      if (alias_4x_uniform_clear) {
++        for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
++          rt_keys[edram_bases_sorted[i].second].msaa_samples = xenos::MsaaSamples::k1X;
++        }
++        last_update_aliased_4x_clear_ = true;
++      }
+     }
+   }
+ 
++  if (!interlock_barrier_only) {
++    for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
++      const uint32_t rt_bit_index = edram_bases_sorted[i].second;
++      RenderTarget* render_target = GetOrCreateRenderTarget(rt_keys[rt_bit_index]);
++      if (!render_target) {
++        last_update_aliased_4x_clear_ = false;
++        return false;
++      }
++      rts[rt_bit_index] = render_target;
++    }
++  }
++
++  // From now on ownership transfers should succeed for simplicity and
++  // consistency, even if they fail in the implementation (just ignore that and
++  // draw with whatever contents currently are in the render target in this
++  // case).
++
+   for (uint32_t i = 0; i < edram_bases_sorted_count; ++i) {
+     const std::pair<uint32_t, uint32_t>& rt_base_index = edram_bases_sorted[i];
+     uint32_t rt_bit_index = rt_base_index.second;
+@@ -1064,6 +1115,8 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+     last_update_used_render_targets_[i] =
+         (depth_and_color_rts_used_bits & (uint32_t(1) << i)) ? rts[i] : nullptr;
+   }
++  const xenos::MsaaSamples effective_msaa_samples =
++      last_update_aliased_4x_clear_ ? xenos::MsaaSamples::k1X : msaa_samples;
+   if (are_accumulated_render_targets_valid_) {
+     // Check if the only re-enabling a previously bound render target.
+     for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
+@@ -1092,7 +1145,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+       } else {
+         RenderTargetKey accumulated_rt_key = accumulated_rt->key();
+         if (accumulated_rt_key.pitch_tiles_at_32bpp != pitch_tiles_at_32bpp ||
+-            accumulated_rt_key.msaa_samples != msaa_samples) {
++            accumulated_rt_key.msaa_samples != effective_msaa_samples) {
+           // The previously bound render target is incompatible with the
+           // current surface info.
+           are_accumulated_render_targets_valid_ = false;
+@@ -1650,6 +1703,41 @@ bool RenderTargetCache::AreAllRangeOwnersNonDepth(uint32_t base_tiles,
+   return true;
+ }
+ 
++bool RenderTargetCache::HasAnyRangeOwner4xMsaa(uint32_t base_tiles,
++                                               uint32_t length_tiles) const {
++  if (!length_tiles) {
++    return false;
++  }
++  auto check_extent = [&](uint32_t extent_start, uint32_t extent_end) -> bool {
++    auto it = ownership_ranges_.lower_bound(extent_start);
++    if (it != ownership_ranges_.begin()) {
++      auto it_pre = std::prev(it);
++      if (it_pre->second.end_tiles > extent_start) {
++        it = it_pre;
++      }
++    }
++    while (it != ownership_ranges_.end() && it->first < extent_end) {
++      if (!it->second.render_target.IsEmpty() &&
++          it->second.render_target.msaa_samples == xenos::MsaaSamples::k4X) {
++        return true;
++      }
++      ++it;
++    }
++    return false;
++  };
++  uint32_t start = base_tiles & (xenos::kEdramTileCount - 1);
++  uint32_t end = start + length_tiles;
++  if (check_extent(start, std::min(end, xenos::kEdramTileCount))) {
++    return true;
++  }
++  if (end > xenos::kEdramTileCount) {
++    if (check_extent(0, std::min(end & (xenos::kEdramTileCount - 1), start))) {
++      return true;
++    }
++  }
++  return false;
++}
++
+ void RenderTargetCache::ChangeOwnership(RenderTargetKey dest, uint32_t start_tiles_base_relative,
+                                         uint32_t length_tiles,
+                                         std::vector<Transfer>* transfers_append_out,
+diff --git a/src/graphics/util/draw_extent_estimator.cpp b/src/graphics/util/draw_extent_estimator.cpp
+index aec2818..62fd34d 100644
+--- a/src/graphics/util/draw_extent_estimator.cpp
++++ b/src/graphics/util/draw_extent_estimator.cpp
+@@ -13,6 +13,7 @@
+ #include <cfloat>
+ #include <cmath>
+ #include <cstdint>
++#include <cstring>
+ 
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
+@@ -72,6 +73,9 @@ void DrawExtentEstimator::PositionYExportSink::Export(ucode::ExportRegister expo
+     if (value_mask & 0b0010) {
+       position_y_ = value[1];
+     }
++    if (value_mask & 0b0100) {
++      position_z_ = value[2];
++    }
+     if (value_mask & 0b1000) {
+       position_w_ = value[3];
+     }
+@@ -82,6 +86,15 @@ void DrawExtentEstimator::PositionYExportSink::Export(ucode::ExportRegister expo
+     if (value_mask & 0b0100) {
+       vertex_kill_ = rex::memory::Reinterpret<uint32_t>(value[2]);
+     }
++  } else if (track_interpolators_ &&
++             uint32_t(export_register) <= uint32_t(ucode::ExportRegister::kVSInterpolator15)) {
++    const uint32_t index = uint32_t(export_register);
++    interpolator_masks_[index] |= uint8_t(value_mask & 0xFu);
++    for (uint32_t c = 0; c < 4; ++c) {
++      if (value_mask & (uint32_t(1) << c)) {
++        interpolators_[index][c] = value[c];
++      }
++    }
+   }
+ }
+ 
+@@ -152,6 +165,10 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
+       pa_cl_vte_cntl.vport_y_scale_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YSCALE) : 1.0f;
+   float viewport_y_offset =
+       pa_cl_vte_cntl.vport_y_offset_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_YOFFSET) : 0.0f;
++  float viewport_z_scale =
++      pa_cl_vte_cntl.vport_z_scale_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZSCALE) : 1.0f;
++  float viewport_z_offset =
++      pa_cl_vte_cntl.vport_z_offset_ena ? regs.Get<float>(XE_GPU_REG_PA_CL_VPORT_ZOFFSET) : 0.0f;
+ 
+   int32_t point_vertex_min_diameter_float = 0;
+   int32_t point_vertex_max_diameter_float = 0;
+@@ -170,12 +187,21 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
+       vgt_draw_initiator.prim_type == xenos::PrimitiveType::kRectangleList &&
+       vgt_draw_initiator.num_indices == 3;
+   bool rect_vertices_ok = track_rect_list;
++  bool rect_z_uniform = track_rect_list;
++  bool rect_w_uniform = track_rect_list;
++  bool rect_has_w0 = false;
+   float rect_vx[3] = {};
+   float rect_vy[3] = {};
++  float rect_vz0 = 0.0f;
++  float rect_vw0 = 1.0f;
++  uint32_t rect_uniform_interps_mask = 0;
++  uint8_t rect_interp_mask0[16] = {};
++  float rect_interp0[16][4] = {};
+ 
+   shader_interpreter_.SetShader(vertex_shader);
+ 
+   PositionYExportSink position_y_export_sink;
++  position_y_export_sink.SetTrackInterpolators(track_rect_list);
+   shader_interpreter_.SetExportSink(&position_y_export_sink);
+   for (uint32_t i = 0; i < vgt_draw_initiator.num_indices; ++i) {
+     uint32_t vertex_index;
+@@ -243,6 +269,93 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
+           rect_vertices_ok = false;
+         }
+       }
++      if (rect_vertices_ok && rect_z_uniform) {
++        if (!position_y_export_sink.position_z().has_value() ||
++            (!pa_cl_vte_cntl.vtx_z_fmt && !position_y_export_sink.position_w().has_value())) {
++          rect_z_uniform = false;
++        } else {
++          float vertex_z = position_y_export_sink.position_z().value();
++          if (!pa_cl_vte_cntl.vtx_z_fmt) {
++            vertex_z /= position_y_export_sink.position_w().value();
++          }
++          vertex_z = vertex_z * viewport_z_scale + viewport_z_offset;
++          if (!std::isfinite(vertex_z)) {
++            rect_z_uniform = false;
++          } else if (i == 0) {
++            rect_vz0 = vertex_z;
++          } else if (std::memcmp(&vertex_z, &rect_vz0, sizeof(float)) != 0) {
++            rect_z_uniform = false;
++          }
++        }
++      }
++      if (rect_vertices_ok && rect_w_uniform) {
++        const bool has_w = position_y_export_sink.position_w().has_value();
++        if (i == 0) {
++          rect_has_w0 = has_w;
++          if (has_w) {
++            rect_vw0 = position_y_export_sink.position_w().value();
++            if (!std::isfinite(rect_vw0) || rect_vw0 == 0.0f) {
++              rect_w_uniform = false;
++            }
++          } else if (!pa_cl_vte_cntl.vtx_xy_fmt) {
++            rect_w_uniform = false;
++          }
++        } else if (has_w != rect_has_w0) {
++          rect_w_uniform = false;
++        } else if (has_w) {
++          const float vw = position_y_export_sink.position_w().value();
++          if (std::memcmp(&vw, &rect_vw0, sizeof(float)) != 0) {
++            rect_w_uniform = false;
++          }
++        }
++      }
++      if (rect_vertices_ok) {
++        if (i == 0) {
++          for (uint32_t interp = 0; interp < 16; ++interp) {
++            const uint8_t mask = position_y_export_sink.interpolator_mask(interp);
++            rect_interp_mask0[interp] = mask;
++            if (!mask) {
++              continue;
++            }
++            bool finite_ok = true;
++            const float* src = position_y_export_sink.interpolator(interp);
++            for (uint32_t c = 0; c < 4; ++c) {
++              if (mask & (uint32_t(1) << c)) {
++                if (!std::isfinite(src[c])) {
++                  finite_ok = false;
++                  break;
++                }
++                rect_interp0[interp][c] = src[c];
++              }
++            }
++            if (finite_ok) {
++              rect_uniform_interps_mask |= uint32_t(1) << interp;
++            }
++          }
++        } else {
++          uint32_t remaining = rect_uniform_interps_mask;
++          while (remaining) {
++            uint32_t interp = 0;
++            while (!(remaining & (uint32_t(1) << interp))) {
++              ++interp;
++            }
++            remaining &= ~(uint32_t(1) << interp);
++            const uint8_t mask = position_y_export_sink.interpolator_mask(interp);
++            if (mask != rect_interp_mask0[interp]) {
++              rect_uniform_interps_mask &= ~(uint32_t(1) << interp);
++              continue;
++            }
++            const float* src = position_y_export_sink.interpolator(interp);
++            for (uint32_t c = 0; c < 4; ++c) {
++              if ((mask & (uint32_t(1) << c)) &&
++                  std::memcmp(&src[c], &rect_interp0[interp][c], sizeof(float)) != 0) {
++                rect_uniform_interps_mask &= ~(uint32_t(1) << interp);
++                break;
++              }
++            }
++          }
++        }
++      }
+     }
+ 
+     if (vgt_draw_initiator.prim_type == xenos::PrimitiveType::kPointList) {
+@@ -307,6 +420,9 @@ uint32_t DrawExtentEstimator::EstimateVertexMaxY(const Shader& vertex_shader) {
+       last_rect_coverage_.min_y_24p8 = min_y;
+       last_rect_coverage_.max_x_24p8 = max_x;
+       last_rect_coverage_.max_y_24p8 = max_y_r;
++      last_rect_coverage_.uniform_z = rect_z_uniform;
++      last_rect_coverage_.uniform_interpolators_mask =
++          rect_w_uniform ? rect_uniform_interps_mask : 0;
+     }
+   }
+ 
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 3ddede3..3b05a6e 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -8274,7 +8274,15 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   const bool ps_kills_or_alpha =
+       (pixel_shader && pixel_shader->kills_pixels()) ||
+       draw_util::DoesCoverageDependOnAlpha(regs.Get<reg::RB_COLORCONTROL>());
++  const bool ps_uniform_clear_eligible =
++      !ps_kills_or_alpha && !memexport_used_vertex && !memexport_used_pixel &&
++      (!pixel_shader ||
++       (!pixel_shader->writes_depth() &&
++        !pixel_shader->uses_texture_fetch_instruction_results() &&
++        pixel_shader->texture_bindings().empty() && ps_param_gen_pos == UINT32_MAX));
+   render_target_cache_->SetCurrentDrawPixelShaderKillsOrAlphaCoverage(ps_kills_or_alpha);
++  render_target_cache_->SetCurrentDrawUniformClearInfo(ps_uniform_clear_eligible,
++                                                       interpolator_mask);
+   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
+                                     normalized_color_mask, *vertex_shader)) {
+     return draw_fail("render_target_update");
+@@ -8452,6 +8460,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+         render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
+     draw_resolution_scale_x = shadow_scale * shadow_mult;
+     draw_resolution_scale_y = shadow_scale * shadow_mult;
++  } else if (render_target_cache_ && render_target_cache_->IsLastUpdateAliased4xMsaaClear()) {
++    draw_resolution_scale_x *= 2u;
++    draw_resolution_scale_y *= 2u;
+   }
+   if (host_render_targets_used && REXCVAR_GET(majin_shadow_diag)) {
+     MajinShadowDiagDraw(render_target_cache_.get(), regs, draw_resolution_scale_x,
+@@ -11197,6 +11208,9 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+         render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
+     draw_resolution_scale_x = shadow_scale * shadow_mult;
+     draw_resolution_scale_y = shadow_scale * shadow_mult;
++  } else if (render_target_cache_ && render_target_cache_->IsLastUpdateAliased4xMsaaClear()) {
++    draw_resolution_scale_x *= 2u;
++    draw_resolution_scale_y *= 2u;
+   }
+ 
+   // Window parameters.
+@@ -11787,6 +11801,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+         render_target_cache_->IsLastUpdateShadowMap4xMsaaDepth() ? 2u : 1u;
+     draw_resolution_scale_x = shadow_scale * shadow_mult;
+     draw_resolution_scale_y = shadow_scale * shadow_mult;
++  } else if (render_target_cache_ && render_target_cache_->IsLastUpdateAliased4xMsaaClear()) {
++    draw_resolution_scale_x *= 2u;
++    draw_resolution_scale_y *= 2u;
+   }
+ 
+   // Get the color info register values for each render target. Also, for FSI,
+diff --git a/src/graphics/vulkan/deferred_command_buffer.cpp b/src/graphics/vulkan/deferred_command_buffer.cpp
+index 92ad8dc..feeae8b 100644
+--- a/src/graphics/vulkan/deferred_command_buffer.cpp
++++ b/src/graphics/vulkan/deferred_command_buffer.cpp
+@@ -92,6 +92,17 @@ VkCommandBuffer DeferredCommandBuffer::ExecuteStream(VkCommandBuffer command_buf
+         blit_image_(command_buffer, args.src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+             args.dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &args.region, VK_FILTER_LINEAR);
+       } break;
++      case Command::kVkCopyImage: {
++        const auto& args = *reinterpret_cast<const ArgsVkCopyImage*>(stream);
++        const auto* device = command_processor_.GetVulkanDevice();
++        if (!copy_image_) {
++          copy_image_ = reinterpret_cast<PFN_vkCmdCopyImage>(
++              device->vulkan_instance()->functions().vkGetDeviceProcAddr(device->device(),
++                                                                         "vkCmdCopyImage"));
++        }
++        copy_image_(command_buffer, args.src, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, args.dst,
++                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &args.region);
++      } break;
+       case Command::kFh1NativeCubeBlit: {
+         const auto& args = *reinterpret_cast<const ArgsFh1NativeCubeBlit*>(stream);
+         const auto* device = command_processor_.GetVulkanDevice();
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index 6d346cc..8a285ce 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -1653,7 +1653,7 @@ bool VulkanRenderTargetCache::Update(bool is_rasterization_done,
+   }
+   update_reuse_inputs_ = inputs;
+   update_reuse_generation_ = update_state_generation();
+-  update_reuse_valid_ = true;
++  update_reuse_valid_ = !IsLastUpdateAliased4xMsaaClear();
+   return true;
+ }
+ 
+@@ -1671,7 +1671,8 @@ bool VulkanRenderTargetCache::UpdateFull(bool is_rasterization_done,
+   RenderPassKey render_pass_key;
+   // Needed even with the fragment shader interlock render backend for passing
+   // the sample count to the pipeline cache.
+-  render_pass_key.msaa_samples = rb_surface_info.msaa_samples;
++  render_pass_key.msaa_samples =
++      IsLastUpdateAliased4xMsaaClear() ? xenos::MsaaSamples::k1X : rb_surface_info.msaa_samples;
+ 
+   switch (GetPath()) {
+     case Path::kHostRenderTargets: {
+@@ -2291,8 +2292,10 @@ RenderTargetCache::RenderTarget* VulkanRenderTargetCache::CreateRenderTarget(Ren
+     }
+     image_create_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+     // HDR can be enabled after these targets were cached in SDR. Eligible
+-    // single-sample scene images must always permit the pre-HUD snapshot.
+-    if (image_create_info.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 &&
++    // single-sample scene images must always permit the pre-HUD snapshot,
++    // and single-sample RGBA8 targets permit direct vkCmdCopyImage resolves.
++    if ((image_create_info.format == VK_FORMAT_A2B10G10R10_UNORM_PACK32 ||
++         image_create_info.format == VK_FORMAT_R8G8B8A8_UNORM) &&
+         key.msaa_samples == xenos::MsaaSamples::k1X) {
+       image_create_info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+     }
+@@ -6971,9 +6974,12 @@ bool VulkanRenderTargetCache::TryResolveScaledDirectly(
+   if (edram_info.msaa_samples != xenos::MsaaSamples::k1X || edram_info.format_is_64bpp) {
+     return false;
+   }
++  const bool use_copy_image = !is_depth && resolve_info.copy_dest_info.copy_dest_swap == 0 &&
++                              !edram_info.fill_half_pixel_offset;
+   if (!is_depth) {
+-    if (is_shadow_depth || direct_resolve_color_rgba8_pipeline_ == VK_NULL_HANDLE ||
+-        direct_resolve_color_rgba8_pipeline_layout_ == VK_NULL_HANDLE ||
++    if (is_shadow_depth ||
++        (!use_copy_image && (direct_resolve_color_rgba8_pipeline_ == VK_NULL_HANDLE ||
++                             direct_resolve_color_rgba8_pipeline_layout_ == VK_NULL_HANDLE)) ||
+         resolve_info.copy_dest_info.copy_dest_exp_bias != 0 ||
+         resolve_info.copy_dest_info.copy_dest_format != xenos::ColorFormat::k_8_8_8_8 ||
+         !xenos::IsSingleCopySampleSelected(
+@@ -7068,11 +7074,67 @@ bool VulkanRenderTargetCache::TryResolveScaledDirectly(
+     return false;
+   }
+ 
++  const size_t target_count = direct_shadow_resolve_targets_.size();
++  if (use_copy_image) {
++    // Hardware vkCmdCopyImage fast-path for 1xMSAA RGBA8 color resolves with no RB swap
++    // and no half-pixel offset fill: avoids transient descriptors, compute pipeline binds,
++    // and GENERAL image layout transitions.
++    texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_base, copy_dest_range_unscaled);
++    texture_cache.MarkRangeAsResolved(resolve_info.copy_dest_extent_start,
++                                      resolve_info.copy_dest_extent_length);
++
++    command_processor_.EndRenderPass();
++    DeferredCommandBuffer& command_buffer = command_processor_.deferred_command_buffer();
++    const uint32_t host_w = copy_w * res_scale_x;
++    const uint32_t host_h = copy_h * res_scale_y;
++
++    command_processor_.PushImageMemoryBarrier(
++        src_rt->image(),
++        ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT),
++        src_rt->current_stage_mask(), VK_PIPELINE_STAGE_TRANSFER_BIT, src_rt->current_access_mask(),
++        VK_ACCESS_TRANSFER_READ_BIT, src_rt->current_layout(),
++        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++    src_rt->SetUsage(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
++                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++
++    VkImage dst_images_inline[4];
++    std::vector<VkImage> dst_images_heap;
++    VkImage* dst_images = dst_images_inline;
++    if (target_count > rex::countof(dst_images_inline)) {
++      dst_images_heap.resize(target_count);
++      dst_images = dst_images_heap.data();
++    }
++    for (size_t i = 0; i < target_count; ++i) {
++      dst_images[i] =
++          texture_cache.PrepareDirectColorCopyTarget(direct_shadow_resolve_targets_[i]);
++    }
++
++    command_processor_.SubmitBarriers(true);
++    for (size_t i = 0; i < target_count; ++i) {
++      uint32_t target_w = host_w;
++      uint32_t target_h = host_h;
++      texture_cache.GetDirectResolveTargetExtent(direct_shadow_resolve_targets_[i], target_w,
++                                                 target_h);
++      VkImageCopy copy_region = {};
++      copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
++      copy_region.srcOffset = {int32_t(guest_src_x * res_scale_x),
++                               int32_t(guest_src_y * res_scale_y), 0};
++      copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
++      copy_region.dstOffset = {0, 0, 0};
++      copy_region.extent = {target_w, target_h, 1};
++      command_buffer.CmdVkCopyImage(src_rt->image(), dst_images[i], copy_region);
++      texture_cache.FinalizeDirectShadowResolveTarget(direct_shadow_resolve_targets_[i]);
++    }
++
++    written_address_out = resolve_info.copy_dest_extent_start;
++    written_length_out = resolve_info.copy_dest_extent_length;
++    return true;
++  }
++
+   // Allocate transient destination descriptors before modifying range state.
+   VkDescriptorSet dest_sets_inline[4];
+   std::vector<VkDescriptorSet> dest_sets_heap;
+   VkDescriptorSet* dest_sets = dest_sets_inline;
+-  const size_t target_count = direct_shadow_resolve_targets_.size();
+   if (target_count > rex::countof(dest_sets_inline)) {
+     dest_sets_heap.resize(target_count);
+     dest_sets = dest_sets_heap.data();
+diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
+index 10677a3..1fc48ca 100644
+--- a/src/graphics/vulkan/texture_cache.cpp
++++ b/src/graphics/vulkan/texture_cache.cpp
+@@ -1532,6 +1532,22 @@ VkImageView VulkanTextureCache::PrepareDirectShadowResolveTarget(
+   return vulkan_texture.storage_view();
+ }
+ 
++VkImage VulkanTextureCache::PrepareDirectColorCopyTarget(DirectShadowResolveHandle texture) {
++  auto& vulkan_texture = *static_cast<VulkanTexture*>(texture);
++  vulkan_texture.MarkAsUsed();
++  auto old_usage = vulkan_texture.SetUsage(VulkanTexture::Usage::kTransferDestination);
++  VkPipelineStageFlags src_stage;
++  VkAccessFlags src_access;
++  VkImageLayout old_layout;
++  GetTextureUsageMasks(old_usage, src_stage, src_access, old_layout);
++  command_processor_.PushImageMemoryBarrier(
++      vulkan_texture.image(), ui::vulkan::util::InitializeSubresourceRange(), src_stage,
++      VK_PIPELINE_STAGE_TRANSFER_BIT, src_access, VK_ACCESS_TRANSFER_WRITE_BIT, old_layout,
++      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
++      false);
++  return vulkan_texture.image();
++}
++
+ bool VulkanTextureCache::FinalizeDirectShadowResolveTarget(DirectShadowResolveHandle texture) {
+   return FinalizeDirectResolvedTexture(*texture);
+ }

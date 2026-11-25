@@ -1,0 +1,456 @@
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -509,26 +509,26 @@ layout(set = 1, binding = 0, rgba16f) writeonly uniform image2D xe_dedither_dest
+ layout(set = 2, binding = 0) uniform sampler2D xe_dedither_depth;
+ 
+ const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+-
+-ivec2 ClampCoord(ivec2 p) {
+-  return clamp(p, ivec2(0), ivec2(xe_dedither_size) - ivec2(1));
+-}
+-
+-float SampleOscillationAtStep(ivec2 p, int stepVal, float depthScale) {
+-  float zC  = texelFetch(xe_dedither_depth, p, 0).r;
+-  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal)), 0).r;
+-  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal)), 0).r;
+-  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0)), 0).r;
+-  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0)), 0).r;
+-  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal)), 0).r;
+-  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal)), 0).r;
+-  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal)), 0).r;
+-  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal)), 0).r;
+-
+-  float dW = zW - zC;
+-  float dE = zE - zC;
+-  float dN = zN - zC;
+-  float dS = zS - zC;
++const float kMinRelOsc = 0.0025;
++
++ivec2 ClampCoord(ivec2 p, ivec2 maxCoord) {
++  return clamp(p, ivec2(0), maxCoord);
++}
++
++float SampleOscillationAtStep(ivec2 p, ivec2 maxCoord, int stepVal, float zC, float depthScale) {
++  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal), maxCoord), 0).r;
++  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal), maxCoord), 0).r;
++  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0), maxCoord), 0).r;
++  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0), maxCoord), 0).r;
++  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal), maxCoord), 0).r;
++  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal), maxCoord), 0).r;
++  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal), maxCoord), 0).r;
++  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal), maxCoord), 0).r;
++
++  float dW  = zW  - zC;
++  float dE  = zE  - zC;
++  float dN  = zN  - zC;
++  float dS  = zS  - zC;
+   float dNW = zNW - zC;
+   float dSE = zSE - zC;
+   float dNE = zNE - zC;
+@@ -536,61 +536,39 @@ float SampleOscillationAtStep(ivec2 p, int stepVal, float depthScale) {
+ 
+   // Real bidirectional oscillation check (peak or valley):
+   // (d1 * d2 > 0.0) ensures center is a true alternating extremum, not a monotonic step edge.
+-  bool oscH  = (dW * dE > 0.0);
+-  bool oscV  = (dN * dS > 0.0);
+-  bool oscD1 = (dNW * dSE > 0.0);
+-  bool oscD2 = (dNE * dSW > 0.0);
+-
+-  float strH  = oscH  ? min(abs(dW),  abs(dE))  : 0.0;
+-  float strV  = oscV  ? min(abs(dN),  abs(dS))  : 0.0;
+-  float strD1 = oscD1 ? min(abs(dNW), abs(dSE)) : 0.0;
+-  float strD2 = oscD2 ? min(abs(dNE), abs(dSW)) : 0.0;
++  float strH  = (dW  * dE  > 0.0) ? min(abs(dW),  abs(dE))  : 0.0;
++  float strV  = (dN  * dS  > 0.0) ? min(abs(dN),  abs(dS))  : 0.0;
++  float strD1 = (dNW * dSE > 0.0) ? min(abs(dNW), abs(dSE)) : 0.0;
++  float strD2 = (dNE * dSW > 0.0) ? min(abs(dNE), abs(dSW)) : 0.0;
+   float maxOscStr = max(max(strH, strV), max(strD1, strD2));
+ 
+   return maxOscStr / depthScale;
+ }
+ 
+-float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
+-  vec2 texel = xe_dedither_size_inv;
+-  vec2 uv = (vec2(p) + vec2(0.5)) * texel;
+-  vec2 st = float(stepVal) * texel;
+-
+-  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
+-  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
+-  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
+-  vec3 e  = textureLod(xe_dedither_source, uv + vec2( st.x,  0.0), 0.0).rgb;
+-  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-st.x,  0.0), 0.0).rgb;
+-  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-st.x, -st.y), 0.0).rgb;
+-  vec3 ne = textureLod(xe_dedither_source, uv + vec2( st.x, -st.y), 0.0).rgb;
+-  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-st.x,  st.y), 0.0).rgb;
+-  vec3 se = textureLod(xe_dedither_source, uv + vec2( st.x,  st.y), 0.0).rgb;
+-
+-  vec3 cardAvg = 0.25 * (n + s + e + w);
+-  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
+-  outBoxAvg = 0.5 * (cardAvg + diagAvg);
+-
+-  if (xe_dedither_has_depth == 0u) {
+-    return 0.0;
+-  }
+-
+-  float zC = texelFetch(xe_dedither_depth, p, 0).r;
+-  float depthScale = max(min(zC, 1.0 - zC), 0.0005);
+-
+-  const float kMinRelOsc = 0.0025;
+-
++float DetectDitherAtStep(ivec2 p, ivec2 maxCoord, int stepVal, vec3 c, float lumaC, float zC,
++                         float depthScale, bool hasPrecomputedSecondary,
++                         float precomputedSecondaryOsc, out float outPrimaryOsc,
++                         out vec3 outBoxAvg) {
+   // 1. Primary bidirectional oscillation check at stepVal
+-  float relOsc = SampleOscillationAtStep(p, stepVal, depthScale);
++  float relOsc = SampleOscillationAtStep(p, maxCoord, stepVal, zC, depthScale);
++  outPrimaryOsc = relOsc;
+ 
+   // 2. Secondary check at 2 * stepVal to capture Bayer 4x4 sub-grid patterns (25%/75% opacity) in distant canopies
+   if (relOsc <= kMinRelOsc) {
+-    float relOsc2 = SampleOscillationAtStep(p, stepVal * 2, depthScale);
++    float relOsc2 = hasPrecomputedSecondary
++                        ? precomputedSecondaryOsc
++                        : SampleOscillationAtStep(p, maxCoord, stepVal * 2, zC, depthScale);
+     if (relOsc2 > kMinRelOsc) {
+       relOsc = relOsc2;
+     }
+   }
+ 
+   // 3. Isolated dark stipple detector (dense foliage interior, dark shadow/AO dithering)
+-  float lumaC = dot(c, kLumaWeights);
++  vec3 n = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( 0, -stepVal), maxCoord), 0).rgb;
++  vec3 s = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( 0,  stepVal), maxCoord), 0).rgb;
++  vec3 e = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal,  0), maxCoord), 0).rgb;
++  vec3 w = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal,  0), maxCoord), 0).rgb;
++
+   float lumaN = dot(n, kLumaWeights);
+   float lumaS = dot(s, kLumaWeights);
+   float lumaE = dot(e, kLumaWeights);
+@@ -605,12 +583,23 @@ float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
+   // while the cardinal neighbors are consistent with each other (low spread).
+   bool isDarkStipple = (darkDrop > 0.025) && (cardRange < max(darkDrop * 1.5, 0.07));
+ 
+-  // EXCLUSION: Reject if neither real bidirectional depth oscillation nor isolated dark stipple is detected.
+-  // Solid 3D silhouettes produce monotonic step edges (relOsc == 0.0 and darkDrop <= 0.0) and are 100% blocked.
++  // EXCLUSION: Reject before fetching diagonal color taps if neither real bidirectional depth
++  // oscillation nor isolated dark stipple is detected.
+   if (relOsc <= kMinRelOsc && !isDarkStipple) {
++    outBoxAvg = c;
+     return 0.0;
+   }
+ 
++  // 4. Lazy diagonal color taps (only fetched for candidate dither pixels)
++  vec3 nw = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal, -stepVal), maxCoord), 0).rgb;
++  vec3 ne = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal, -stepVal), maxCoord), 0).rgb;
++  vec3 sw = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal,  stepVal), maxCoord), 0).rgb;
++  vec3 se = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal,  stepVal), maxCoord), 0).rgb;
++
++  vec3 cardAvg = 0.25 * (n + s + e + w);
++  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
++  outBoxAvg = 0.5 * (cardAvg + diagAvg);
++
+   // Color contrast test:
+   float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
+   if (colorDiff < 0.004) {
+@@ -632,30 +621,43 @@ void main() {
+   }
+ 
+   ivec2 p = ivec2(pixel);
+-  vec2 texel = xe_dedither_size_inv;
+-  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
+-  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
++  ivec2 maxCoord = ivec2(xe_dedither_size) - ivec2(1);
++  vec3 c = texelFetch(xe_dedither_source, p, 0).rgb;
+ 
+-  int scaleVal = int(max(xe_dedither_scale.x, 1u));
++  float confidence = 0.0;
++  vec3 bestBoxAvg = c;
+ 
+-  vec3 boxAvgScale;
+-  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
++  bool inDebugPip = (xe_dedither_debug != 0u) && (pixel.x < 360u) && (pixel.y < 202u);
++  if (xe_dedither_has_depth != 0u && !inDebugPip &&
++      (xe_dedither_debug != 0u || xe_dedither_strength > 0.0)) {
++    float zC = texelFetch(xe_dedither_depth, p, 0).r;
++    float depthScale = max(min(zC, 1.0 - zC), 0.0005);
++    float lumaC = dot(c, kLumaWeights);
++    int scaleVal = int(max(xe_dedither_scale.x, 1u));
+ 
+-  float confidence = confScale;
+-  vec3 bestBoxAvg = boxAvgScale;
++    float oscAtScale = 0.0;
++    vec3 boxAvgScale;
++    float confScale = DetectDitherAtStep(p, maxCoord, scaleVal, c, lumaC, zC, depthScale, false,
++                                         0.0, oscAtScale, boxAvgScale);
++    confidence = confScale;
++    bestBoxAvg = boxAvgScale;
+ 
+-  if (scaleVal > 1) {
+-    vec3 boxAvgNative;
+-    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
+-    if (confNative > confidence) {
+-      confidence = confNative;
+-      bestBoxAvg = boxAvgNative;
++    if (scaleVal > 1 && confidence < 1.0) {
++      float unusedOscNative = 0.0;
++      vec3 boxAvgNative;
++      float confNative = DetectDitherAtStep(p, maxCoord, 1, c, lumaC, zC, depthScale,
++                                            scaleVal == 2, oscAtScale, unusedOscNative,
++                                            boxAvgNative);
++      if (confNative > confidence) {
++        confidence = confNative;
++        bestBoxAvg = boxAvgNative;
++      }
+     }
+   }
+ 
+   vec3 result = c;
+   if (xe_dedither_debug != 0u) {
+-    if (pixel.x < 360u && pixel.y < 202u) {
++    if (inDebugPip) {
+       if (pixel.x == 0u || pixel.x == 359u || pixel.y == 0u || pixel.y == 201u) {
+         result = vec3(1.0, 1.0, 0.0);
+       } else if (xe_dedither_has_depth == 0u) {
+@@ -672,12 +674,12 @@ void main() {
+         result = mix(c, vec3(1.0, 0.08, 0.85), heatStrength);
+       }
+     }
+-  } else {
++  } else if (confidence > 0.0) {
+     result = mix(c, bestBoxAvg, clamp(confidence * xe_dedither_strength, 0.0, 1.0));
+   }
+ 
+   float outLuma = dot(result, kLumaWeights);
+-  imageStore(xe_dedither_dest, ivec2(pixel), vec4(result, outLuma));
++  imageStore(xe_dedither_dest, p, vec4(result, outLuma));
+ }
+ )"
+                          : R"(#version 450
+@@ -697,26 +699,26 @@ layout(set = 1, binding = 0, rgb10_a2) writeonly uniform image2D xe_dedither_des
+ layout(set = 2, binding = 0) uniform sampler2D xe_dedither_depth;
+ 
+ const vec3 kLumaWeights = vec3(0.299, 0.587, 0.114);
+-
+-ivec2 ClampCoord(ivec2 p) {
+-  return clamp(p, ivec2(0), ivec2(xe_dedither_size) - ivec2(1));
+-}
+-
+-float SampleOscillationAtStep(ivec2 p, int stepVal, float depthScale) {
+-  float zC  = texelFetch(xe_dedither_depth, p, 0).r;
+-  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal)), 0).r;
+-  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal)), 0).r;
+-  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0)), 0).r;
+-  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0)), 0).r;
+-  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal)), 0).r;
+-  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal)), 0).r;
+-  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal)), 0).r;
+-  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal)), 0).r;
+-
+-  float dW = zW - zC;
+-  float dE = zE - zC;
+-  float dN = zN - zC;
+-  float dS = zS - zC;
++const float kMinRelOsc = 0.0025;
++
++ivec2 ClampCoord(ivec2 p, ivec2 maxCoord) {
++  return clamp(p, ivec2(0), maxCoord);
++}
++
++float SampleOscillationAtStep(ivec2 p, ivec2 maxCoord, int stepVal, float zC, float depthScale) {
++  float zN  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0, -stepVal), maxCoord), 0).r;
++  float zS  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( 0,  stepVal), maxCoord), 0).r;
++  float zE  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  0), maxCoord), 0).r;
++  float zW  = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  0), maxCoord), 0).r;
++  float zNW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal, -stepVal), maxCoord), 0).r;
++  float zNE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal, -stepVal), maxCoord), 0).r;
++  float zSW = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2(-stepVal,  stepVal), maxCoord), 0).r;
++  float zSE = texelFetch(xe_dedither_depth, ClampCoord(p + ivec2( stepVal,  stepVal), maxCoord), 0).r;
++
++  float dW  = zW  - zC;
++  float dE  = zE  - zC;
++  float dN  = zN  - zC;
++  float dS  = zS  - zC;
+   float dNW = zNW - zC;
+   float dSE = zSE - zC;
+   float dNE = zNE - zC;
+@@ -724,61 +726,39 @@ float SampleOscillationAtStep(ivec2 p, int stepVal, float depthScale) {
+ 
+   // Real bidirectional oscillation check (peak or valley):
+   // (d1 * d2 > 0.0) ensures center is a true alternating extremum, not a monotonic step edge.
+-  bool oscH  = (dW * dE > 0.0);
+-  bool oscV  = (dN * dS > 0.0);
+-  bool oscD1 = (dNW * dSE > 0.0);
+-  bool oscD2 = (dNE * dSW > 0.0);
+-
+-  float strH  = oscH  ? min(abs(dW),  abs(dE))  : 0.0;
+-  float strV  = oscV  ? min(abs(dN),  abs(dS))  : 0.0;
+-  float strD1 = oscD1 ? min(abs(dNW), abs(dSE)) : 0.0;
+-  float strD2 = oscD2 ? min(abs(dNE), abs(dSW)) : 0.0;
++  float strH  = (dW  * dE  > 0.0) ? min(abs(dW),  abs(dE))  : 0.0;
++  float strV  = (dN  * dS  > 0.0) ? min(abs(dN),  abs(dS))  : 0.0;
++  float strD1 = (dNW * dSE > 0.0) ? min(abs(dNW), abs(dSE)) : 0.0;
++  float strD2 = (dNE * dSW > 0.0) ? min(abs(dNE), abs(dSW)) : 0.0;
+   float maxOscStr = max(max(strH, strV), max(strD1, strD2));
+ 
+   return maxOscStr / depthScale;
+ }
+ 
+-float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
+-  vec2 texel = xe_dedither_size_inv;
+-  vec2 uv = (vec2(p) + vec2(0.5)) * texel;
+-  vec2 st = float(stepVal) * texel;
+-
+-  vec3 c  = textureLod(xe_dedither_source, uv, 0.0).rgb;
+-  vec3 n  = textureLod(xe_dedither_source, uv + vec2( 0.0, -st.y), 0.0).rgb;
+-  vec3 s  = textureLod(xe_dedither_source, uv + vec2( 0.0,  st.y), 0.0).rgb;
+-  vec3 e  = textureLod(xe_dedither_source, uv + vec2( st.x,  0.0), 0.0).rgb;
+-  vec3 w  = textureLod(xe_dedither_source, uv + vec2(-st.x,  0.0), 0.0).rgb;
+-  vec3 nw = textureLod(xe_dedither_source, uv + vec2(-st.x, -st.y), 0.0).rgb;
+-  vec3 ne = textureLod(xe_dedither_source, uv + vec2( st.x, -st.y), 0.0).rgb;
+-  vec3 sw = textureLod(xe_dedither_source, uv + vec2(-st.x,  st.y), 0.0).rgb;
+-  vec3 se = textureLod(xe_dedither_source, uv + vec2( st.x,  st.y), 0.0).rgb;
+-
+-  vec3 cardAvg = 0.25 * (n + s + e + w);
+-  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
+-  outBoxAvg = 0.5 * (cardAvg + diagAvg);
+-
+-  if (xe_dedither_has_depth == 0u) {
+-    return 0.0;
+-  }
+-
+-  float zC = texelFetch(xe_dedither_depth, p, 0).r;
+-  float depthScale = max(min(zC, 1.0 - zC), 0.0005);
+-
+-  const float kMinRelOsc = 0.0025;
+-
++float DetectDitherAtStep(ivec2 p, ivec2 maxCoord, int stepVal, vec3 c, float lumaC, float zC,
++                         float depthScale, bool hasPrecomputedSecondary,
++                         float precomputedSecondaryOsc, out float outPrimaryOsc,
++                         out vec3 outBoxAvg) {
+   // 1. Primary bidirectional oscillation check at stepVal
+-  float relOsc = SampleOscillationAtStep(p, stepVal, depthScale);
++  float relOsc = SampleOscillationAtStep(p, maxCoord, stepVal, zC, depthScale);
++  outPrimaryOsc = relOsc;
+ 
+   // 2. Secondary check at 2 * stepVal to capture Bayer 4x4 sub-grid patterns (25%/75% opacity) in distant canopies
+   if (relOsc <= kMinRelOsc) {
+-    float relOsc2 = SampleOscillationAtStep(p, stepVal * 2, depthScale);
++    float relOsc2 = hasPrecomputedSecondary
++                        ? precomputedSecondaryOsc
++                        : SampleOscillationAtStep(p, maxCoord, stepVal * 2, zC, depthScale);
+     if (relOsc2 > kMinRelOsc) {
+       relOsc = relOsc2;
+     }
+   }
+ 
+   // 3. Isolated dark stipple detector (dense foliage interior, dark shadow/AO dithering)
+-  float lumaC = dot(c, kLumaWeights);
++  vec3 n = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( 0, -stepVal), maxCoord), 0).rgb;
++  vec3 s = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( 0,  stepVal), maxCoord), 0).rgb;
++  vec3 e = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal,  0), maxCoord), 0).rgb;
++  vec3 w = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal,  0), maxCoord), 0).rgb;
++
+   float lumaN = dot(n, kLumaWeights);
+   float lumaS = dot(s, kLumaWeights);
+   float lumaE = dot(e, kLumaWeights);
+@@ -793,12 +773,23 @@ float DetectDitherAtStep(ivec2 p, int stepVal, out vec3 outBoxAvg) {
+   // while the cardinal neighbors are consistent with each other (low spread).
+   bool isDarkStipple = (darkDrop > 0.025) && (cardRange < max(darkDrop * 1.5, 0.07));
+ 
+-  // EXCLUSION: Reject if neither real bidirectional depth oscillation nor isolated dark stipple is detected.
+-  // Solid 3D silhouettes produce monotonic step edges (relOsc == 0.0 and darkDrop <= 0.0) and are 100% blocked.
++  // EXCLUSION: Reject before fetching diagonal color taps if neither real bidirectional depth
++  // oscillation nor isolated dark stipple is detected.
+   if (relOsc <= kMinRelOsc && !isDarkStipple) {
++    outBoxAvg = c;
+     return 0.0;
+   }
+ 
++  // 4. Lazy diagonal color taps (only fetched for candidate dither pixels)
++  vec3 nw = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal, -stepVal), maxCoord), 0).rgb;
++  vec3 ne = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal, -stepVal), maxCoord), 0).rgb;
++  vec3 sw = texelFetch(xe_dedither_source, ClampCoord(p + ivec2(-stepVal,  stepVal), maxCoord), 0).rgb;
++  vec3 se = texelFetch(xe_dedither_source, ClampCoord(p + ivec2( stepVal,  stepVal), maxCoord), 0).rgb;
++
++  vec3 cardAvg = 0.25 * (n + s + e + w);
++  vec3 diagAvg = 0.25 * (nw + ne + sw + se);
++  outBoxAvg = 0.5 * (cardAvg + diagAvg);
++
+   // Color contrast test:
+   float colorDiff = abs(dot(c - outBoxAvg, kLumaWeights));
+   if (colorDiff < 0.004) {
+@@ -820,30 +811,43 @@ void main() {
+   }
+ 
+   ivec2 p = ivec2(pixel);
+-  vec2 texel = xe_dedither_size_inv;
+-  vec2 uv = (vec2(pixel) + vec2(0.5)) * texel;
+-  vec3 c = textureLod(xe_dedither_source, uv, 0.0).rgb;
++  ivec2 maxCoord = ivec2(xe_dedither_size) - ivec2(1);
++  vec3 c = texelFetch(xe_dedither_source, p, 0).rgb;
+ 
+-  int scaleVal = int(max(xe_dedither_scale.x, 1u));
++  float confidence = 0.0;
++  vec3 bestBoxAvg = c;
+ 
+-  vec3 boxAvgScale;
+-  float confScale = DetectDitherAtStep(p, scaleVal, boxAvgScale);
++  bool inDebugPip = (xe_dedither_debug != 0u) && (pixel.x < 360u) && (pixel.y < 202u);
++  if (xe_dedither_has_depth != 0u && !inDebugPip &&
++      (xe_dedither_debug != 0u || xe_dedither_strength > 0.0)) {
++    float zC = texelFetch(xe_dedither_depth, p, 0).r;
++    float depthScale = max(min(zC, 1.0 - zC), 0.0005);
++    float lumaC = dot(c, kLumaWeights);
++    int scaleVal = int(max(xe_dedither_scale.x, 1u));
+ 
+-  float confidence = confScale;
+-  vec3 bestBoxAvg = boxAvgScale;
++    float oscAtScale = 0.0;
++    vec3 boxAvgScale;
++    float confScale = DetectDitherAtStep(p, maxCoord, scaleVal, c, lumaC, zC, depthScale, false,
++                                         0.0, oscAtScale, boxAvgScale);
++    confidence = confScale;
++    bestBoxAvg = boxAvgScale;
+ 
+-  if (scaleVal > 1) {
+-    vec3 boxAvgNative;
+-    float confNative = DetectDitherAtStep(p, 1, boxAvgNative);
+-    if (confNative > confidence) {
+-      confidence = confNative;
+-      bestBoxAvg = boxAvgNative;
++    if (scaleVal > 1 && confidence < 1.0) {
++      float unusedOscNative = 0.0;
++      vec3 boxAvgNative;
++      float confNative = DetectDitherAtStep(p, maxCoord, 1, c, lumaC, zC, depthScale,
++                                            scaleVal == 2, oscAtScale, unusedOscNative,
++                                            boxAvgNative);
++      if (confNative > confidence) {
++        confidence = confNative;
++        bestBoxAvg = boxAvgNative;
++      }
+     }
+   }
+ 
+   vec3 result = c;
+   if (xe_dedither_debug != 0u) {
+-    if (pixel.x < 360u && pixel.y < 202u) {
++    if (inDebugPip) {
+       if (pixel.x == 0u || pixel.x == 359u || pixel.y == 0u || pixel.y == 201u) {
+         result = vec3(1.0, 1.0, 0.0);
+       } else if (xe_dedither_has_depth == 0u) {
+@@ -860,11 +864,11 @@ void main() {
+         result = mix(c, vec3(1.0, 0.08, 0.85), heatStrength);
+       }
+     }
+-  } else {
++  } else if (confidence > 0.0) {
+     result = mix(c, bestBoxAvg, clamp(confidence * xe_dedither_strength, 0.0, 1.0));
+   }
+ 
+-  imageStore(xe_dedither_dest, ivec2(pixel), vec4(result, 1.0));
++  imageStore(xe_dedither_dest, p, vec4(result, 1.0));
+ }
+ )";
+ }

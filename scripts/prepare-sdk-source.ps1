@@ -312,4 +312,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan scaled direct resolve and clear skip patch application'
 }
 
-Write-Host "[1.1 - 1.23] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.24: Apply Vulkan swap de-dither compute shader fetch deduplication and lazy diagonal taps
+$vulkanDeDitherOptPatch = Join-Path $patchRoot 'vulkan-swap-dedither-opt.patch'
+git -C $source apply --reverse --check $vulkanDeDitherOptPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanDeDitherOptPatch
+    Check-Native 'Vulkan swap de-dither opt patch check'
+    git -C $source apply $vulkanDeDitherOptPatch
+    Check-Native 'Vulkan swap de-dither opt patch application'
+}
+
+Write-Host "[1.1 - 1.24] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

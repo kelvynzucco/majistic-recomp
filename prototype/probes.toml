@@ -93,16 +93,54 @@ name = "Majin_FovFrustumA"
 registers = ["f2"]
 after_instruction = true
 
-# sub_829E1628 master scene frustum culling FOV & tan clamp (0x82BE0A40)
+# sub_829FE710 (TaskCamera per-frame frustum trig cache: +628/+632/+636/+640 used by sub_829FC118 sphere & sub_829FC460 OBB culling)
 [[midasm_hook]]
-address = 0x829E1664
+address = 0x829FE810
 name = "Majin_FovFrustumA"
 registers = ["f12"]
 after_instruction = true
 
 [[midasm_hook]]
-address = 0x829E1684
+address = 0x829FE834
 name = "Majin_FovFrustumA"
+registers = ["f8"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FE860
+name = "Majin_FovFrustumA"
+registers = ["f3"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829FE868
+name = "Majin_ClampTanHalfHfov"
+registers = ["f1"]
+after_instruction = true
+
+# Shadow cascade (PSSM/CSM) frustum corner builders (sub_8218F0D0 & sub_8218FE38, < 0x821C0000: identical in PAL and USA)
+[[midasm_hook]]
+address = 0x8218F708
+name = "Majin_FovFrustumA"
+registers = ["f30"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8219045C
+name = "Majin_FovFrustumA"
+registers = ["f29"]
+after_instruction = true
+
+# sub_829E1628 master scene frustum culling FOV (radians) & tan clamp (0x82BE0A40)
+[[midasm_hook]]
+address = 0x829E1664
+name = "Majin_FovFrustumRad"
+registers = ["f12"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x829E1684
+name = "Majin_FovFrustumRad"
 registers = ["f9"]
 after_instruction = true
 

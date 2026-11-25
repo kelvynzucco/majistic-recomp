@@ -14,6 +14,8 @@ REXCVAR_DEFINE_DOUBLE(majin_fov_scale, 1.0, "Majin",
 
 namespace {
 
+constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
+
 void Scale(PPCRegister& f) {
   const double scale = REXCVAR_GET(majin_fov_scale);
   if (scale != 1.0) {
@@ -22,10 +24,20 @@ void Scale(PPCRegister& f) {
   }
 }
 
+void ScaleRadians(PPCRegister& f) {
+  const double scale = REXCVAR_GET(majin_fov_scale);
+  if (scale != 1.0) {
+    // sub_829E1628 (PAL) / sub_829E15B8 (USA) receives VFOV in radians.
+    constexpr double kMaxFovRad = 150.0 * kDegToRad;
+    f.f64 = double(float(std::min(f.f64 * scale, kMaxFovRad)));
+  }
+}
+
 }  // namespace
 
 void Majin_FovFrustumA(PPCRegister& f0) { Scale(f0); }
 void Majin_FovFrustumB(PPCRegister& f12) { Scale(f12); }
+void Majin_FovFrustumRad(PPCRegister& f) { ScaleRadians(f); }
 void Majin_FovProjection(PPCRegister& f13) { Scale(f13); }
 
 void Majin_ClampTanHalfHfov(PPCRegister& f) {
@@ -43,7 +55,6 @@ void Majin_ActorConeCullThreshold(PPCRegister& f0) {
     // Original threshold in .rdata is cos(45 deg) = ~0.7071 for a 90 deg view cone.
     // When FOV is expanded, widen the cone up to 170 deg (85 deg half-angle)
     // so actors and props on screen edges are not put into SLEEP/INACTIVE state.
-    constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
     const double scaled_half_angle_deg = std::min(45.0 * scale, 85.0);
     f0.f64 = double(float(std::cos(scaled_half_angle_deg * kDegToRad)));
   }

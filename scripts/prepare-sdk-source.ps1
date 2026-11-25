@@ -322,4 +322,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan swap de-dither opt patch application'
 }
 
-Write-Host "[1.1 - 1.24] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.25: Apply Vulkan dynamic UBO constant descriptor caching, bool/loop diff-check, and TexReq fast-paths
+$vulkanDynamicUboPatch = Join-Path $patchRoot 'vulkan-dynamic-ubo-and-texreq-opt.patch'
+git -C $source apply --reverse --check $vulkanDynamicUboPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $vulkanDynamicUboPatch
+    Check-Native 'Vulkan dynamic UBO and TexReq opt patch check'
+    git -C $source apply $vulkanDynamicUboPatch
+    Check-Native 'Vulkan dynamic UBO and TexReq opt patch application'
+}
+
+Write-Host "[1.1 - 1.25] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

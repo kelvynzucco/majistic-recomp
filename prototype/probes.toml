@@ -120,7 +120,7 @@ registers = ["f0"]
 after_instruction = true
 
 # Draw Distance Multiplier (Issue #25)
-# 3D Model & Actor CPU distance culling thresholds in sub_8233DE98 (636(r31) per-object and 120(r11) global)
+# Character & Gimmick CPU distance culling thresholds in sub_8233DE98 (model+644 == 0: 636(r31) per-object and 120(r11) global)
 [[midasm_hook]]
 address = 0x8233E0F8
 name = "Majin_DrawDistanceScale"
@@ -133,35 +133,31 @@ name = "Majin_DrawDistanceScale"
 registers = ["f13"]
 after_instruction = true
 
+# Instanced vegetation (mapXXX_ins, model+644 != 0) CPU distance culling thresholds in sub_8233DE98 (636(r31))
 [[midasm_hook]]
 address = 0x8233E270
-name = "Majin_DrawDistanceScale"
+name = "Majin_InstanceDrawDistanceScale"
 registers = ["f13"]
 after_instruction = true
 
 [[midasm_hook]]
 address = 0x8233E2B4
-name = "Majin_DrawDistanceScale"
+name = "Majin_InstanceDrawDistanceScale"
 registers = ["f5"]
 after_instruction = true
 
-# Foliage / Bush / Grass GPU shader fade-out thresholds (constant 3164(r25)) in sub_8218B600 (r22 = CMaterial*, r28 = CModel*)
+# Foliage / Bush / Grass GPU shader fade-out threshold (636(r28) -> constant 3164(r25)) in sub_8218B600 (r22 = CMaterial*, r28 = CModel*)
 [[midasm_hook]]
 address = 0x8218B8E4
 name = "Majin_FoliageFadeScale"
 registers = ["f12", "r22", "r28"]
 after_instruction = true
 
+# Instanced vegetation with isCullByDistance == 0 (loc_8218B910 in sub_8218B600): apply smooth fade when scale < 1.0x
 [[midasm_hook]]
-address = 0x8218B910
-name = "Majin_FoliageFadeScale"
-registers = ["f0", "r22", "r28"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x8218B914
-name = "Majin_FoliageFadeScale"
-registers = ["f31", "r22", "r28"]
+address = 0x8218B924
+name = "Majin_FoliageCullOffFade"
+registers = ["r5", "r22", "r28", "r29"]
 after_instruction = true
 
 # Post effect switches (post_effects.cpp): r11 = effect enabled flag in sub_821A00E0.

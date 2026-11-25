@@ -48,6 +48,23 @@ inline constexpr uint32_t kMediaIdPal = 0x67BD87EF;
 #define MAJIN_FN_SAVE_FLOW_C sub_826D3C20
 #define MAJIN_IMP_SAVE_FLOW_C __imp__sub_826D3C20
 
+// Draw Distance (Zone LOD, World Grid PVS, World Streaming, Shadow Cascades)
+// Functions < 0x821C0000 match USA; >= 0x821C0000 are shifted +0x70.
+#define MAJIN_FN_TASKMAP_UPDATE_LOD sub_822517D0
+#define MAJIN_IMP_TASKMAP_UPDATE_LOD __imp__sub_822517D0
+#define MAJIN_FN_WORLD_PVS_UPDATE sub_82175700
+#define MAJIN_IMP_WORLD_PVS_UPDATE __imp__sub_82175700
+#define MAJIN_FN_WORLD_BOX_APPLY sub_82173FF8
+#define MAJIN_IMP_WORLD_BOX_APPLY __imp__sub_82173FF8
+#define MAJIN_FN_MAPSLOT_LOAD sub_823788C0
+#define MAJIN_IMP_MAPSLOT_LOAD __imp__sub_823788C0
+#define MAJIN_FN_MAPSLOT_UNLOAD sub_82378A78
+#define MAJIN_IMP_MAPSLOT_UNLOAD __imp__sub_82378A78
+#define MAJIN_FN_MAPSLOT_APPLY_RES sub_82379160
+#define MAJIN_IMP_MAPSLOT_APPLY_RES __imp__sub_82379160
+#define MAJIN_FN_SHADOW_CASCADE_UPDATE sub_8218DD60
+#define MAJIN_IMP_SHADOW_CASCADE_UPDATE __imp__sub_8218DD60
+
 namespace majin::offsets {
 // Scenario root pointer in .data is identical across both USA and PAL editions (0x82BA73D0).
 // In PPC asm: lis r31, -32070 (0x82BA0000) -> lwz r11, 29648(r31) (0x82BA73D0).
@@ -92,6 +109,22 @@ inline constexpr uint32_t kLogoEndFlagCallLR = 0x821CECE0;
 #define MAJIN_IMP_SAVE_FLOW_B __imp__sub_822E9188
 #define MAJIN_FN_SAVE_FLOW_C sub_826D3BB0
 #define MAJIN_IMP_SAVE_FLOW_C __imp__sub_826D3BB0
+
+// Draw Distance (Zone LOD, World Grid PVS, World Streaming, Shadow Cascades)
+#define MAJIN_FN_TASKMAP_UPDATE_LOD sub_82251760
+#define MAJIN_IMP_TASKMAP_UPDATE_LOD __imp__sub_82251760
+#define MAJIN_FN_WORLD_PVS_UPDATE sub_82175700
+#define MAJIN_IMP_WORLD_PVS_UPDATE __imp__sub_82175700
+#define MAJIN_FN_WORLD_BOX_APPLY sub_82173FF8
+#define MAJIN_IMP_WORLD_BOX_APPLY __imp__sub_82173FF8
+#define MAJIN_FN_MAPSLOT_LOAD sub_82378850
+#define MAJIN_IMP_MAPSLOT_LOAD __imp__sub_82378850
+#define MAJIN_FN_MAPSLOT_UNLOAD sub_82378A08
+#define MAJIN_IMP_MAPSLOT_UNLOAD __imp__sub_82378A08
+#define MAJIN_FN_MAPSLOT_APPLY_RES sub_823790F0
+#define MAJIN_IMP_MAPSLOT_APPLY_RES __imp__sub_823790F0
+#define MAJIN_FN_SHADOW_CASCADE_UPDATE sub_8218DD60
+#define MAJIN_IMP_SHADOW_CASCADE_UPDATE __imp__sub_8218DD60
 
 namespace majin::offsets {
 inline constexpr uint32_t kScenarioRootPtr = 0x82BA73D0;

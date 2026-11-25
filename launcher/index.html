@@ -871,21 +871,6 @@
                   >
                   <div class="grid grid-cols-2 gap-3">
                     <label
-                      for="depthOfField"
-                      class="flex items-center space-x-1.5 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        id="depthOfField"
-                        class="rounded-md bg-darkControl border-darkBorder text-accent focus:ring-0 focus:outline-none h-3.5 w-3.5"
-                      />
-                      <span
-                        class="text-xs text-slate-300 truncate"
-                        title="Cinematic background distance blur"
-                        >Depth of Field (Native)</span
-                      >
-                    </label>
-                    <label
                       for="pauseDistortion"
                       class="flex items-center space-x-1.5 cursor-pointer"
                     >
@@ -903,6 +888,54 @@
                     </label>
                   </div>
 
+                  <!-- Depth of Field Slider & Style -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-2">
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between">
+                        <label
+                          for="depthOfFieldIntensity"
+                          class="text-xs text-slate-300"
+                        >
+                          Depth of Field
+                        </label>
+                        <span
+                          id="depthOfFieldIntensityVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.40</span
+                        >
+                      </div>
+                      <input
+                        type="range"
+                        id="depthOfFieldIntensity"
+                        min="0.00"
+                        max="2.00"
+                        step="0.05"
+                        value="0.40"
+                        class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
+                      />
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                      <label
+                        for="depthOfFieldMode"
+                        class="text-xs text-slate-300"
+                      >
+                        Depth of Field Style
+                      </label>
+                      <select
+                        id="depthOfFieldMode"
+                        class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
+                      >
+                        <option value="bokeh" selected>Optical Bokeh (Recommended)</option>
+                        <option value="native">Native (Original 360)</option>
+                      </select>
+                    </div>
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Controls optical lens blur intensity (0.00 = Off, 0.40 =
+                      default, 2.00 = strong bokeh). Optical Bokeh removes black
+                      dither dots and foreground halos.
+                    </p>
+                  </div>
+
                   <!-- Glare & Specular Bloom Slider -->
                   <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
                     <div class="flex items-center justify-between">
@@ -915,7 +948,7 @@
                       <span
                         id="bloomIntensityVal"
                         class="text-xs font-mono text-accent font-semibold"
-                        >1.00</span
+                        >0.80</span
                       >
                     </div>
                     <input
@@ -924,12 +957,12 @@
                       min="0.00"
                       max="2.00"
                       step="0.05"
-                      value="1.00"
+                      value="0.80"
                       class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
                     />
                     <p class="text-[10px] text-slate-400 leading-tight">
                       Controls glare and specular light intensity (0.00 =
-                      disabled, 1.00 = default, 2.00 = 2x glow).
+                      disabled, 0.80 = default, 2.00 = 2x glow).
                     </p>
                   </div>
 
@@ -945,7 +978,7 @@
                       <span
                         id="fogIntensityVal"
                         class="text-xs font-mono text-accent font-semibold"
-                        >0.20</span
+                        >0.80</span
                       >
                     </div>
                     <input
@@ -954,12 +987,12 @@
                       min="0.00"
                       max="1.00"
                       step="0.05"
-                      value="0.20"
+                      value="0.80"
                       class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
                     />
                     <p class="text-[10px] text-slate-400 leading-tight">
                       Controls scene fog density and distance (0.00 = Off,
-                      0.20 = default, 1.00 = original).
+                      0.80 = default, 1.00 = original).
                     </p>
                   </div>
                 </div>

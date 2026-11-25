@@ -25,30 +25,63 @@
 #include <string>
 #include <string_view>
 
-REXCVAR_DEFINE_BOOL(majin_dof, true, "Majin", "Depth of field (background blur)");
+// Depth of Field intensity (slider from 0.0 to 2.0, default 0.40).
+// Accepts both booleans ("true" -> 0.40, "false" -> 0.0) from the launcher / CLI
+// and float numbers ("0.0" to "2.0") from the in-game settings slider.
+double& FLAGS_majin_dof_storage_() {
+  static double storage = 0.40;
+  return storage;
+}
+static auto _cvar_reg_majin_dof = ::rex::cvar::FlagRegistrar({
+    "majin_dof",
+    ::rex::cvar::FlagType::Double,
+    "Majin",
+    "Depth of Field intensity (0.0 = off, 0.40 = default, 2.0 = strong bokeh)",
+    [](std::string_view v) {
+      if (v == "true" || v == "yes" || v == "on") {
+        FLAGS_majin_dof_storage_() = 0.40;
+        return true;
+      }
+      if (v == "false" || v == "no" || v == "off") {
+        FLAGS_majin_dof_storage_() = 0.0;
+        return true;
+      }
+      double val = 0.40;
+      if (!::rex::cvar::ParseDouble(v, val) || !std::isfinite(val)) {
+        return false;
+      }
+      FLAGS_majin_dof_storage_() = std::clamp(val, 0.0, 2.0);
+      return true;
+    },
+    []() { return std::to_string(FLAGS_majin_dof_storage_()); },
+    [](std::string_view) {},
+    ::rex::cvar::Lifecycle::kHotReload,
+    {},
+    "0.400000",
+    false});
 
-// Glare and specular bloom intensity (slider from 0.0 to 2.0, default 1.0).
-// Accepts both booleans ("true" -> 1.0, "false" -> 0.0) from the launcher / CLI
+// Glare and specular bloom intensity (slider from 0.0 to 2.0, default 0.80).
+// Accepts both booleans ("true" -> 0.80, "false" -> 0.0) from the launcher / CLI
 // and float numbers ("0.0" to "2.0") from the in-game settings slider.
 double& FLAGS_majin_bloom_storage_() {
-  static double storage = 1.0;
+  static double storage = 0.80;
   return storage;
 }
 static auto _cvar_reg_majin_bloom = ::rex::cvar::FlagRegistrar({
     "majin_bloom",
     ::rex::cvar::FlagType::Double,
     "Majin",
-    "Glare & Specular Bloom",
+    "Glare & Specular Bloom (0.0 = off, 0.80 = default, 2.0 = 2x glow)",
     [](std::string_view v) {
       if (v == "true" || v == "yes" || v == "on") {
-        FLAGS_majin_bloom_storage_() = 1.0;
+        FLAGS_majin_bloom_storage_() = 0.80;
         return true;
       }
       if (v == "false" || v == "no" || v == "off") {
         FLAGS_majin_bloom_storage_() = 0.0;
         return true;
       }
-      double val = 0.0;
+      double val = 0.80;
       if (!::rex::cvar::ParseDouble(v, val)) {
         return false;
       }
@@ -61,33 +94,33 @@ static auto _cvar_reg_majin_bloom = ::rex::cvar::FlagRegistrar({
     [](std::string_view) {},
     ::rex::cvar::Lifecycle::kHotReload,
     {},
-    "1.000000",
+    "0.800000",
     false});
 
 REXCVAR_DEFINE_BOOL(majin_pause_distortion, true, "Graphics",
                     "Screen wave distortion effect behind pause and map menus");
 
-// Scene fog intensity (slider from 0.0 to 1.0, default 0.20, 1.0 = original).
-// Accepts both booleans ("true" -> 1.0, "false" -> 0.0) and floats ("0.0" to "1.0").
+// Scene fog intensity (slider from 0.0 to 1.0, default 0.80, 1.0 = original).
+// Accepts both booleans ("true" -> 0.80, "false" -> 0.0) and floats ("0.0" to "1.0").
 double& FLAGS_majin_fog_storage_() {
-  static double storage = 0.20;
+  static double storage = 0.80;
   return storage;
 }
 static auto _cvar_reg_majin_fog = ::rex::cvar::FlagRegistrar({
     "majin_fog",
     ::rex::cvar::FlagType::Double,
     "Majin",
-    "Scene Fog Intensity (0.0 = off, 0.20 = default, 1.0 = original)",
+    "Scene Fog Intensity (0.0 = off, 0.80 = default, 1.0 = original)",
     [](std::string_view v) {
       if (v == "true" || v == "yes" || v == "on") {
-        FLAGS_majin_fog_storage_() = 1.0;
+        FLAGS_majin_fog_storage_() = 0.80;
         return true;
       }
       if (v == "false" || v == "no" || v == "off") {
         FLAGS_majin_fog_storage_() = 0.0;
         return true;
       }
-      double val = 0.20;
+      double val = 0.80;
       if (!::rex::cvar::ParseDouble(v, val) || !std::isfinite(val)) {
         return false;
       }
@@ -98,11 +131,13 @@ static auto _cvar_reg_majin_fog = ::rex::cvar::FlagRegistrar({
     [](std::string_view) {},
     ::rex::cvar::Lifecycle::kHotReload,
     {},
-    "0.200000",
+    "0.800000",
     false});
 
 void Majin_DofEnabled(PPCRegister& r11) {
-  if (!REXCVAR_GET(majin_dof)) r11.u64 = 0;
+  if (REXCVAR_GET(majin_dof) <= 0.001) {
+    r11.u64 = 0;
+  }
 }
 
 void Majin_BloomEnabled(PPCRegister& r11) {

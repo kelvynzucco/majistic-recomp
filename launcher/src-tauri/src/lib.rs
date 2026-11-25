@@ -118,12 +118,20 @@ fn default_dedither_strength() -> f64 {
     0.85
 }
 
+fn default_dof_intensity() -> f64 {
+    0.40
+}
+
+fn default_dof_mode() -> String {
+    "bokeh".into()
+}
+
 fn default_bloom_intensity() -> f64 {
-    1.0
+    0.80
 }
 
 fn default_fog_intensity() -> f64 {
-    0.20
+    0.80
 }
 
 fn default_cas_sharpness() -> f64 {
@@ -231,6 +239,35 @@ where
     }
 }
 
+fn deserialize_nullable_f64_dof<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(0.40))
+}
+
+fn deserialize_nullable_f64_080<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<f64>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or(0.80))
+}
+
+fn deserialize_nullable_dof_mode<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_ascii_lowercase();
+    if trimmed == "native" {
+        Ok("native".into())
+    } else {
+        Ok("bokeh".into())
+    }
+}
+
 fn deserialize_nullable_bool_false<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -304,13 +341,17 @@ pub struct Settings {
     pub pause_blur: bool,
     #[serde(rename = "PauseDistortion", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub pause_distortion: bool,
-    #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
+    #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub depth_of_field: bool,
+    #[serde(rename = "DepthOfFieldIntensity", default = "default_dof_intensity", deserialize_with = "deserialize_nullable_f64_dof")]
+    pub depth_of_field_intensity: f64,
+    #[serde(rename = "DepthOfFieldMode", default = "default_dof_mode", deserialize_with = "deserialize_nullable_dof_mode")]
+    pub depth_of_field_mode: String,
     #[serde(default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub bloom: bool,
-    #[serde(rename = "BloomIntensity", default = "default_bloom_intensity", deserialize_with = "deserialize_nullable_f64")]
+    #[serde(rename = "BloomIntensity", default = "default_bloom_intensity", deserialize_with = "deserialize_nullable_f64_080")]
     pub bloom_intensity: f64,
-    #[serde(rename = "FogIntensity", default = "default_fog_intensity", deserialize_with = "deserialize_nullable_f64")]
+    #[serde(rename = "FogIntensity", default = "default_fog_intensity", deserialize_with = "deserialize_nullable_f64_080")]
     pub fog_intensity: f64,
     #[serde(rename = "CasSharpness", default = "default_cas_sharpness", deserialize_with = "deserialize_nullable_f64")]
     pub cas_sharpness: f64,
@@ -360,10 +401,12 @@ impl Default for Settings {
             draw_distance_scale: 3.0,
             pause_blur: false,
             pause_distortion: true,
-            depth_of_field: false,
+            depth_of_field: true,
+            depth_of_field_intensity: 0.40,
+            depth_of_field_mode: "bokeh".into(),
             bloom: true,
-            bloom_intensity: 1.0,
-            fog_intensity: 0.20,
+            bloom_intensity: 0.80,
+            fog_intensity: 0.80,
             cas_sharpness: 0.0,
             fsr_reduction: 0.0,
             present_dither: false,
@@ -1422,6 +1465,14 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.draw_distance_scale.to_string(),
         format!("-PauseDistortion:${}", settings.pause_distortion),
         format!("-DepthOfField:${}", settings.depth_of_field),
+        "-DepthOfFieldIntensity".to_string(),
+        settings.depth_of_field_intensity.to_string(),
+        "-DepthOfFieldMode".to_string(),
+        if settings.depth_of_field_mode == "native" {
+            "native".to_string()
+        } else {
+            "bokeh".to_string()
+        },
         format!("-Bloom:${}", settings.bloom_intensity),
         "-BloomIntensity".to_string(),
         settings.bloom_intensity.to_string(),
@@ -2318,7 +2369,10 @@ mod tests {
         assert_eq!(settings.mouse_sensitivity, 1.0);
         assert!(!settings.pause_blur);
         assert!(settings.pause_distortion);
-        assert_eq!(settings.bloom_intensity, 1.0);
+        assert_eq!(settings.depth_of_field_intensity, 0.40);
+        assert_eq!(settings.depth_of_field_mode, "bokeh");
+        assert_eq!(settings.bloom_intensity, 0.80);
+        assert_eq!(settings.fog_intensity, 0.80);
         assert_eq!(settings.cas_sharpness, 0.0);
         assert_eq!(settings.fsr_reduction, 0.0);
         assert!(!settings.window_fps);

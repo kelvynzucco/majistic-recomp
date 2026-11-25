@@ -122,7 +122,11 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double mouse_sens = rex::cvar::Query<double>("mnk_sensitivity");
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
   const double draw_distance_scale = rex::cvar::Query<double>("majin_draw_distance_scale");
-  const bool dof = rex::cvar::Query<bool>("majin_dof");
+  const double dof = rex::cvar::Query<double>("majin_dof");
+  std::string dof_mode = "bokeh";
+  if (!rex::cvar::GetFlagByName("majin_dof_mode").empty()) {
+    dof_mode = rex::cvar::Query<std::string>("majin_dof_mode");
+  }
   const double bloom = rex::cvar::Query<double>("majin_bloom");
   const double fog = rex::cvar::Query<double>("majin_fog");
   const bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
@@ -159,6 +163,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(draw_dist_buf, sizeof(draw_dist_buf), "%.2f", draw_distance_scale);
   char strength_buf[32];
   snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
+  char dof_buf[32];
+  snprintf(dof_buf, sizeof(dof_buf), "%.2f", dof);
   char bloom_buf[32];
   snprintf(bloom_buf, sizeof(bloom_buf), "%.2f", bloom);
   char fog_buf[32];
@@ -182,7 +188,9 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "MouseSensitivity", sens_buf);
   ReplaceJsonField(json, "FovScale", fov_buf);
   ReplaceJsonField(json, "DrawDistanceScale", draw_dist_buf);
-  ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
+  ReplaceJsonField(json, "DepthOfField", dof > 0.001 ? "true" : "false");
+  ReplaceJsonField(json, "DepthOfFieldIntensity", dof_buf);
+  ReplaceJsonField(json, "DepthOfFieldMode", "\"" + dof_mode + "\"");
   ReplaceJsonField(json, "Bloom", bloom > 0.0 ? "true" : "false");
   ReplaceJsonField(json, "BloomIntensity", bloom_buf);
   ReplaceJsonField(json, "FogIntensity", fog_buf);
@@ -653,11 +661,29 @@ void InGameMenuDialog::DrawGraphicsTab() {
 
   DrawSubSectionHeader("VISUAL EFFECTS");
 
-  // Depth of Field (Native)
-  bool dof = rex::cvar::Query<bool>("majin_dof");
-  if (ImGui::Checkbox("Depth of Field (Native)", &dof)) {
-    rex::cvar::SetFlagByName("majin_dof", dof ? "true" : "false");
+  // Depth of Field Intensity & Mode
+  float dof_intensity = static_cast<float>(rex::cvar::Query<double>("majin_dof"));
+  ImGui::Text("Depth of Field:");
+  ImGui::SetNextItemWidth(320.0f);
+  const char* dof_fmt = (dof_intensity <= 0.001f) ? "Off" : "%.2f";
+  if (ImGui::SliderFloat("##DofIntensity", &dof_intensity, 0.0f, 2.0f, dof_fmt)) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", dof_intensity);
+    rex::cvar::SetFlagByName("majin_dof", buf);
   }
+  if (!rex::cvar::GetFlagByName("majin_dof_mode").empty()) {
+    std::string cur_dof_mode = rex::cvar::Query<std::string>("majin_dof_mode");
+    int dof_mode_idx = (cur_dof_mode == "native") ? 1 : 0;
+    const char* dof_mode_labels[] = {"Optical Bokeh (Recommended)", "Native (Original 360)"};
+    ImGui::Text("Depth of Field Style:");
+    ImGui::SetNextItemWidth(320.0f);
+    if (ImGui::Combo("##DofMode", &dof_mode_idx, dof_mode_labels, IM_ARRAYSIZE(dof_mode_labels))) {
+      rex::cvar::SetFlagByName("majin_dof_mode", dof_mode_idx == 1 ? "native" : "bokeh");
+    }
+  }
+  DrawHintText("Controls optical lens blur intensity (0.00 = Off, 0.40 = default, 2.00 = strong bokeh). Optical Bokeh removes black dither dots and foreground halos.");
+
+  ImGui::Spacing();
 
   // Pause Background
   bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
@@ -677,7 +703,7 @@ void InGameMenuDialog::DrawGraphicsTab() {
     snprintf(buf, sizeof(buf), "%.2f", bloom_intensity);
     rex::cvar::SetFlagByName("majin_bloom", buf);
   }
-  DrawHintText("Controls glare and specular light intensity (0.00 = disabled, 1.00 = default, 2.00 = 2x glow).");
+  DrawHintText("Controls glare and specular light intensity (0.00 = disabled, 0.80 = default, 2.00 = 2x glow).");
 
   ImGui::Spacing();
 
@@ -691,7 +717,7 @@ void InGameMenuDialog::DrawGraphicsTab() {
     snprintf(buf, sizeof(buf), "%.2f", fog_intensity);
     rex::cvar::SetFlagByName("majin_fog", buf);
   }
-  DrawHintText("Controls scene fog density and distance (0.00 = Off, 0.20 = default, 1.00 = original).");
+  DrawHintText("Controls scene fog density and distance (0.00 = Off, 0.80 = default, 1.00 = original).");
 
   ImGui::Spacing();
   ImGui::Separator();

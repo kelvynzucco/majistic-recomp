@@ -29,10 +29,12 @@ param(
     [ValidateRange(0.5, 3.0)][double]$DrawDistanceScale = 1.0,
     $PauseBlur = $false,
     $PauseDistortion = $true,
-    $DepthOfField = $false,
-    $Bloom = 1.0,
-    [ValidateRange(0.0, 2.0)][double]$BloomIntensity = 1.0,
-    [ValidateRange(0.0, 1.0)][double]$FogIntensity = 0.20,
+    $DepthOfField = $true,
+    [ValidateRange(-1.0, 2.0)][double]$DepthOfFieldIntensity = -1.0,
+    [ValidateSet('bokeh', 'native')][string]$DepthOfFieldMode = 'bokeh',
+    $Bloom = 0.80,
+    [ValidateRange(0.0, 2.0)][double]$BloomIntensity = 0.80,
+    [ValidateRange(0.0, 1.0)][double]$FogIntensity = 0.80,
     [ValidateRange(0.0, 1.0)][double]$CasSharpness = 0.0,
     [ValidateRange(0.0, 2.0)][double]$FsrReduction = 0.0,
     $WindowFps = $null,
@@ -340,17 +342,32 @@ $launchArgs += "--majin_draw_distance_scale=$($DrawDistanceScale.ToString([Globa
 $isPauseDistortion = ConvertTo-Bool $PauseDistortion
 $launchArgs += "--majin_pause_distortion=$($isPauseDistortion.ToString().ToLowerInvariant())"
 
-$isDof = ConvertTo-Bool $DepthOfField
-$launchArgs += "--majin_dof=$($isDof.ToString().ToLowerInvariant())"
+# Handle Depth of Field intensity (accepts explicit float or legacy bool)
+$dofVal = 0.40
+if ($DepthOfFieldIntensity -ge 0.0) {
+    $dofVal = $DepthOfFieldIntensity
+} elseif ($DepthOfField -is [bool] -or $DepthOfField -eq 'true' -or $DepthOfField -eq 'false' -or $DepthOfField -eq '$true' -or $DepthOfField -eq '$false') {
+    $dofVal = if (ConvertTo-Bool $DepthOfField) { 0.40 } else { 0.0 }
+} else {
+    try {
+        $dofVal = [double]::Parse($DepthOfField.ToString().TrimStart('$'), [Globalization.CultureInfo]::InvariantCulture)
+        if ($dofVal -lt 0.0) { $dofVal = 0.0 }
+        if ($dofVal -gt 2.0) { $dofVal = 2.0 }
+    } catch {
+        $dofVal = 0.40
+    }
+}
+$launchArgs += "--majin_dof=$($dofVal.ToString([Globalization.CultureInfo]::InvariantCulture))"
+$launchArgs += "--majin_dof_mode=$($DepthOfFieldMode.ToLowerInvariant())"
 
 # Handle Bloom intensity (accepts float directly or bool)
-$bloomVal = 1.0
-if ($BloomIntensity -ne 1.0) {
+$bloomVal = 0.80
+if ($BloomIntensity -ne 0.80) {
     $bloomVal = $BloomIntensity
 } elseif ($Bloom -is [bool] -or $Bloom -eq 'true' -or $Bloom -eq 'false' -or $Bloom -eq '$true' -or $Bloom -eq '$false') {
-    $bloomVal = if (ConvertTo-Bool $Bloom) { 1.0 } else { 0.0 }
+    $bloomVal = if (ConvertTo-Bool $Bloom) { 0.80 } else { 0.0 }
 } else {
-    $parsed = 1.0
+    $parsed = 0.80
     if ([double]::TryParse("$Bloom", [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) {
         $bloomVal = $parsed
     }

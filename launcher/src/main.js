@@ -136,10 +136,12 @@ const defaultSettings = {
   DtSmoothing: true,
   FovScale: 1.0,
   DrawDistanceScale: 3.0,
-  DepthOfField: false,
+  DepthOfField: true,
+  DepthOfFieldIntensity: 0.40,
+  DepthOfFieldMode: "bokeh",
   Bloom: true,
-  BloomIntensity: 1.0,
-  FogIntensity: 0.20,
+  BloomIntensity: 0.80,
+  FogIntensity: 0.80,
   PauseDistortion: true,
   WindowFps: false,
   DevMode: false,
@@ -306,7 +308,9 @@ const elements = {
   fovScaleVal: document.getElementById("fovScaleVal"),
   drawDistanceScale: document.getElementById("drawDistanceScale"),
   drawDistanceScaleVal: document.getElementById("drawDistanceScaleVal"),
-  depthOfField: document.getElementById("depthOfField"),
+  depthOfFieldIntensity: document.getElementById("depthOfFieldIntensity"),
+  depthOfFieldIntensityVal: document.getElementById("depthOfFieldIntensityVal"),
+  depthOfFieldMode: document.getElementById("depthOfFieldMode"),
   bloomIntensity: document.getElementById("bloomIntensity"),
   bloomIntensityVal: document.getElementById("bloomIntensityVal"),
   fogIntensity: document.getElementById("fogIntensity"),
@@ -927,12 +931,24 @@ function populateForm(settings) {
       elements.drawDistanceScaleVal.textContent = targetDist.toFixed(2) + "x";
     }
   }
-  if (elements.depthOfField) elements.depthOfField.checked = settings.DepthOfField ?? false;
+  if (elements.depthOfFieldIntensity) {
+    const dofVal = settings.DepthOfFieldIntensity !== undefined
+      ? safeFloat(settings.DepthOfFieldIntensity, 0.40)
+      : (settings.DepthOfField === false ? 0.0 : 0.40);
+    const clampedDof = Math.min(2.0, Math.max(0.0, dofVal));
+    elements.depthOfFieldIntensity.value = clampedDof.toFixed(2);
+    if (elements.depthOfFieldIntensityVal) {
+      elements.depthOfFieldIntensityVal.textContent = clampedDof <= 0.001 ? "Off" : clampedDof.toFixed(2);
+    }
+  }
+  if (elements.depthOfFieldMode) {
+    elements.depthOfFieldMode.value = settings.DepthOfFieldMode === "native" ? "native" : "bokeh";
+  }
   if (elements.pauseDistortion) elements.pauseDistortion.checked = settings.PauseDistortion ?? true;
   if (elements.bloomIntensity) {
     const bloomVal = settings.BloomIntensity !== undefined
-      ? safeFloat(settings.BloomIntensity, 1.0)
-      : (settings.Bloom ? 1.0 : 0.0);
+      ? safeFloat(settings.BloomIntensity, 0.80)
+      : (settings.Bloom ? 0.80 : 0.0);
     const clamped = Math.min(2.0, Math.max(0.0, bloomVal));
     elements.bloomIntensity.value = clamped.toFixed(2);
     if (elements.bloomIntensityVal) {
@@ -940,7 +956,7 @@ function populateForm(settings) {
     }
   }
   if (elements.fogIntensity) {
-    const fogVal = safeFloat(settings.FogIntensity, 0.20);
+    const fogVal = safeFloat(settings.FogIntensity, 0.80);
     const clampedFog = Math.min(1.0, Math.max(0.0, fogVal));
     elements.fogIntensity.value = clampedFog.toFixed(2);
     if (elements.fogIntensityVal) {
@@ -986,11 +1002,13 @@ function readForm() {
     DtSmoothing: elements.dtSmoothing ? elements.dtSmoothing.checked : true,
     FovScale: safeFloat(elements.fovScale?.value, 1.0),
     DrawDistanceScale: safeFloat(elements.drawDistanceScale?.value, 3.0),
-    DepthOfField: elements.depthOfField ? elements.depthOfField.checked : false,
+    DepthOfField: elements.depthOfFieldIntensity ? safeFloat(elements.depthOfFieldIntensity.value, 0.40) > 0.001 : true,
+    DepthOfFieldIntensity: elements.depthOfFieldIntensity ? safeFloat(elements.depthOfFieldIntensity.value, 0.40) : safeFloat(currentSettings.DepthOfFieldIntensity, 0.40),
+    DepthOfFieldMode: elements.depthOfFieldMode?.value === "native" ? "native" : "bokeh",
     PauseDistortion: elements.pauseDistortion ? elements.pauseDistortion.checked : true,
-    Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
-    BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) : safeFloat(currentSettings.BloomIntensity, 1.0),
-    FogIntensity: elements.fogIntensity ? safeFloat(elements.fogIntensity.value, 0.20) : safeFloat(currentSettings.FogIntensity, 0.20),
+    Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 0.80) > 0.001 : true,
+    BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 0.80) : safeFloat(currentSettings.BloomIntensity, 0.80),
+    FogIntensity: elements.fogIntensity ? safeFloat(elements.fogIntensity.value, 0.80) : safeFloat(currentSettings.FogIntensity, 0.80),
     DevMode: !!isDevModeCached,
     ActiveSaveProfile: currentSettings.ActiveSaveProfile || "default",
   };
@@ -1662,6 +1680,15 @@ if (elements.fsrReduction) {
     const val = parseFloat(e.target.value);
     if (elements.fsrReductionVal && !isNaN(val)) {
       elements.fsrReductionVal.textContent = val.toFixed(2) + " stops";
+    }
+  });
+}
+
+if (elements.depthOfFieldIntensity) {
+  elements.depthOfFieldIntensity.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.depthOfFieldIntensityVal && !isNaN(val)) {
+      elements.depthOfFieldIntensityVal.textContent = val <= 0.001 ? "Off" : val.toFixed(2);
     }
   });
 }

@@ -342,4 +342,15 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Vulkan direct copy and 4x clear alias patch application'
 }
 
-Write-Host "[1.1 - 1.26] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.27: Apply Majin Optical Bokeh / Native switchable Depth of Field shader override (Vulkan + D3D12)
+$majinBokehDofPatch = Join-Path $patchRoot 'majin-bokeh-dof.patch'
+git -C $source apply --reverse --check $majinBokehDofPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $majinBokehDofPatch
+    Check-Native 'Majin Optical Bokeh DoF patch check'
+    git -C $source apply $majinBokehDofPatch
+    Check-Native 'Majin Optical Bokeh DoF patch application'
+}
+Copy-Item -LiteralPath (Join-Path $patchRoot 'majin_dof_shaders.h') -Destination (Join-Path $source 'src\graphics\majin_dof_shaders.h') -Force
+
+Write-Host "[1.1 - 1.27] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

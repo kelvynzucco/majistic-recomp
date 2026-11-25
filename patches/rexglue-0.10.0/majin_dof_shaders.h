@@ -134,10 +134,10 @@ float LinearizeDepth(float raw_d) {
 
 // Signed CoC in [-1.0, +1.0]: negative = near field, 0 = in focus, positive = far field.
 float ComputeSignedCoC(float lin_z, bool apply_sky_cliff) {
+  float signed_coc = 0.0;
 #if MAJIN_DOF_PASS == 0 || MAJIN_DOF_PASS == 1
   vec4 p1 = xe_c[1];
   vec4 p2 = xe_c[2];
-  float signed_coc = 0.0;
   if (lin_z > p1.z) {
     float inv_far = abs(p2.x) > 1e-5 ? (1.0 / p2.x) : 0.0;
     signed_coc = clamp((lin_z - p1.z) * inv_far, 0.0, 1.0);
@@ -146,26 +146,54 @@ float ComputeSignedCoC(float lin_z, bool apply_sky_cliff) {
     signed_coc = -clamp((p1.x - lin_z) * inv_near, 0.0, 1.0);
   }
   if (apply_sky_cliff && lin_z > 25000.0) {
-    signed_coc = 0.05;
+    return 0.05;
   }
-  return signed_coc;
 #elif MAJIN_DOF_PASS == 2
   vec4 p1 = xe_c[1];
   float z_m = lin_z * 0.01;
   if (z_m > p1.y) {
-    if (z_m < p1.w) return 0.0;
-    float zc = min(z_m, p1.x);
-    return clamp((zc - p1.y) / max(zc, 1e-4), 0.0, 1.0);
+    if (z_m >= p1.w) {
+      float zc = min(z_m, p1.x);
+      signed_coc = clamp((zc - p1.y) / max(zc, 1e-4), 0.0, 1.0);
+    }
   } else {
-    if (z_m > p1.z) return 0.0;
-    return -clamp((p1.y - z_m) / max(z_m, 1e-4), 0.0, 1.0);
+    if (z_m <= p1.z) {
+      signed_coc = -clamp((p1.y - z_m) / max(z_m, 1e-4), 0.0, 1.0);
+    }
   }
 #else
   vec4 p1 = xe_c[1];
   float z_m = lin_z * 0.01;
   float inv_range = abs(p1.y) > 1e-5 ? (1.0 / p1.y) : 0.0;
-  return clamp((z_m - p1.x) * inv_range, -1.0, 1.0);
+  signed_coc = clamp((z_m - p1.x) * inv_range, -1.0, 1.0);
 #endif
+  if (!apply_sky_cliff && signed_coc > 0.0) {
+    // Gently soften skybox/clouds to ~55% of far-terrain blur so the sky
+    // separates atmospherically from distant hills/trees without harsh cutouts.
+    float sky_t = smoothstep(18000.0, 28000.0, lin_z);
+    signed_coc *= mix(1.0, 0.55, sky_t);
+  }
+  return signed_coc;
+}
+
+float SampleDepthOsc(vec2 uv, vec2 step_uv, vec2 half_texel, float raw_c, float d_scale) {
+  float rN  = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( 0.0, -step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rS  = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( 0.0,  step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rE  = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( step_uv.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rW  = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2(-step_uv.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rNW = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2(-step_uv.x, -step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rNE = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( step_uv.x, -step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rSW = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2(-step_uv.x,  step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float rSE = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( step_uv.x,  step_uv.y), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
+  float dW = rW - raw_c, dE = rE - raw_c;
+  float dN = rN - raw_c, dS = rS - raw_c;
+  float dNW = rNW - raw_c, dSE = rSE - raw_c;
+  float dNE = rNE - raw_c, dSW = rSW - raw_c;
+  float sH  = (dW  * dE  > 0.0) ? min(abs(dW),  abs(dE))  : 0.0;
+  float sV  = (dN  * dS  > 0.0) ? min(abs(dN),  abs(dS))  : 0.0;
+  float sD1 = (dNW * dSE > 0.0) ? min(abs(dNW), abs(dSE)) : 0.0;
+  float sD2 = (dNE * dSW > 0.0) ? min(abs(dNE), abs(dSW)) : 0.0;
+  return max(max(sH, sV), max(sD1, sD2)) / d_scale;
 }
 
 vec4 FinalizeOutput(vec4 color) {
@@ -226,15 +254,13 @@ void main() {
   float raw_e = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2( d_step.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
   float raw_w = textureLod(sampler2DArray(xe_tex_depth, xe_samp_depth), vec3(clamp(uv + vec2(-d_step.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).r;
 
-  // Detect Xbox 360 screen-door dither depth checkerboard around the center pixel.
+  // Detect Xbox 360 screen-door dither depth checkerboard (8-neighbor cardinal + diagonal
+  // at both 1x and 2x guest step for 2x2 checkerboard and 4x4 Bayer canopies).
   float d_scale = max(min(raw_depth_c, 1.0 - raw_depth_c), 0.0005);
-  float dW = raw_w - raw_depth_c;
-  float dE = raw_e - raw_depth_c;
-  float dN = raw_n - raw_depth_c;
-  float dS = raw_s - raw_depth_c;
-  float osc_h = (dW * dE > 0.0) ? min(abs(dW), abs(dE)) : 0.0;
-  float osc_v = (dN * dS > 0.0) ? min(abs(dN), abs(dS)) : 0.0;
-  float dither_osc = max(osc_h, osc_v) / d_scale;
+  float dither_osc = SampleDepthOsc(uv, d_step, half_texel, raw_depth_c, d_scale);
+  if (dither_osc <= 0.0025) {
+    dither_osc = max(dither_osc, SampleDepthOsc(uv, d_step * 2.0, half_texel, raw_depth_c, d_scale));
+  }
   bool is_dithered = dither_osc > 0.0025;
 
   float lin_z_n = LinearizeDepth(raw_n);
@@ -242,7 +268,7 @@ void main() {
   float lin_z_e = LinearizeDepth(raw_e);
   float lin_z_w = LinearizeDepth(raw_w);
 
-  // No artificial skybox cliff in Optical Bokeh mode: sky seamlessly matches far field.
+  // Smooth atmospheric skybox blur (~55% of far terrain blur) without hard cliffs.
   float coc_c = ComputeSignedCoC(lin_z_c, false);
   float coc_n = ComputeSignedCoC(lin_z_n, false);
   float coc_s = ComputeSignedCoC(lin_z_s, false);
@@ -251,10 +277,36 @@ void main() {
 
   float avg_coc = 0.2 * (coc_c + coc_n + coc_s + coc_e + coc_w);
   float min_near_coc = min(coc_c, min(min(coc_n, coc_s), min(coc_e, coc_w)));
+  float min_abs_coc = min(abs(coc_c), min(min(abs(coc_n), abs(coc_s)), min(abs(coc_e), abs(coc_w))));
+  bool all_blurred = min_abs_coc > 0.12;
+
+  // Also detect isolated dark stipples and Bayer canopy neighborhoods in the blurred zone
+  // so both Bayer hole pixels AND adjacent leaf pixels in a 4x4 cell receive uniform smoothing.
+  vec3 cN = textureLod(sampler2DArray(xe_tex_color, xe_samp_color), vec3(clamp(uv + vec2(0.0, -d_step.y), half_texel, 1.0 - half_texel), 0.0), 0.0).rgb;
+  vec3 cS = textureLod(sampler2DArray(xe_tex_color, xe_samp_color), vec3(clamp(uv + vec2(0.0,  d_step.y), half_texel, 1.0 - half_texel), 0.0), 0.0).rgb;
+  vec3 cE = textureLod(sampler2DArray(xe_tex_color, xe_samp_color), vec3(clamp(uv + vec2( d_step.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).rgb;
+  vec3 cW = textureLod(sampler2DArray(xe_tex_color, xe_samp_color), vec3(clamp(uv + vec2(-d_step.x, 0.0), half_texel, 1.0 - half_texel), 0.0), 0.0).rgb;
+  vec3 card_avg = 0.25 * (cN + cS + cE + cW);
+  float luma_c = dot(center_color.rgb, kLumaWeights);
+  float luma_n = dot(cN, kLumaWeights);
+  float luma_s = dot(cS, kLumaWeights);
+  float luma_e = dot(cE, kLumaWeights);
+  float luma_w = dot(cW, kLumaWeights);
+  float min_card_luma = min(min(luma_n, luma_s), min(luma_e, luma_w));
+  float max_card_luma = max(max(luma_n, luma_s), max(luma_e, luma_w));
+  float card_range = max_card_luma - min_card_luma;
+  float dark_drop = min_card_luma - luma_c;
+  bool is_dark_stipple = (dark_drop > 0.022) && (card_range < max(dark_drop * 1.5, 0.07));
+  bool neighbor_stipple = all_blurred && ((max_card_luma - min_card_luma) > 0.045) && (luma_c > min_card_luma + 0.025);
+
+  float min_z5 = min(lin_z_c, min(min(lin_z_n, lin_z_s), min(lin_z_e, lin_z_w)));
+  float max_z5 = max(lin_z_c, max(max(lin_z_n, lin_z_s), max(lin_z_e, lin_z_w)));
+  bool blurred_depth_var = all_blurred && (max_z5 > min_z5 * 1.12);
+  bool in_dither_canopy = is_dithered || is_dark_stipple || neighbor_stipple || blurred_depth_var;
 
   // Smooth dithered foliage depth discontinuities so leaves don't punch sharp black dots
   // through the blur, while preserving crisp silhouettes on solid foreground geometry.
-  float effective_coc = is_dithered ? avg_coc : coc_c;
+  float effective_coc = in_dither_canopy ? avg_coc : coc_c;
   float center_abs_coc = abs(effective_coc);
   float near_bleed_coc = max(-min_near_coc, 0.0);
 
@@ -287,22 +339,33 @@ void main() {
     return;
   }
 
-  // Use average depth on dithered pixels so background taps aren't rejected by a lone leaf pixel.
-  float ref_z = is_dithered ? (0.2 * (lin_z_c + lin_z_n + lin_z_s + lin_z_e + lin_z_w)) : lin_z_c;
+  // Use average depth on dithered canopy pixels so background taps aren't rejected by a lone leaf pixel.
+  float ref_z = in_dither_canopy ? (0.2 * (lin_z_c + lin_z_n + lin_z_s + lin_z_e + lin_z_w)) : lin_z_c;
 
   // Per-pixel rotational jitter via Interleaved Gradient Noise eliminates ring banding.
   float angle_offset = InterleavedGradientNoise(gl_FragCoord.xy) * 6.2831853;
   vec2 disc_scale = uv_radius_max * gather_coc;
 
-  // Center sample contribution (reduced on dithered pixels to suppress dark stipple spikes).
-  float center_luma = dot(center_color.rgb, kLumaWeights);
-  float center_w = is_dithered ? 0.15 : (1.0 + 0.25 * smoothstep(0.55, 1.8, center_luma) * center_abs_coc);
-  vec3 accum_rgb = center_color.rgb * center_w;
+  // For dithered distant canopies in the blurred zone, ensure the aperture disc spans
+  // a full 4x4 Bayer cell (~3.25 guest px radius) uniformly across both hole and leaf
+  // pixels, even at low DoF intensities (0.01..0.80).
+  bool apply_bayer_cancel = in_dither_canopy && (gather_coc > 0.04);
+  if (apply_bayer_cancel) {
+    float min_bayer_px = mix(2.25, 3.35, smoothstep(0.04, 0.30, gather_coc));
+    disc_scale = max(disc_scale, d_step * min_bayer_px);
+  }
+
+  // Clean center color for ramp transitions (avoids dark stipple leaking at low gather_coc).
+  vec3 clean_center_rgb = (is_dithered || is_dark_stipple) ? card_avg : center_color.rgb;
+  float center_w = apply_bayer_cancel ? 0.0 : (1.0 + 0.25 * smoothstep(0.55, 1.8, luma_c) * center_abs_coc);
+  vec3 accum_rgb = clean_center_rgb * center_w;
   float accum_w = center_w;
 
   for (int i = 0; i < kBokehTaps; ++i) {
     float t = (float(i) + 0.5) / float(kBokehTaps);
-    float r = sqrt(t);
+    // On Bayer-dithered canopies, push inner ring outside the center pixel's 2x2 block
+    // so multiple inner taps never cluster inside the same dark Bayer hole!
+    float r = apply_bayer_cancel ? sqrt(mix(0.18, 1.0, t)) : sqrt(t);
     float theta = float(i) * kGoldenAngle + angle_offset;
     vec2 dir = vec2(cos(theta), sin(theta));
     vec2 sample_uv = clamp(uv + dir * (r * disc_scale), half_texel, 1.0 - half_texel);
@@ -314,13 +377,22 @@ void main() {
     float s_signed_coc = ComputeSignedCoC(s_z, false);
     float s_abs_coc = abs(s_signed_coc);
 
-    // Bilateral depth-aware weighting:
-    // - Reject sharp foreground pixels when gathering for a blurred background (zero dark halo!).
-    // - Allow out-of-focus foreground pixels whose own CoC reaches center (soft near-field bleed).
+    // Sharpness-aware bilateral weighting:
+    // - Near-field blurred foreground bleeds smoothly by its CoC reach.
+    // - In-focus foreground occluders (Tepeu/pillars/walls, s_abs_coc << center_abs_coc)
+    //   are strictly rejected (zero dark halo!).
+    // - Similarly blurred far layers (e.g. overlapping dithered canopy leaves) blend freely
+    //   so 4x4 Bayer dither holes dissolve cleanly!
     float w = 1.0;
-    if (s_z < ref_z * 0.985) {
-      float reach = r * gather_coc;
-      w = smoothstep(reach * 0.65, reach * 1.15 + 0.04, s_abs_coc);
+    if (s_z < ref_z * 0.96) {
+      if (s_signed_coc < -0.01) {
+        float reach = r * gather_coc;
+        w = smoothstep(reach * 0.55, reach * 1.05 + 0.04, s_abs_coc);
+      } else {
+        float occluder_sharpness =
+            clamp((center_abs_coc - s_abs_coc) / max(center_abs_coc, 0.08), 0.0, 1.0);
+        w = 1.0 - occluder_sharpness;
+      }
     } else if (effective_coc < -0.02) {
       // Center is blurred foreground; slightly temper sharp background bleed.
       w = mix(0.65, 1.0, smoothstep(0.0, 0.35, s_abs_coc));
@@ -339,7 +411,7 @@ void main() {
 
   // Seamless ramp from crisp focus plane into optical blur.
   float blend_t = smoothstep(0.0, 0.06, gather_coc);
-  vec3 final_rgb = mix(center_color.rgb, bokeh_rgb, blend_t);
+  vec3 final_rgb = mix(clean_center_rgb, bokeh_rgb, blend_t);
   xe_out_fragment_data_0 = FinalizeOutput(vec4(final_rgb, center_color.a));
 }
 )";
@@ -490,10 +562,10 @@ float LinearizeDepth(float raw_d) {
 }
 
 float ComputeSignedCoC(float lin_z, bool apply_sky_cliff) {
+  float signed_coc = 0.0f;
 #if MAJIN_DOF_PASS == 0 || MAJIN_DOF_PASS == 1
   float4 p1 = xe_c[1];
   float4 p2 = xe_c[2];
-  float signed_coc = 0.0f;
   if (lin_z > p1.z) {
     float inv_far = abs(p2.x) > 1e-5f ? (1.0f / p2.x) : 0.0f;
     signed_coc = saturate((lin_z - p1.z) * inv_far);
@@ -502,30 +574,52 @@ float ComputeSignedCoC(float lin_z, bool apply_sky_cliff) {
     signed_coc = -saturate((p1.x - lin_z) * inv_near);
   }
   if (apply_sky_cliff && lin_z > 25000.0f) {
-    signed_coc = 0.05f;
+    return 0.05f;
   }
-  return signed_coc;
 #elif MAJIN_DOF_PASS == 2
   float4 p1 = xe_c[1];
   float z_m = lin_z * 0.01f;
-  float res = 0.0f;
   if (z_m > p1.y) {
     if (z_m >= p1.w) {
       float zc = min(z_m, p1.x);
-      res = saturate((zc - p1.y) / max(zc, 1e-4f));
+      signed_coc = saturate((zc - p1.y) / max(zc, 1e-4f));
     }
   } else {
     if (z_m <= p1.z) {
-      res = -saturate((p1.y - z_m) / max(z_m, 1e-4f));
+      signed_coc = -saturate((p1.y - z_m) / max(z_m, 1e-4f));
     }
   }
-  return res;
 #else
   float4 p1 = xe_c[1];
   float z_m = lin_z * 0.01f;
   float inv_range = abs(p1.y) > 1e-5f ? (1.0f / p1.y) : 0.0f;
-  return clamp((z_m - p1.x) * inv_range, -1.0f, 1.0f);
+  signed_coc = clamp((z_m - p1.x) * inv_range, -1.0f, 1.0f);
 #endif
+  if (!apply_sky_cliff && signed_coc > 0.0f) {
+    float sky_t = smoothstep(18000.0f, 28000.0f, lin_z);
+    signed_coc *= lerp(1.0f, 0.55f, sky_t);
+  }
+  return signed_coc;
+}
+
+float SampleDepthOsc(float2 uv, float2 step_uv, float2 half_texel, float raw_c, float d_scale) {
+  float rN  = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2( 0.0f, -step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rS  = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2( 0.0f,  step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rE  = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2( step_uv.x, 0.0f), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rW  = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2(-step_uv.x, 0.0f), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rNW = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2(-step_uv.x, -step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rNE = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2( step_uv.x, -step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rSW = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2(-step_uv.x,  step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float rSE = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2( step_uv.x,  step_uv.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
+  float dW = rW - raw_c, dE = rE - raw_c;
+  float dN = rN - raw_c, dS = rS - raw_c;
+  float dNW = rNW - raw_c, dSE = rSE - raw_c;
+  float dNE = rNE - raw_c, dSW = rSW - raw_c;
+  float sH  = (dW  * dE  > 0.0f) ? min(abs(dW),  abs(dE))  : 0.0f;
+  float sV  = (dN  * dS  > 0.0f) ? min(abs(dN),  abs(dS))  : 0.0f;
+  float sD1 = (dNW * dSE > 0.0f) ? min(abs(dNW), abs(dSE)) : 0.0f;
+  float sD2 = (dNE * dSW > 0.0f) ? min(abs(dNE), abs(dSW)) : 0.0f;
+  return max(max(sH, sV), max(sD1, sD2)) / d_scale;
 }
 
 float4 FinalizeOutput(float4 color) {
@@ -584,13 +678,10 @@ float4 main(float4 xe_in_uv : TEXCOORD0, float4 xe_pos : SV_Position) : SV_Targe
   float raw_w = TEX_DEPTH.SampleLevel(SAMP_DEPTH, float3(clamp(uv + float2(-d_step.x, 0.0f), half_texel, 1.0f - half_texel), 0.0f), 0.0f).r;
 
   float d_scale = max(min(raw_depth_c, 1.0f - raw_depth_c), 0.0005f);
-  float dW = raw_w - raw_depth_c;
-  float dE = raw_e - raw_depth_c;
-  float dN = raw_n - raw_depth_c;
-  float dS = raw_s - raw_depth_c;
-  float osc_h = (dW * dE > 0.0f) ? min(abs(dW), abs(dE)) : 0.0f;
-  float osc_v = (dN * dS > 0.0f) ? min(abs(dN), abs(dS)) : 0.0f;
-  float dither_osc = max(osc_h, osc_v) / d_scale;
+  float dither_osc = SampleDepthOsc(uv, d_step, half_texel, raw_depth_c, d_scale);
+  if (dither_osc <= 0.0025f) {
+    dither_osc = max(dither_osc, SampleDepthOsc(uv, d_step * 2.0f, half_texel, raw_depth_c, d_scale));
+  }
   bool is_dithered = dither_osc > 0.0025f;
 
   float lin_z_n = LinearizeDepth(raw_n);
@@ -606,8 +697,32 @@ float4 main(float4 xe_in_uv : TEXCOORD0, float4 xe_pos : SV_Position) : SV_Targe
 
   float avg_coc = 0.2f * (coc_c + coc_n + coc_s + coc_e + coc_w);
   float min_near_coc = min(coc_c, min(min(coc_n, coc_s), min(coc_e, coc_w)));
+  float min_abs_coc = min(abs(coc_c), min(min(abs(coc_n), abs(coc_s)), min(abs(coc_e), abs(coc_w))));
+  bool all_blurred = min_abs_coc > 0.12f;
 
-  float effective_coc = is_dithered ? avg_coc : coc_c;
+  float3 cN = TEX_COLOR.SampleLevel(SAMP_COLOR, float3(clamp(uv + float2(0.0f, -d_step.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).rgb;
+  float3 cS = TEX_COLOR.SampleLevel(SAMP_COLOR, float3(clamp(uv + float2(0.0f,  d_step.y), half_texel, 1.0f - half_texel), 0.0f), 0.0f).rgb;
+  float3 cE = TEX_COLOR.SampleLevel(SAMP_COLOR, float3(clamp(uv + float2( d_step.x, 0.0f), half_texel, 1.0f - half_texel), 0.0f), 0.0f).rgb;
+  float3 cW = TEX_COLOR.SampleLevel(SAMP_COLOR, float3(clamp(uv + float2(-d_step.x, 0.0f), half_texel, 1.0f - half_texel), 0.0f), 0.0f).rgb;
+  float3 card_avg = 0.25f * (cN + cS + cE + cW);
+  float luma_c = dot(center_color.rgb, kLumaWeights);
+  float luma_n = dot(cN, kLumaWeights);
+  float luma_s = dot(cS, kLumaWeights);
+  float luma_e = dot(cE, kLumaWeights);
+  float luma_w = dot(cW, kLumaWeights);
+  float min_card_luma = min(min(luma_n, luma_s), min(luma_e, luma_w));
+  float max_card_luma = max(max(luma_n, luma_s), max(luma_e, luma_w));
+  float card_range = max_card_luma - min_card_luma;
+  float dark_drop = min_card_luma - luma_c;
+  bool is_dark_stipple = (dark_drop > 0.022f) && (card_range < max(dark_drop * 1.5f, 0.07f));
+  bool neighbor_stipple = all_blurred && ((max_card_luma - min_card_luma) > 0.045f) && (luma_c > min_card_luma + 0.025f);
+
+  float min_z5 = min(lin_z_c, min(min(lin_z_n, lin_z_s), min(lin_z_e, lin_z_w)));
+  float max_z5 = max(lin_z_c, max(max(lin_z_n, lin_z_s), max(lin_z_e, lin_z_w)));
+  bool blurred_depth_var = all_blurred && (max_z5 > min_z5 * 1.12f);
+  bool in_dither_canopy = is_dithered || is_dark_stipple || neighbor_stipple || blurred_depth_var;
+
+  float effective_coc = in_dither_canopy ? avg_coc : coc_c;
   float center_abs_coc = abs(effective_coc);
   float near_bleed_coc = max(-min_near_coc, 0.0f);
 
@@ -634,20 +749,26 @@ float4 main(float4 xe_in_uv : TEXCOORD0, float4 xe_pos : SV_Position) : SV_Targe
     return FinalizeOutput(center_color);
   }
 
-  float ref_z = is_dithered ? (0.2f * (lin_z_c + lin_z_n + lin_z_s + lin_z_e + lin_z_w)) : lin_z_c;
+  float ref_z = in_dither_canopy ? (0.2f * (lin_z_c + lin_z_n + lin_z_s + lin_z_e + lin_z_w)) : lin_z_c;
 
   float angle_offset = InterleavedGradientNoise(xe_pos.xy) * 6.2831853f;
   float2 disc_scale = uv_radius_max * gather_coc;
 
-  float center_luma = dot(center_color.rgb, kLumaWeights);
-  float center_w = is_dithered ? 0.15f : (1.0f + 0.25f * smoothstep(0.55f, 1.8f, center_luma) * center_abs_coc);
-  float3 accum_rgb = center_color.rgb * center_w;
+  bool apply_bayer_cancel = in_dither_canopy && (gather_coc > 0.04f);
+  if (apply_bayer_cancel) {
+    float min_bayer_px = lerp(2.25f, 3.35f, smoothstep(0.04f, 0.30f, gather_coc));
+    disc_scale = max(disc_scale, d_step * min_bayer_px);
+  }
+
+  float3 clean_center_rgb = (is_dithered || is_dark_stipple) ? card_avg : center_color.rgb;
+  float center_w = apply_bayer_cancel ? 0.0f : (1.0f + 0.25f * smoothstep(0.55f, 1.8f, luma_c) * center_abs_coc);
+  float3 accum_rgb = clean_center_rgb * center_w;
   float accum_w = center_w;
 
   [unroll]
   for (int i = 0; i < kBokehTaps; ++i) {
     float t = (float(i) + 0.5f) / float(kBokehTaps);
-    float r = sqrt(t);
+    float r = apply_bayer_cancel ? sqrt(lerp(0.18f, 1.0f, t)) : sqrt(t);
     float theta = float(i) * kGoldenAngle + angle_offset;
     float s_sin, s_cos;
     sincos(theta, s_sin, s_cos);
@@ -661,9 +782,15 @@ float4 main(float4 xe_in_uv : TEXCOORD0, float4 xe_pos : SV_Position) : SV_Targe
     float s_abs_coc = abs(s_signed_coc);
 
     float w = 1.0f;
-    if (s_z < ref_z * 0.985f) {
-      float reach = r * gather_coc;
-      w = smoothstep(reach * 0.65f, reach * 1.15f + 0.04f, s_abs_coc);
+    if (s_z < ref_z * 0.96f) {
+      if (s_signed_coc < -0.01f) {
+        float reach = r * gather_coc;
+        w = smoothstep(reach * 0.55f, reach * 1.05f + 0.04f, s_abs_coc);
+      } else {
+        float occluder_sharpness =
+            saturate((center_abs_coc - s_abs_coc) / max(center_abs_coc, 0.08f));
+        w = 1.0f - occluder_sharpness;
+      }
     } else if (effective_coc < -0.02f) {
       w = lerp(0.65f, 1.0f, smoothstep(0.0f, 0.35f, s_abs_coc));
     }
@@ -679,7 +806,7 @@ float4 main(float4 xe_in_uv : TEXCOORD0, float4 xe_pos : SV_Position) : SV_Targe
   float3 bokeh_rgb = accum_rgb / max(accum_w, 1e-4f);
 
   float blend_t = smoothstep(0.0f, 0.06f, gather_coc);
-  float3 final_rgb = lerp(center_color.rgb, bokeh_rgb, blend_t);
+  float3 final_rgb = lerp(clean_center_rgb, bokeh_rgb, blend_t);
   return FinalizeOutput(float4(final_rgb, center_color.a));
 }
 )";

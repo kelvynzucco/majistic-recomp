@@ -139,6 +139,7 @@ const defaultSettings = {
   DepthOfField: false,
   Bloom: true,
   BloomIntensity: 1.0,
+  FogIntensity: 0.20,
   PauseDistortion: true,
   WindowFps: false,
   DevMode: false,
@@ -308,6 +309,8 @@ const elements = {
   depthOfField: document.getElementById("depthOfField"),
   bloomIntensity: document.getElementById("bloomIntensity"),
   bloomIntensityVal: document.getElementById("bloomIntensityVal"),
+  fogIntensity: document.getElementById("fogIntensity"),
+  fogIntensityVal: document.getElementById("fogIntensityVal"),
   pauseDistortion: document.getElementById("pauseDistortion"),
 
   // Build Tab Elements
@@ -936,6 +939,14 @@ function populateForm(settings) {
       elements.bloomIntensityVal.textContent = clamped <= 0.001 ? "Off" : clamped.toFixed(2);
     }
   }
+  if (elements.fogIntensity) {
+    const fogVal = safeFloat(settings.FogIntensity, 0.20);
+    const clampedFog = Math.min(1.0, Math.max(0.0, fogVal));
+    elements.fogIntensity.value = clampedFog.toFixed(2);
+    if (elements.fogIntensityVal) {
+      elements.fogIntensityVal.textContent = clampedFog <= 0.001 ? "Off" : clampedFog.toFixed(2);
+    }
+  }
 
   updateAllSliderFills();
 }
@@ -979,6 +990,7 @@ function readForm() {
     PauseDistortion: elements.pauseDistortion ? elements.pauseDistortion.checked : true,
     Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) > 0.001 : true,
     BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 1.0) : safeFloat(currentSettings.BloomIntensity, 1.0),
+    FogIntensity: elements.fogIntensity ? safeFloat(elements.fogIntensity.value, 0.20) : safeFloat(currentSettings.FogIntensity, 0.20),
     DevMode: !!isDevModeCached,
     ActiveSaveProfile: currentSettings.ActiveSaveProfile || "default",
   };
@@ -1659,6 +1671,15 @@ if (elements.bloomIntensity) {
     const val = parseFloat(e.target.value);
     if (elements.bloomIntensityVal && !isNaN(val)) {
       elements.bloomIntensityVal.textContent = val <= 0.001 ? "Off" : val.toFixed(2);
+    }
+  });
+}
+
+if (elements.fogIntensity) {
+  elements.fogIntensity.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    if (elements.fogIntensityVal && !isNaN(val)) {
+      elements.fogIntensityVal.textContent = val <= 0.001 ? "Off" : val.toFixed(2);
     }
   });
 }

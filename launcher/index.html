@@ -932,6 +932,36 @@
                       disabled, 1.00 = default, 2.00 = 2x glow).
                     </p>
                   </div>
+
+                  <!-- Scene Fog Intensity Slider -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label
+                        for="fogIntensity"
+                        class="text-xs text-slate-300"
+                      >
+                        Fog Intensity
+                      </label>
+                      <span
+                        id="fogIntensityVal"
+                        class="text-xs font-mono text-accent font-semibold"
+                        >0.20</span
+                      >
+                    </div>
+                    <input
+                      type="range"
+                      id="fogIntensity"
+                      min="0.00"
+                      max="1.00"
+                      step="0.05"
+                      value="0.20"
+                      class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
+                    />
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Controls scene fog density and distance (0.00 = Off,
+                      0.20 = default, 1.00 = original).
+                    </p>
+                  </div>
                 </div>
 
                 <!-- Display & Swapchain (VSync, Output Dithering, Live Window FPS) -->

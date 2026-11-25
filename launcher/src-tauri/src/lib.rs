@@ -122,6 +122,10 @@ fn default_bloom_intensity() -> f64 {
     1.0
 }
 
+fn default_fog_intensity() -> f64 {
+    0.20
+}
+
 fn default_cas_sharpness() -> f64 {
     0.0
 }
@@ -306,6 +310,8 @@ pub struct Settings {
     pub bloom: bool,
     #[serde(rename = "BloomIntensity", default = "default_bloom_intensity", deserialize_with = "deserialize_nullable_f64")]
     pub bloom_intensity: f64,
+    #[serde(rename = "FogIntensity", default = "default_fog_intensity", deserialize_with = "deserialize_nullable_f64")]
+    pub fog_intensity: f64,
     #[serde(rename = "CasSharpness", default = "default_cas_sharpness", deserialize_with = "deserialize_nullable_f64")]
     pub cas_sharpness: f64,
     #[serde(rename = "FsrReduction", default = "default_fsr_reduction", deserialize_with = "deserialize_nullable_f64")]
@@ -357,6 +363,7 @@ impl Default for Settings {
             depth_of_field: false,
             bloom: true,
             bloom_intensity: 1.0,
+            fog_intensity: 0.20,
             cas_sharpness: 0.0,
             fsr_reduction: 0.0,
             present_dither: false,
@@ -1418,6 +1425,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         format!("-Bloom:${}", settings.bloom_intensity),
         "-BloomIntensity".to_string(),
         settings.bloom_intensity.to_string(),
+        "-FogIntensity".to_string(),
+        settings.fog_intensity.to_string(),
         "-CasSharpness".to_string(),
         settings.cas_sharpness.to_string(),
         "-FsrReduction".to_string(),

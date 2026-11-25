@@ -32,6 +32,7 @@ param(
     $DepthOfField = $false,
     $Bloom = 1.0,
     [ValidateRange(0.0, 2.0)][double]$BloomIntensity = 1.0,
+    [ValidateRange(0.0, 1.0)][double]$FogIntensity = 0.20,
     [ValidateRange(0.0, 1.0)][double]$CasSharpness = 0.0,
     [ValidateRange(0.0, 2.0)][double]$FsrReduction = 0.0,
     $WindowFps = $null,
@@ -355,6 +356,7 @@ if ($BloomIntensity -ne 1.0) {
     }
 }
 $launchArgs += "--majin_bloom=$($bloomVal.ToString([Globalization.CultureInfo]::InvariantCulture))"
+$launchArgs += "--majin_fog=$($FogIntensity.ToString([Globalization.CultureInfo]::InvariantCulture))"
 
 $isAutoCapture = ConvertTo-Bool $AutoCapture
 if ($isAutoCapture) {

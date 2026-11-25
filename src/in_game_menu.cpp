@@ -124,6 +124,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const double draw_distance_scale = rex::cvar::Query<double>("majin_draw_distance_scale");
   const bool dof = rex::cvar::Query<bool>("majin_dof");
   const double bloom = rex::cvar::Query<double>("majin_bloom");
+  const double fog = rex::cvar::Query<double>("majin_fog");
   const bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
   const bool dither = rex::cvar::Query<bool>("present_dither");
   const bool vsync = rex::cvar::Query<bool>("vsync");
@@ -160,6 +161,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   snprintf(strength_buf, sizeof(strength_buf), "%.2f", dedither_strength);
   char bloom_buf[32];
   snprintf(bloom_buf, sizeof(bloom_buf), "%.2f", bloom);
+  char fog_buf[32];
+  snprintf(fog_buf, sizeof(fog_buf), "%.2f", fog);
   char cas_buf[32];
   snprintf(cas_buf, sizeof(cas_buf), "%.2f", cas_sharp);
   char fsr_buf[32];
@@ -182,6 +185,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "DepthOfField", dof ? "true" : "false");
   ReplaceJsonField(json, "Bloom", bloom > 0.0 ? "true" : "false");
   ReplaceJsonField(json, "BloomIntensity", bloom_buf);
+  ReplaceJsonField(json, "FogIntensity", fog_buf);
   ReplaceJsonField(json, "PauseDistortion", pause_distortion ? "true" : "false");
   ReplaceJsonField(json, "PresentDither", dither ? "true" : "false");
   ReplaceJsonField(json, "WindowFps", window_fps ? "true" : "false");
@@ -674,6 +678,20 @@ void InGameMenuDialog::DrawGraphicsTab() {
     rex::cvar::SetFlagByName("majin_bloom", buf);
   }
   DrawHintText("Controls glare and specular light intensity (0.00 = disabled, 1.00 = default, 2.00 = 2x glow).");
+
+  ImGui::Spacing();
+
+  // Fog Intensity
+  float fog_intensity = static_cast<float>(rex::cvar::Query<double>("majin_fog"));
+  ImGui::Text("Fog Intensity:");
+  ImGui::SetNextItemWidth(320.0f);
+  const char* fog_fmt = (fog_intensity <= 0.001f) ? "Off" : "%.2f";
+  if (ImGui::SliderFloat("##FogIntensity", &fog_intensity, 0.0f, 1.0f, fog_fmt)) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", fog_intensity);
+    rex::cvar::SetFlagByName("majin_fog", buf);
+  }
+  DrawHintText("Controls scene fog density and distance (0.00 = Off, 0.20 = default, 1.00 = original).");
 
   ImGui::Spacing();
   ImGui::Separator();

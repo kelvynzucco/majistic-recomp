@@ -14,9 +14,13 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 #include <rex/ppc/context.h>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xmemory.h>
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -63,6 +67,40 @@ static auto _cvar_reg_majin_bloom = ::rex::cvar::FlagRegistrar({
 REXCVAR_DEFINE_BOOL(majin_pause_distortion, true, "Graphics",
                     "Screen wave distortion effect behind pause and map menus");
 
+// Scene fog intensity (slider from 0.0 to 1.0, default 0.20, 1.0 = original).
+// Accepts both booleans ("true" -> 1.0, "false" -> 0.0) and floats ("0.0" to "1.0").
+double& FLAGS_majin_fog_storage_() {
+  static double storage = 0.20;
+  return storage;
+}
+static auto _cvar_reg_majin_fog = ::rex::cvar::FlagRegistrar({
+    "majin_fog",
+    ::rex::cvar::FlagType::Double,
+    "Majin",
+    "Scene Fog Intensity (0.0 = off, 0.20 = default, 1.0 = original)",
+    [](std::string_view v) {
+      if (v == "true" || v == "yes" || v == "on") {
+        FLAGS_majin_fog_storage_() = 1.0;
+        return true;
+      }
+      if (v == "false" || v == "no" || v == "off") {
+        FLAGS_majin_fog_storage_() = 0.0;
+        return true;
+      }
+      double val = 0.20;
+      if (!::rex::cvar::ParseDouble(v, val) || !std::isfinite(val)) {
+        return false;
+      }
+      FLAGS_majin_fog_storage_() = std::clamp(val, 0.0, 1.0);
+      return true;
+    },
+    []() { return std::to_string(FLAGS_majin_fog_storage_()); },
+    [](std::string_view) {},
+    ::rex::cvar::Lifecycle::kHotReload,
+    {},
+    "0.200000",
+    false});
+
 void Majin_DofEnabled(PPCRegister& r11) {
   if (!REXCVAR_GET(majin_dof)) r11.u64 = 0;
 }
@@ -70,6 +108,73 @@ void Majin_DofEnabled(PPCRegister& r11) {
 void Majin_BloomEnabled(PPCRegister& r11) {
   if (REXCVAR_GET(majin_bloom) <= 0.001) {
     r11.u64 = 0;
+  }
+}
+
+// Intercepts fog enable test (cmplwi cr6, r5, 0 at 0x8218B6E8 in sub_8218B600, identical in PAL & USA).
+// When majin_fog <= 0.001, zeroes r5 so the engine takes its native fog-disabled branch (loc_8218B804),
+// cleanly disabling fog across all 557 scene shaders (both fogEnable and fogParam/fogSelect paths).
+void Majin_FogEnabled(PPCRegister& r5) {
+  if (REXCVAR_GET(majin_fog) <= 0.001) {
+    r5.u64 = 0;
+  }
+}
+
+// Intercepts fog parameter upload (loc_8218B858 before fsubs f12, f0, f12 in sub_8218B600,
+// identical in PAL & USA) where all 3 fog modes converge:
+//   - Linear (fogSelect = {1, 0, 0, 1}): f12 = fogStart, f0 = fogEnd -> push range out by 1 / fog
+//   - Exp    (fogSelect = {0, 1, 0, 1}): f13 = fogDensity            -> scale density by fog
+//   - Exp2   (fogSelect = {0, 0, 1, 1}): f13 = fogDensity            -> scale density by fog
+//   - Off    (fogSelect = {1, 1, 1, 1}): loc_8218B804 native off     -> untouched
+void Majin_FogParams(PPCRegister& f0, PPCRegister& f12, PPCRegister& f13, PPCRegister& r1) {
+  const double raw = REXCVAR_GET(majin_fog);
+  if (!std::isfinite(raw) || raw >= 0.999) {
+    return;
+  }
+  const double fog = std::clamp(raw, 0.0, 1.0);
+  if (fog <= 0.001) {
+    return;  // Already routed through native disabled path (loc_8218B804).
+  }
+  if (r1.u32 < 0x10000u || r1.u32 >= 0xF0000000u) {
+    return;
+  }
+
+  auto load_stack_f32 = [](uint32_t addr) -> float {
+    uint32_t be = 0;
+    std::memcpy(&be, REX_KERNEL_MEMORY()->TranslateVirtual<uint8_t*>(addr), 4);
+    return std::bit_cast<float>(std::byteswap(be));
+  };
+
+  const float sel_linear = load_stack_f32(r1.u32 + 160);
+  const float sel_exp = load_stack_f32(r1.u32 + 164);
+  const float sel_exp2 = load_stack_f32(r1.u32 + 168);
+
+  // Skip natively disabled fog calls (loc_8218B804 fills fogSelect = {1, 1, 1, 1}).
+  if (sel_linear > 0.5f && sel_exp > 0.5f) {
+    return;
+  }
+
+  if (sel_linear > 0.5f) {
+    if (std::isfinite(f0.f64) && std::isfinite(f12.f64)) {
+      const double orig_start = f12.f64;
+      const double orig_end = f0.f64;
+      const double range = orig_end - orig_start;
+      if (range > 1e-3) {
+        const double dist_mult = 1.0 / fog;
+        if (orig_start >= 0.0) {
+          f12.f64 = double(float(orig_start * dist_mult));
+          f0.f64 = double(float(orig_end * dist_mult));
+        } else {
+          const double new_start = orig_start * fog;
+          f12.f64 = double(float(new_start));
+          f0.f64 = double(float(new_start + range * dist_mult));
+        }
+      }
+    }
+  } else if (sel_exp > 0.5f || sel_exp2 > 0.5f) {
+    if (std::isfinite(f13.f64) && f13.f64 > 0.0) {
+      f13.f64 = double(float(f13.f64 * fog));
+    }
   }
 }
 

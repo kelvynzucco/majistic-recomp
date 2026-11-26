@@ -363,4 +363,14 @@ if ($LASTEXITCODE -ne 0) {
     Check-Native 'Majin foliage alpha cutout patch application'
 }
 
-Write-Host "[1.1 - 1.28] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.29: Apply Majin shadow PCF filtering, Receiver Plane Depth Bias, and signed Vulkan bias
+$majinShadowPcfPatch = Join-Path $patchRoot 'majin-shadow-pcf-and-bias.patch'
+git -C $source apply --reverse --check $majinShadowPcfPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $majinShadowPcfPatch
+    Check-Native 'Majin shadow PCF and bias patch check'
+    git -C $source apply $majinShadowPcfPatch
+    Check-Native 'Majin shadow PCF and bias patch application'
+}
+
+Write-Host "[1.1 - 1.29] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

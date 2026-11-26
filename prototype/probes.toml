@@ -314,3 +314,10 @@ address = 0x821965C4
 name = "Majin_SssmPs3UvAlign"
 registers = ["r10"]
 after_instruction = false
+
+# 0x82193628 (sub_82193628 entry, right after `mflr r12`): snap ortho shadow cascade XY AABB bounds to world-space host shadow texel grid (majin_shadow_texel_snap).
+[[midasm_hook]]
+address = 0x82193628
+name = "Majin_ShadowCascadeTexelSnap"
+registers = ["r1", "r4", "r12"]
+after_instruction = true

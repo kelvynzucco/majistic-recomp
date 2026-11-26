@@ -1,0 +1,1030 @@
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+index 0c3c312..f85dd58 100644
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -94,6 +94,13 @@ class CommandProcessor {
+     kLush = 3,      // Uniform 0.25 alpha cutout (Bayer -> 4.0, A2M -> 0xFF) - fuller leaf fringes, zero holes
+   };
+ 
++  enum class ShadowPcfMode : uint32_t {
++    kOriginal = 0,  // Native Xbox 360 1-tap binary shadow compare
++    kBilinear = 1,  // 2x2 Bilinear PCF (4 taps via 1 gather) - sharp, smooth sub-texel motion
++    kSoft = 2,      // 4x4 Cubic B-Spline PCF (16 taps via 4 gathers) - smooth, zero wall striping
++    kUltra = 3,     // 6x6 Tent PCF (36 taps via 9 gathers) - extra smooth penumbra
++  };
++
+   CommandProcessor(GraphicsSystem* graphics_system, system::KernelState* kernel_state);
+   virtual ~CommandProcessor();
+ 
+@@ -136,6 +143,21 @@ class CommandProcessor {
+   AlphaToMaskMode GetActualAlphaToMaskMode() const {
+     return alpha_to_mask_mode_actual_.load(std::memory_order_relaxed);
+   }
++  ShadowPcfMode GetDesiredShadowPcfMode() const { return shadow_pcf_mode_desired_; }
++  void SetDesiredShadowPcfMode(ShadowPcfMode mode);
++  ShadowPcfMode GetActualShadowPcfMode() const {
++    return shadow_pcf_mode_actual_.load(std::memory_order_relaxed);
++  }
++  bool GetDesiredShadowReceiverBias() const { return shadow_receiver_bias_desired_; }
++  void SetDesiredShadowReceiverBias(bool enable);
++  bool GetActualShadowReceiverBias() const {
++    return shadow_receiver_bias_actual_.load(std::memory_order_relaxed);
++  }
++  uint32_t GetPackedMajinShadowParams() const {
++    uint32_t mode = uint32_t(shadow_pcf_mode_actual_.load(std::memory_order_relaxed)) & 3u;
++    uint32_t rpb = shadow_receiver_bias_actual_.load(std::memory_order_relaxed) ? 1u : 0u;
++    return mode | (rpb << 2u);
++  }
+   uint32_t GetPackedMajinDofParams() const {
+     float intensity = majin_dof_intensity_actual_.load(std::memory_order_relaxed);
+     if (intensity < 0.0f) intensity = 0.0f;
+@@ -380,6 +402,10 @@ class CommandProcessor {
+   std::atomic<bool> majin_dof_bokeh_actual_{true};
+   AlphaToMaskMode alpha_to_mask_mode_desired_ = AlphaToMaskMode::kSolid;
+   std::atomic<AlphaToMaskMode> alpha_to_mask_mode_actual_{AlphaToMaskMode::kSolid};
++  ShadowPcfMode shadow_pcf_mode_desired_ = ShadowPcfMode::kSoft;
++  std::atomic<ShadowPcfMode> shadow_pcf_mode_actual_{ShadowPcfMode::kSoft};
++  bool shadow_receiver_bias_desired_ = true;
++  std::atomic<bool> shadow_receiver_bias_actual_{true};
+ 
+   // Set by backend command processors to their legacy memexport readback cvar
+   // name (for explicit-override compatibility).
+diff --git a/include/rex/graphics/pipeline/shader/shader.h b/include/rex/graphics/pipeline/shader/shader.h
+index 5e858c7..8379592 100644
+--- a/include/rex/graphics/pipeline/shader/shader.h
++++ b/include/rex/graphics/pipeline/shader/shader.h
+@@ -962,6 +962,24 @@ class Shader {
+   // dither threshold (1..16) before foliage alpha kill_gt, or UINT32_MAX if none.
+   uint32_t majin_bayer_cndeq_instr_offset() const { return majin_bayer_cndeq_instr_offset_; }
+ 
++  // Majin: detected KbPreZSSSM* shadow map lookup -> reversed-Z compare chains.
++  struct MajinShadowLookup {
++    uint32_t tfetch_instr_offset = UINT32_MAX;
++    uint32_t sgt_instr_offset = UINT32_MAX;
++    uint32_t fetch_constant = 0;
++  };
++  const std::vector<MajinShadowLookup>& majin_shadow_lookups() const {
++    return majin_shadow_lookups_;
++  }
++  const MajinShadowLookup* FindMajinShadowLookupByTfetch(uint32_t tfetch_offset) const {
++    for (const auto& entry : majin_shadow_lookups_) {
++      if (entry.tfetch_instr_offset == tfetch_offset) {
++        return &entry;
++      }
++    }
++    return nullptr;
++  }
++
+   // Host translations with the specified modification bits. Not thread-safe
+   // with respect to translation creation/destruction.
+   const std::unordered_map<uint64_t, Translation*>& translations() const { return translations_; }
+@@ -1058,9 +1076,11 @@ class Shader {
+ 
+   uint32_t ucode_storage_index_ = UINT32_MAX;
+   uint32_t majin_bayer_cndeq_instr_offset_ = UINT32_MAX;
++  std::vector<MajinShadowLookup> majin_shadow_lookups_;
+ 
+  private:
+   void DetectMajinBayerDither();
++  void DetectMajinShadowLookups();
+   void GatherExecInformation(const ParsedExecInstruction& instr,
+                              ucode::VertexFetchInstruction& previous_vfetch_full,
+                              uint32_t& unique_texture_bindings,
+diff --git a/include/rex/graphics/pipeline/shader/spirv_translator.h b/include/rex/graphics/pipeline/shader/spirv_translator.h
+index 069dee6..ef6bbef 100644
+--- a/include/rex/graphics/pipeline/shader/spirv_translator.h
++++ b/include/rex/graphics/pipeline/shader/spirv_translator.h
+@@ -15,6 +15,7 @@
+ #include <cstdint>
+ #include <memory>
+ #include <string>
++#include <unordered_map>
+ #include <utility>
+ #include <vector>
+ 
+@@ -695,6 +696,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
+   spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
+                                     uint8_t memexport_eM_potentially_written_before,
+                                     bool& predicate_written);
++  // Majin: runtime-switchable sub-texel shadow PCF + Receiver Plane Depth Bias for KbPreZSSSM*.
++  spv::Id EmitMajinShadowPcf(spv::Id original_lit, spv::Id receiver_z,
++                             size_t image_binding_index, size_t sampler_binding_index);
+ 
+   // Perform endian swap of a uint scalar or vector.
+   spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
+@@ -927,6 +931,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
+     kSystemConstantFh1Native,
+     kSystemConstantFh1NativeTextures,
+     kSystemConstantFh1FullRasterTextures,
++    kSystemConstantMajinShadowParams,
+     kSystemConstantFh1VrEye,
+   };
+   spv::Id uniform_system_constants_;
+@@ -1029,6 +1034,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
+   // FH1 (#164), PS with fh1_dirt_seam: the interpolated u and its seam-safe replacement - float.
+   spv::Id var_main_fh1_dirt_seam_u_;
+   spv::Id var_main_fh1_dirt_seam_safe_u_;
++  // Majin: saved normalized shadow UV (vec2) & texture/sampler binding indices per sgt offset.
++  spv::Id var_main_majin_shadow_uv_;
++  std::unordered_map<uint32_t, std::pair<size_t, size_t>> majin_shadow_sgt_bindings_;
+   // float4[register_count()].
+   spv::Id var_main_registers_;
+   // Memory export variables are created only when needed.
+diff --git a/include/rex/graphics/pipeline/shader/translator.h b/include/rex/graphics/pipeline/shader/translator.h
+index a0b8ad5..7e62e7a 100644
+--- a/include/rex/graphics/pipeline/shader/translator.h
++++ b/include/rex/graphics/pipeline/shader/translator.h
+@@ -66,6 +66,8 @@ class ShaderTranslator {
+ 
+   // Current ALU instruction offset within ucode_data_ (in 3-dword instruction units).
+   uint32_t current_alu_instr_offset() const { return current_alu_instr_offset_; }
++  // Current texture/vertex fetch instruction offset within ucode_data_ (in 3-dword units).
++  uint32_t current_fetch_instr_offset() const { return current_fetch_instr_offset_; }
+ 
+   // Emits a translation error that will be passed back in the result.
+   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
+@@ -151,6 +153,8 @@ class ShaderTranslator {
+   uint32_t cf_index_ = 0;
+   // Current ALU instruction offset (in 3-dword instruction units).
+   uint32_t current_alu_instr_offset_ = UINT32_MAX;
++  // Current fetch instruction offset (in 3-dword instruction units).
++  uint32_t current_fetch_instr_offset_ = UINT32_MAX;
+ 
+   // Kept for supporting vfetch_mini.
+   ucode::VertexFetchInstruction previous_vfetch_full_;
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index 26a835c..25fc6f5 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -339,6 +339,28 @@ void CommandProcessor::SetDesiredAlphaToMaskMode(AlphaToMaskMode mode) {
+   });
+ }
+ 
++void CommandProcessor::SetDesiredShadowPcfMode(ShadowPcfMode mode) {
++  if (shadow_pcf_mode_desired_ == mode) {
++    return;
++  }
++  shadow_pcf_mode_desired_ = mode;
++  shadow_pcf_mode_actual_.store(mode, std::memory_order_relaxed);
++  CallInThread([this, mode]() {
++    shadow_pcf_mode_actual_.store(mode, std::memory_order_relaxed);
++  });
++}
++
++void CommandProcessor::SetDesiredShadowReceiverBias(bool enable) {
++  if (shadow_receiver_bias_desired_ == enable) {
++    return;
++  }
++  shadow_receiver_bias_desired_ = enable;
++  shadow_receiver_bias_actual_.store(enable, std::memory_order_relaxed);
++  CallInThread([this, enable]() {
++    shadow_receiver_bias_actual_.store(enable, std::memory_order_relaxed);
++  });
++}
++
+ void CommandProcessor::WorkerThreadMain() {
+   if (!SetupContext()) {
+     rex::FatalError("Unable to setup command processor internal state");
+diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
+index 8d3c61e..5644b1b 100644
+--- a/src/graphics/graphics_system.cpp
++++ b/src/graphics/graphics_system.cpp
+@@ -59,6 +59,15 @@ REXCVAR_DEFINE_STRING(majin_foliage_alpha_mode, "solid", "GPU",
+     .allowed({"solid", "smooth", "lush", "original"})
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++REXCVAR_DEFINE_STRING(majin_shadow_pcf_mode, "soft", "GPU",
++                      "Shadow map filtering mode: soft (4x4 Cubic PCF), bilinear (2x2 PCF), ultra (6x6 Tent PCF), or original (360 1-tap)")
++    .allowed({"soft", "bilinear", "ultra", "original"})
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
++REXCVAR_DEFINE_BOOL(majin_shadow_receiver_bias, true, "GPU",
++                    "Enable screen-space Receiver Plane Depth Bias in shadow PCF to eliminate grazing stone-wall striping without Peter-Panning")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
+                     "Store shaders persistently and load them when loading games to avoid "
+                     "runtime spikes and freezes when playing the game not for the first time.");
+@@ -250,6 +259,45 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+         }
+       });
+ 
++  auto parse_shadow_pcf_mode = [](std::string_view v) -> CommandProcessor::ShadowPcfMode {
++    std::string lowered(v);
++    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
++                   [](unsigned char c) { return char(std::tolower(c)); });
++    if (lowered == "original" || lowered == "native" || lowered == "off" || lowered == "1tap") {
++      return CommandProcessor::ShadowPcfMode::kOriginal;
++    }
++    if (lowered == "bilinear" || lowered == "2x2" || lowered == "sharp") {
++      return CommandProcessor::ShadowPcfMode::kBilinear;
++    }
++    if (lowered == "ultra" || lowered == "6x6" || lowered == "wide") {
++      return CommandProcessor::ShadowPcfMode::kUltra;
++    }
++    return CommandProcessor::ShadowPcfMode::kSoft;
++  };
++  auto parse_bool_flag = [](std::string_view v) -> bool {
++    std::string lowered(v);
++    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
++                   [](unsigned char c) { return char(std::tolower(c)); });
++    return !(lowered == "false" || lowered == "0" || lowered == "off" || lowered == "no");
++  };
++  command_processor_->SetDesiredShadowPcfMode(
++      parse_shadow_pcf_mode(REXCVAR_GET(majin_shadow_pcf_mode)));
++  command_processor_->SetDesiredShadowReceiverBias(REXCVAR_GET(majin_shadow_receiver_bias));
++  rex::cvar::RegisterChangeCallback(
++      "majin_shadow_pcf_mode",
++      [this, parse_shadow_pcf_mode](std::string_view, std::string_view new_value) {
++        if (command_processor_) {
++          command_processor_->SetDesiredShadowPcfMode(parse_shadow_pcf_mode(new_value));
++        }
++      });
++  rex::cvar::RegisterChangeCallback(
++      "majin_shadow_receiver_bias",
++      [this, parse_bool_flag](std::string_view, std::string_view new_value) {
++        if (command_processor_) {
++          command_processor_->SetDesiredShadowReceiverBias(parse_bool_flag(new_value));
++        }
++      });
++
+   // Register GPU MMIO handlers
+   // GPU registers are at 0x7FC80000-0x7FCFFFFF
+   memory_->AddVirtualMappedRange(0x7FC80000,  // base address
+@@ -339,6 +387,8 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+ void GraphicsSystem::Shutdown() {
+   rex::cvar::UnregisterChangeCallbacks("swap_post_effect");
+   rex::cvar::UnregisterChangeCallbacks("majin_foliage_alpha_mode");
++  rex::cvar::UnregisterChangeCallbacks("majin_shadow_pcf_mode");
++  rex::cvar::UnregisterChangeCallbacks("majin_shadow_receiver_bias");
+   if (command_processor_) {
+     command_processor_->Shutdown();
+     command_processor_.reset();
+diff --git a/src/graphics/pipeline/shader/spirv_translator.cpp b/src/graphics/pipeline/shader/spirv_translator.cpp
+index 4bc4b2c..1a10b9e 100644
+--- a/src/graphics/pipeline/shader/spirv_translator.cpp
++++ b/src/graphics/pipeline/shader/spirv_translator.cpp
+@@ -189,6 +189,8 @@ void SpirvShaderTranslator::Reset() {
+   input_output_fh1_dirt_seam_ = spv::NoResult;
+   var_main_fh1_dirt_seam_u_ = spv::NoResult;
+   var_main_fh1_dirt_seam_safe_u_ = spv::NoResult;
++  var_main_majin_shadow_uv_ = spv::NoResult;
++  majin_shadow_sgt_bindings_.clear();
+   output_per_vertex_member_count_ = 0;
+   output_per_vertex_member_clip_distance_ = UINT32_MAX;
+   output_per_vertex_member_cull_distance_ = UINT32_MAX;
+@@ -384,6 +386,8 @@ void SpirvShaderTranslator::StartTranslation() {
+       {"fh1_native", offsetof(SystemConstants, fh1_native), type_float4_},
+       {"fh1_native_textures", offsetof(SystemConstants, fh1_native_textures), type_uint_},
+       {"fh1_full_raster_textures", offsetof(SystemConstants, fh1_full_raster_textures), type_uint_},
++      {"majin_shadow_params", offsetof(SystemConstants, fh1_padding) + sizeof(uint32_t),
++       type_uint_},
+       {"fh1_vr_eye", offsetof(SystemConstants, fh1_vr_eye), type_float4_},
+   };
+   id_vector_temp_.clear();
+@@ -584,6 +588,11 @@ void SpirvShaderTranslator::StartTranslation() {
+     var_main_tfetch_gradients_v_ =
+         builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float3_,
+                                  "xe_var_tfetch_gradients_v", const_float3_0_);
++    if (is_pixel_shader() && !current_shader().majin_shadow_lookups().empty()) {
++      var_main_majin_shadow_uv_ =
++          builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float2_,
++                                   "xe_var_majin_shadow_uv", const_float2_0_);
++    }
+     if (register_count()) {
+       spv::Id type_register_array =
+           builder_->makeArrayType(type_float4_, builder_->makeUintConstant(register_count()), 1);
+diff --git a/src/graphics/pipeline/shader/spirv_translator_alu.cpp b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
+index f24bbae..95e0d3e 100644
+--- a/src/graphics/pipeline/shader/spirv_translator_alu.cpp
++++ b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
+@@ -399,17 +399,26 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
+     case ucode::AluVectorOpcode::kSeq:
+     case ucode::AluVectorOpcode::kSgt:
+     case ucode::AluVectorOpcode::kSge:
+-    case ucode::AluVectorOpcode::kSne:
+-      return builder_->createTriOp(
++    case ucode::AluVectorOpcode::kSne: {
++      spv::Id op0 = GetOperandComponents(operand_storage[0], instr.vector_operands[0],
++                                         used_result_components);
++      spv::Id op1 = GetOperandComponents(operand_storage[1], instr.vector_operands[1],
++                                         used_result_components);
++      spv::Id cmp_result = builder_->createTriOp(
+           spv::OpSelect, result_type,
+           builder_->createBinOp(spv::Op(kOps[size_t(instr.vector_opcode)]),
+-                                type_bool_vectors_[used_result_component_count - 1],
+-                                GetOperandComponents(operand_storage[0], instr.vector_operands[0],
+-                                                     used_result_components),
+-                                GetOperandComponents(operand_storage[1], instr.vector_operands[1],
+-                                                     used_result_components)),
++                                type_bool_vectors_[used_result_component_count - 1], op0, op1),
+           const_float_vectors_1_[used_result_component_count - 1],
+           const_float_vectors_0_[used_result_component_count - 1]);
++      if (instr.vector_opcode == ucode::AluVectorOpcode::kSgt && is_pixel_shader() &&
++          used_result_component_count == 1 && var_main_majin_shadow_uv_ != spv::NoResult) {
++        auto it = majin_shadow_sgt_bindings_.find(current_alu_instr_offset());
++        if (it != majin_shadow_sgt_bindings_.end()) {
++          cmp_result = EmitMajinShadowPcf(cmp_result, op1, it->second.first, it->second.second);
++        }
++      }
++      return cmp_result;
++    }
+ 
+     case ucode::AluVectorOpcode::kFrc:
+     case ucode::AluVectorOpcode::kTrunc:
+@@ -1228,4 +1237,372 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
+   return spv::NoResult;
+ }
+ 
++spv::Id SpirvShaderTranslator::EmitMajinShadowPcf(spv::Id original_lit, spv::Id receiver_z,
++                                                  size_t image_binding_index,
++                                                  size_t sampler_binding_index) {
++  // Load packed Majin shadow params from SystemConstants::fh1_padding[1]:
++  //   bits 0..1: pcf_mode (0=original 1-tap, 1=2x2 bilinear, 2=4x4 cubic B-spline, 3=6x6 tent)
++  //   bit  2:    receiver_plane_bias_enable (0=off, 1=on)
++  std::vector<spv::Id> idx = {builder_->makeIntConstant(kSystemConstantMajinShadowParams)};
++  spv::Id shadow_params = builder_->createLoad(
++      builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_, idx),
++      spv::NoPrecision);
++  spv::Id pcf_mode = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, shadow_params,
++                                           const_uint_0_, builder_->makeUintConstant(2));
++  spv::Id is_pcf = builder_->createBinOp(spv::OpINotEqual, type_bool_, pcf_mode, const_uint_0_);
++
++  SpirvBuilder::IfBuilder if_pcf(is_pcf, spv::SelectionControlDontFlattenMask, *builder_);
++  spv::Id pcf_lit = original_lit;
++  {
++    spv::Id uv = builder_->createLoad(var_main_majin_shadow_uv_, spv::NoPrecision);
++    spv::Id image =
++        builder_->createLoad(texture_bindings_[image_binding_index].variable, spv::NoPrecision);
++    spv::Id sampler =
++        builder_->createLoad(sampler_bindings_[sampler_binding_index].variable, spv::NoPrecision);
++    spv::Id sampled_image_type = builder_->makeSampledImageType(builder_->getTypeId(image));
++
++    // Query live host shadow-map resolution (768 at 1x, 1536 at 2x, 3072 at 4x).
++    builder_->addCapability(spv::CapabilityImageQuery);
++    spv::Id size_int3 =
++        builder_->createBinOp(spv::OpImageQuerySizeLod, type_int3_, image, const_int_0_);
++    spv::Id size_x = builder_->createUnaryOp(
++        spv::OpConvertSToF, type_float_,
++        builder_->createCompositeExtract(size_int3, type_int_, 0));
++    spv::Id size_y = builder_->createUnaryOp(
++        spv::OpConvertSToF, type_float_,
++        builder_->createCompositeExtract(size_int3, type_int_, 1));
++    spv::Id tex_size = builder_->createCompositeConstruct(type_float2_, {size_x, size_y});
++    spv::Id inv_size_x =
++        builder_->createNoContractionBinOp(spv::OpFDiv, type_float_, const_float_1_, size_x);
++    spv::Id inv_size_y =
++        builder_->createNoContractionBinOp(spv::OpFDiv, type_float_, const_float_1_, size_y);
++
++    // Center gather UV on the exact 2x2 quad boundary (baseTexel = floor(uv*size + 0.5)) so
++    // hardware 8-bit sub-texel fixed-point rounding never crosses a texel seam.
++    spv::Id const_0_5 = builder_->makeFloatConstant(0.5f);
++    spv::Id const_vec2_0_5 = builder_->makeCompositeConstant(type_float2_, {const_0_5, const_0_5});
++    spv::Id texel_coord =
++        builder_->createNoContractionBinOp(spv::OpFMul, type_float2_, uv, tex_size);
++    spv::Id texel_pos =
++        builder_->createNoContractionBinOp(spv::OpFAdd, type_float2_, texel_coord, const_vec2_0_5);
++    spv::Id base_texel = builder_->createUnaryBuiltinCall(type_float2_, ext_inst_glsl_std_450_,
++                                                          GLSLstd450Floor, texel_pos);
++    spv::Id frac =
++        builder_->createNoContractionBinOp(spv::OpFSub, type_float2_, texel_pos, base_texel);
++
++    spv::Id base_x = builder_->createCompositeExtract(base_texel, type_float_, 0);
++    spv::Id base_y = builder_->createCompositeExtract(base_texel, type_float_, 1);
++    spv::Id fx = builder_->createCompositeExtract(frac, type_float_, 0);
++    spv::Id fy = builder_->createCompositeExtract(frac, type_float_, 1);
++
++    // Screen-space Receiver Plane Depth Bias (dz/dtx, dz/dty) via 2x2 Jacobian inverse.
++    spv::Id rpb_bit = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, shadow_params,
++                                            builder_->makeUintConstant(2),
++                                            builder_->makeUintConstant(1));
++    spv::Id rpb_on = builder_->createBinOp(spv::OpINotEqual, type_bool_, rpb_bit, const_uint_0_);
++
++    builder_->addCapability(spv::CapabilityDerivativeControl);
++    spv::Id dtx_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float2_, texel_coord);
++    spv::Id dtx_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float2_, texel_coord);
++    spv::Id dz_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float_, receiver_z);
++    spv::Id dz_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float_, receiver_z);
++
++    spv::Id dtx_dx_x = builder_->createCompositeExtract(dtx_dx, type_float_, 0);
++    spv::Id dtx_dx_y = builder_->createCompositeExtract(dtx_dx, type_float_, 1);
++    spv::Id dtx_dy_x = builder_->createCompositeExtract(dtx_dy, type_float_, 0);
++    spv::Id dtx_dy_y = builder_->createCompositeExtract(dtx_dy, type_float_, 1);
++
++    spv::Id det = builder_->createNoContractionBinOp(
++        spv::OpFSub, type_float_,
++        builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dx_x, dtx_dy_y),
++        builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dx_y, dtx_dy_x));
++    spv::Id abs_det = builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
++                                                       GLSLstd450FAbs, det);
++    auto fabs_s = [&](spv::Id v) {
++      return builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_, GLSLstd450FAbs,
++                                              v);
++    };
++    spv::Id max_step_x = builder_->createBinBuiltinCall(
++        type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax, fabs_s(dtx_dx_x), fabs_s(dtx_dx_y));
++    spv::Id max_step_y = builder_->createBinBuiltinCall(
++        type_float_, ext_inst_glsl_std_450_, GLSLstd450NMax, fabs_s(dtx_dy_x), fabs_s(dtx_dy_y));
++    spv::Id max_step = builder_->createBinBuiltinCall(type_float_, ext_inst_glsl_std_450_,
++                                                      GLSLstd450NMax, max_step_x, max_step_y);
++
++    // Guard against degenerate Jacobians and cascade/silhouette quad discontinuities.
++    // Compare UV step in normalized shadow-map space (5% of map per pixel) so foreshortened
++    // floors stay RPB-protected at 1x, 2x, and 4x shadow scales without creating moving bands.
++    spv::Id max_dz = builder_->createBinBuiltinCall(type_float_, ext_inst_glsl_std_450_,
++                                                    GLSLstd450NMax, fabs_s(dz_dx), fabs_s(dz_dy));
++    spv::Id step_limit = builder_->createNoContractionBinOp(
++        spv::OpFMul, type_float_, size_x, builder_->makeFloatConstant(0.05f));
++    spv::Id det_ok = builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, abs_det,
++                                           builder_->makeFloatConstant(1e-6f));
++    spv::Id step_ok = builder_->createBinOp(spv::OpFOrdLessThan, type_bool_, max_step, step_limit);
++    spv::Id dz_ok = builder_->createBinOp(spv::OpFOrdLessThan, type_bool_, max_dz,
++                                          builder_->makeFloatConstant(0.02f));
++    spv::Id rpb_valid = builder_->createBinOp(
++        spv::OpLogicalAnd, type_bool_, rpb_on,
++        builder_->createBinOp(
++            spv::OpLogicalAnd, type_bool_, det_ok,
++            builder_->createBinOp(spv::OpLogicalAnd, type_bool_, step_ok, dz_ok)));
++
++    spv::Id safe_det = builder_->createTriOp(spv::OpSelect, type_float_, rpb_valid, det,
++                                             const_float_1_);
++    spv::Id inv_det =
++        builder_->createNoContractionBinOp(spv::OpFDiv, type_float_, const_float_1_, safe_det);
++
++    spv::Id raw_dz_dtx = builder_->createNoContractionBinOp(
++        spv::OpFMul, type_float_,
++        builder_->createNoContractionBinOp(
++            spv::OpFSub, type_float_,
++            builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dy_y, dz_dx),
++            builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dx_y, dz_dy)),
++        inv_det);
++    spv::Id raw_dz_dty = builder_->createNoContractionBinOp(
++        spv::OpFMul, type_float_,
++        builder_->createNoContractionBinOp(
++            spv::OpFSub, type_float_,
++            builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dx_x, dz_dy),
++            builder_->createNoContractionBinOp(spv::OpFMul, type_float_, dtx_dy_x, dz_dx)),
++        inv_det);
++
++    spv::Id slope_min = builder_->makeFloatConstant(-0.0025f);
++    spv::Id slope_max = builder_->makeFloatConstant(0.0025f);
++    spv::Id dz_dtx = builder_->createTriOp(
++        spv::OpSelect, type_float_, rpb_valid,
++        builder_->createTriBuiltinCall(type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
++                                       raw_dz_dtx, slope_min, slope_max),
++        const_float_0_);
++    spv::Id dz_dty = builder_->createTriOp(
++        spv::OpSelect, type_float_, rpb_valid,
++        builder_->createTriBuiltinCall(type_float_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
++                                       raw_dz_dty, slope_min, slope_max),
++        const_float_0_);
++
++    // Subtle quantization epsilon when RPB is enabled (~2-4mm over shadow range) so 24-bit float
++    // depth self-fighting on two-sided floors is prevented at Zero Bias without Peter-Panning.
++    spv::Id self_eps = builder_->createTriOp(
++        spv::OpSelect, type_float_, rpb_on, builder_->makeFloatConstant(0.00005f), const_float_0_);
++    spv::Id base_ref_z =
++        builder_->createNoContractionBinOp(spv::OpFSub, type_float_, receiver_z, self_eps);
++    spv::Id base_ref_z4 = builder_->smearScalar(spv::NoPrecision, base_ref_z, type_float4_);
++    spv::Id total_dz_min = builder_->makeFloatConstant(-0.0030f);
++    spv::Id total_dz_max = builder_->makeFloatConstant(0.0040f);
++    spv::Id clamp_dz_min4 = builder_->makeCompositeConstant(
++        type_float4_, {total_dz_min, total_dz_min, total_dz_min, total_dz_min});
++    spv::Id clamp_dz_max4 = builder_->makeCompositeConstant(
++        type_float4_, {total_dz_max, total_dz_max, total_dz_max, total_dz_max});
++
++    // Helper emitting one 2x2 OpImageGather at (base_texel + (gx, gy)) * inv_size,
++    // comparing all 4 depths against receiver-plane-biased refZ and summing weighted visibility.
++    // Vulkan/GLSL gather component order: .x=(0,1), .y=(1,1), .z=(1,0), .w=(0,0).
++    auto emit_gather_contrib = [&](spv::Id sampled_img, float gx, float gy, spv::Id wx0,
++                                   spv::Id wx1, spv::Id wy0, spv::Id wy1) -> spv::Id {
++      spv::Id gx_id = builder_->makeFloatConstant(gx);
++      spv::Id gy_id = builder_->makeFloatConstant(gy);
++      spv::Id gu = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          gx != 0.0f ? builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, base_x, gx_id)
++                     : base_x,
++          inv_size_x);
++      spv::Id gv = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          gy != 0.0f ? builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, base_y, gy_id)
++                     : base_y,
++          inv_size_y);
++
++      spv::Builder::TextureParameters tp = {};
++      tp.sampler = sampled_img;
++      tp.coords = builder_->createCompositeConstruct(type_float3_, {gu, gv, const_float_0_});
++      tp.component = const_int_0_;
++      spv::Id gathered = builder_->createTextureCall(spv::NoPrecision, type_float4_, false, false,
++                                                     false, true, false, tp,
++                                                     spv::ImageOperandsMaskNone);
++
++      // Reversed-Z conversion matching guest: smDepth = 1.0 - smRaw.
++      spv::Id sm_depth4 =
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float4_, const_float4_1_, gathered);
++
++      // Per-tap texel offsets from fragment: left=(gx - fx), right=(gx + 1 - fx), etc.
++      spv::Id du0 = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_, gx_id, fx), dz_dtx);
++      spv::Id du1 = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
++                                             builder_->makeFloatConstant(gx + 1.0f), fx),
++          dz_dtx);
++      spv::Id dv0 = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_, gy_id, fy), dz_dty);
++      spv::Id dv1 = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_,
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_,
++                                             builder_->makeFloatConstant(gy + 1.0f), fy),
++          dz_dty);
++
++      spv::Id dz_x = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, du0, dv1);
++      spv::Id dz_y = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, du1, dv1);
++      spv::Id dz_z = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, du1, dv0);
++      spv::Id dz_w = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, du0, dv0);
++      spv::Id dz4 = builder_->createTriBuiltinCall(
++          type_float4_, ext_inst_glsl_std_450_, GLSLstd450NClamp,
++          builder_->createCompositeConstruct(type_float4_, {dz_x, dz_y, dz_z, dz_w}), clamp_dz_min4,
++          clamp_dz_max4);
++      spv::Id ref4 =
++          builder_->createNoContractionBinOp(spv::OpFAdd, type_float4_, base_ref_z4, dz4);
++      spv::Id lit4 = builder_->createTriOp(
++          spv::OpSelect, type_float4_,
++          builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool4_, sm_depth4, ref4),
++          const_float4_1_, const_float4_0_);
++
++      spv::Id w_x = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, wx0, wy1);
++      spv::Id w_y = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, wx1, wy1);
++      spv::Id w_z = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, wx1, wy0);
++      spv::Id w_w = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, wx0, wy0);
++      spv::Id w4 = builder_->createCompositeConstruct(type_float4_, {w_x, w_y, w_z, w_w});
++      spv::Id prod4 = builder_->createNoContractionBinOp(spv::OpFMul, type_float4_, lit4, w4);
++
++      spv::Id s01 = builder_->createNoContractionBinOp(
++          spv::OpFAdd, type_float_, builder_->createCompositeExtract(prod4, type_float_, 0),
++          builder_->createCompositeExtract(prod4, type_float_, 1));
++      spv::Id s23 = builder_->createNoContractionBinOp(
++          spv::OpFAdd, type_float_, builder_->createCompositeExtract(prod4, type_float_, 2),
++          builder_->createCompositeExtract(prod4, type_float_, 3));
++      return builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, s01, s23);
++    };
++
++    spv::Id is_bilinear = builder_->createBinOp(spv::OpIEqual, type_bool_, pcf_mode,
++                                                builder_->makeUintConstant(1));
++    SpirvBuilder::IfBuilder if_bilinear(is_bilinear, spv::SelectionControlDontFlattenMask,
++                                        *builder_);
++    spv::Id lit_bilinear;
++    {
++      // Mode 1: 2x2 Bilinear PCF (1 gather = 4 taps).
++      spv::Id sampled_img =
++          builder_->createBinOp(spv::OpSampledImage, sampled_image_type, image, sampler);
++      spv::Id om_fx =
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_, const_float_1_, fx);
++      spv::Id om_fy =
++          builder_->createNoContractionBinOp(spv::OpFSub, type_float_, const_float_1_, fy);
++      lit_bilinear = emit_gather_contrib(sampled_img, 0.0f, 0.0f, om_fx, fx, om_fy, fy);
++    }
++    if_bilinear.makeBeginElse();
++    spv::Id lit_soft_or_ultra;
++    {
++      spv::Id is_soft = builder_->createBinOp(spv::OpIEqual, type_bool_, pcf_mode,
++                                              builder_->makeUintConstant(2));
++      SpirvBuilder::IfBuilder if_soft(is_soft, spv::SelectionControlDontFlattenMask, *builder_);
++      spv::Id lit_soft;
++      {
++        // Mode 2: 4x4 Uniform Cubic B-Spline PCF (4 gathers = 16 taps, C2 continuous).
++        spv::Id sampled_img =
++            builder_->createBinOp(spv::OpSampledImage, sampled_image_type, image, sampler);
++        auto make_cubic_weights = [&](spv::Id t, spv::Id w_out[4]) {
++          spv::Id inv6 = builder_->makeFloatConstant(1.0f / 6.0f);
++          spv::Id c3 = builder_->makeFloatConstant(3.0f);
++          spv::Id c4 = builder_->makeFloatConstant(4.0f);
++          spv::Id c6 = builder_->makeFloatConstant(6.0f);
++          spv::Id om =
++              builder_->createNoContractionBinOp(spv::OpFSub, type_float_, const_float_1_, t);
++          spv::Id t2 = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, t, t);
++          spv::Id t3 = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, t2, t);
++          spv::Id om2 = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, om, om);
++          spv::Id om3 = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, om2, om);
++          // w0 = (1 - t)^3 / 6
++          w_out[0] = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, om3, inv6);
++          // w1 = (3t^3 - 6t^2 + 4) / 6
++          spv::Id num1 = builder_->createNoContractionBinOp(
++              spv::OpFAdd, type_float_,
++              builder_->createNoContractionBinOp(
++                  spv::OpFSub, type_float_,
++                  builder_->createNoContractionBinOp(spv::OpFMul, type_float_, c3, t3),
++                  builder_->createNoContractionBinOp(spv::OpFMul, type_float_, c6, t2)),
++              c4);
++          w_out[1] = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, num1, inv6);
++          // w2 = (-3t^3 + 3t^2 + 3t + 1) / 6
++          spv::Id num2 = builder_->createNoContractionBinOp(
++              spv::OpFAdd, type_float_,
++              builder_->createNoContractionBinOp(
++                  spv::OpFAdd, type_float_,
++                  builder_->createNoContractionBinOp(
++                      spv::OpFSub, type_float_,
++                      builder_->createNoContractionBinOp(spv::OpFMul, type_float_, c3, t2),
++                      builder_->createNoContractionBinOp(spv::OpFMul, type_float_, c3, t3)),
++                  builder_->createNoContractionBinOp(spv::OpFMul, type_float_, c3, t)),
++              const_float_1_);
++          w_out[2] = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, num2, inv6);
++          // w3 = t^3 / 6
++          w_out[3] = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, t3, inv6);
++        };
++        spv::Id wx[4], wy[4];
++        make_cubic_weights(fx, wx);
++        make_cubic_weights(fy, wy);
++
++        spv::Id g00 = emit_gather_contrib(sampled_img, -1.0f, -1.0f, wx[0], wx[1], wy[0], wy[1]);
++        spv::Id g10 = emit_gather_contrib(sampled_img, 1.0f, -1.0f, wx[2], wx[3], wy[0], wy[1]);
++        spv::Id g01 = emit_gather_contrib(sampled_img, -1.0f, 1.0f, wx[0], wx[1], wy[2], wy[3]);
++        spv::Id g11 = emit_gather_contrib(sampled_img, 1.0f, 1.0f, wx[2], wx[3], wy[2], wy[3]);
++        spv::Id row0 = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, g00, g10);
++        spv::Id row1 = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, g01, g11);
++        lit_soft = builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, row0, row1);
++      }
++      if_soft.makeBeginElse();
++      spv::Id lit_ultra;
++      {
++        // Mode 3: 6x6 Symmetric Tent PCF (9 gathers = 36 taps, [1,2,3,2,1]/9 at centers).
++        spv::Id sampled_img =
++            builder_->createBinOp(spv::OpSampledImage, sampled_image_type, image, sampler);
++        auto make_tent6_weights = [&](spv::Id t, spv::Id w_out[6]) {
++          spv::Id inv9 = builder_->makeFloatConstant(1.0f / 9.0f);
++          spv::Id c2 = builder_->makeFloatConstant(2.0f);
++          spv::Id c3 = builder_->makeFloatConstant(3.0f);
++          w_out[0] = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_,
++              builder_->createNoContractionBinOp(spv::OpFSub, type_float_, const_float_1_, t),
++              inv9);
++          w_out[1] = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_,
++              builder_->createNoContractionBinOp(spv::OpFSub, type_float_, c2, t), inv9);
++          w_out[2] = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_,
++              builder_->createNoContractionBinOp(spv::OpFSub, type_float_, c3, t), inv9);
++          w_out[3] = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_,
++              builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, c2, t), inv9);
++          w_out[4] = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_,
++              builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, const_float_1_, t),
++              inv9);
++          w_out[5] = builder_->createNoContractionBinOp(spv::OpFMul, type_float_, t, inv9);
++        };
++        spv::Id wx[6], wy[6];
++        make_tent6_weights(fx, wx);
++        make_tent6_weights(fy, wy);
++
++        static constexpr float kOffsets[3] = {-2.0f, 0.0f, 2.0f};
++        spv::Id acc = spv::NoResult;
++        for (int gy_i = 0; gy_i < 3; ++gy_i) {
++          for (int gx_i = 0; gx_i < 3; ++gx_i) {
++            spv::Id contrib = emit_gather_contrib(
++                sampled_img, kOffsets[gx_i], kOffsets[gy_i], wx[gx_i * 2], wx[gx_i * 2 + 1],
++                wy[gy_i * 2], wy[gy_i * 2 + 1]);
++            acc = (acc == spv::NoResult)
++                      ? contrib
++                      : builder_->createNoContractionBinOp(spv::OpFAdd, type_float_, acc, contrib);
++          }
++        }
++        lit_ultra = acc;
++      }
++      if_soft.makeEndIf();
++      lit_soft_or_ultra = if_soft.createMergePhi(lit_soft, lit_ultra);
++    }
++    if_bilinear.makeEndIf();
++    pcf_lit = if_bilinear.createMergePhi(lit_bilinear, lit_soft_or_ultra);
++  }
++  if_pcf.makeEndIf();
++  return if_pcf.createMergePhi(pcf_lit, original_lit);
++}
++
+ }  // namespace rex::graphics
+diff --git a/src/graphics/pipeline/shader/spirv_translator_fetch.cpp b/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
+index dda7544..4824007 100644
+--- a/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
++++ b/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
+@@ -609,6 +609,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+     spv::Id image_2d_array_or_cube_signed = spv::NoResult;
+     spv::Id image_3d_unsigned = spv::NoResult;
+     spv::Id image_3d_signed = spv::NoResult;
++    size_t saved_sampler_binding_index = SIZE_MAX;
++    size_t saved_image_2d_unsigned_binding_index = SIZE_MAX;
+     if (instr.opcode != ucode::FetchOpcode::kGetTextureWeights) {
+       bool bindings_set_up = true;
+       // While GL_ARB_texture_query_lod specifies the value for
+@@ -636,6 +638,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+           FindOrAddTextureBinding(fetch_constant_index, dimension_2d_array_or_cube, false);
+       size_t image_2d_array_or_cube_signed_index =
+           FindOrAddTextureBinding(fetch_constant_index, dimension_2d_array_or_cube, true);
++      saved_sampler_binding_index = sampler_index;
++      saved_image_2d_unsigned_binding_index = image_2d_array_or_cube_unsigned_index;
+       if (sampler_index == SIZE_MAX || image_2d_array_or_cube_unsigned_index == SIZE_MAX ||
+           image_2d_array_or_cube_signed_index == SIZE_MAX) {
+         bindings_set_up = false;
+@@ -987,6 +991,25 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+       rex::bit_scan_forward(coordinates_needed_components, &coordinate_component_index);
+       coordinates[coordinate_component_index] = coordinates_operand;
+     }
++    // Majin: save clean normalized shadow UV and binding indices before kRoundingOffset
++    // so the matching sgt compare can perform runtime-switchable sub-texel PCF + RPB.
++    if (is_pixel_shader() && var_main_majin_shadow_uv_ != spv::NoResult &&
++        instr.opcode == ucode::FetchOpcode::kTextureFetch &&
++        instr.dimension == xenos::FetchOpDimension::k2D &&
++        saved_image_2d_unsigned_binding_index != SIZE_MAX &&
++        saved_sampler_binding_index != SIZE_MAX) {
++      const Shader::MajinShadowLookup* shadow_lookup =
++          current_shader().FindMajinShadowLookupByTfetch(current_fetch_instr_offset());
++      if (shadow_lookup) {
++        id_vector_temp_.clear();
++        id_vector_temp_.push_back(coordinates[0]);
++        id_vector_temp_.push_back(coordinates[1]);
++        builder_->createStore(builder_->createCompositeConstruct(type_float2_, id_vector_temp_),
++                              var_main_majin_shadow_uv_);
++        majin_shadow_sgt_bindings_[shadow_lookup->sgt_instr_offset] = {
++            saved_image_2d_unsigned_binding_index, saved_sampler_binding_index};
++      }
++    }
+     // FH1 (#164): the car's dirt map at its seam-safe u (StartFragmentShaderInMain), while the
+     // register still holds the interpolated u.
+     if (var_main_fh1_dirt_seam_u_ != spv::NoResult &&
+diff --git a/src/graphics/pipeline/shader/translator.cpp b/src/graphics/pipeline/shader/translator.cpp
+index 2a46eae..aa7bdb6 100644
+--- a/src/graphics/pipeline/shader/translator.cpp
++++ b/src/graphics/pipeline/shader/translator.cpp
+@@ -315,6 +315,9 @@ void Shader::AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer) {
+   if (type() == xenos::ShaderType::kPixel && kills_pixels_) {
+     DetectMajinBayerDither();
+   }
++  if (type() == xenos::ShaderType::kPixel) {
++    DetectMajinShadowLookups();
++  }
+ 
+   // An empty shader can be created internally by shader translators as a dummy,
+   // don't dump it.
+@@ -462,6 +465,165 @@ void Shader::DetectMajinBayerDither() {
+   }
+ }
+ 
++void Shader::DetectMajinShadowLookups() {
++  // Detects Majin's KbPreZSSSM* shadow depth lookup + reversed-Z compare pattern:
++  //   1. tfetch2D rA.x___, uv, tf7/tf6/tf5 (2D normalized, 1-component .x write)
++  //   2. min rB.cB, rawZ, cHigh + subsc rA.x___, cHigh, rA.x (1.0 - smRaw)
++  //   3. sgt rA.x___, rA.xxxx, rB.cB (+ retain_prev no-op scalar)
++  uint32_t pending_stage = 0;
++  uint32_t pending_tfetch_offset = UINT32_MAX;
++  uint32_t pending_fetch_constant = 0;
++  uint32_t pending_reg = UINT32_MAX;
++  uint32_t pending_z_reg = UINT32_MAX;
++  uint32_t pending_z_comp = 0;
++
++  for (uint32_t i = 0; i < cf_pair_index_bound_; ++i) {
++    ControlFlowInstruction cf_ab[2];
++    UnpackControlFlowInstructions(ucode_data_.data() + i * 3, cf_ab);
++    for (uint32_t j = 0; j < 2; ++j) {
++      const ControlFlowInstruction& cf = cf_ab[j];
++      if (!IsControlFlowOpcodeExec(cf.opcode())) {
++        continue;
++      }
++      uint32_t cf_index = i * 2 + j;
++      ParsedExecInstruction exec_instr;
++      switch (cf.opcode()) {
++        case ControlFlowOpcode::kExec:
++        case ControlFlowOpcode::kExecEnd:
++          ParseControlFlowExec(cf.exec, cf_index, exec_instr);
++          break;
++        case ControlFlowOpcode::kCondExec:
++        case ControlFlowOpcode::kCondExecEnd:
++        case ControlFlowOpcode::kCondExecPredClean:
++        case ControlFlowOpcode::kCondExecPredCleanEnd:
++          ParseControlFlowCondExec(cf.cond_exec, cf_index, exec_instr);
++          break;
++        case ControlFlowOpcode::kCondExecPred:
++        case ControlFlowOpcode::kCondExecPredEnd:
++          ParseControlFlowCondExecPred(cf.cond_exec_pred, cf_index, exec_instr);
++          break;
++        default:
++          continue;
++      }
++      uint32_t sequence = exec_instr.sequence;
++      for (uint32_t instr_offset = exec_instr.instruction_address;
++           instr_offset < exec_instr.instruction_address + exec_instr.instruction_count;
++           ++instr_offset, sequence >>= 2) {
++        const uint32_t* op_ptr = ucode_data_.data() + instr_offset * 3;
++        if (sequence & 0b01) {
++          pending_stage = 0;
++          auto& fop = *reinterpret_cast<const FetchInstruction*>(op_ptr);
++          if (fop.opcode() == FetchOpcode::kVertexFetch) {
++            continue;
++          }
++          ParsedTextureFetchInstruction tf;
++          ParseTextureFetchInstruction(fop.texture_fetch(), tf);
++          const uint32_t fc = tf.operands[1].storage_index;
++          if (tf.opcode == FetchOpcode::kTextureFetch &&
++              tf.dimension == xenos::FetchOpDimension::k2D &&
++              !tf.attributes.unnormalized_coordinates && (fc == 5u || fc == 6u || fc == 7u) &&
++              tf.result.storage_target == InstructionStorageTarget::kRegister &&
++              tf.result.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
++              tf.result.GetUsedWriteMask() == 0b0001 &&
++              tf.result.GetUsedResultComponents() == 0b0001) {
++            pending_stage = 1;
++            pending_tfetch_offset = instr_offset;
++            pending_fetch_constant = fc;
++            pending_reg = tf.result.storage_index;
++          }
++          continue;
++        }
++
++        auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
++        ParsedAluInstruction instr;
++        ParseAluInstruction(op, type(), instr);
++        if (instr.IsNop()) {
++          continue;
++        }
++
++        if (pending_stage == 1) {
++          const bool is_subsc = (instr.scalar_opcode == AluScalarOpcode::kSubsc0 ||
++                                 instr.scalar_opcode == AluScalarOpcode::kSubsc1);
++          const bool scalar_ok =
++              is_subsc &&
++              instr.scalar_result.storage_target == InstructionStorageTarget::kRegister &&
++              instr.scalar_result.storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.scalar_result.storage_index == pending_reg &&
++              instr.scalar_result.GetUsedWriteMask() == 0b0001 &&
++              instr.scalar_operands[0].storage_source == InstructionStorageSource::kConstantFloat &&
++              instr.scalar_operands[0].storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.scalar_operands[0].storage_index >= 248 &&
++              !instr.scalar_operands[0].is_negated &&
++              instr.scalar_operands[1].storage_source == InstructionStorageSource::kRegister &&
++              instr.scalar_operands[1].storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.scalar_operands[1].storage_index == pending_reg &&
++              !instr.scalar_operands[1].is_negated && !instr.scalar_operands[1].is_absolute_value &&
++              instr.scalar_operands[1].GetComponent(0) == SwizzleSource::kX;
++          const uint32_t vec_wm = instr.vector_and_constant_result.GetUsedWriteMask();
++          const bool vec_min_ok =
++              instr.vector_opcode == AluVectorOpcode::kMin &&
++              instr.vector_and_constant_result.storage_target ==
++                  InstructionStorageTarget::kRegister &&
++              instr.vector_and_constant_result.storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              rex::bit_count(vec_wm) == 1 &&
++              instr.vector_operands[1].storage_source == InstructionStorageSource::kConstantFloat &&
++              instr.vector_operands[1].storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.vector_operands[1].storage_index >= 248 &&
++              !instr.vector_operands[1].is_negated;
++          if (scalar_ok && vec_min_ok) {
++            uint32_t z_comp = 0;
++            rex::bit_scan_forward(vec_wm, &z_comp);
++            pending_z_reg = instr.vector_and_constant_result.storage_index;
++            pending_z_comp = z_comp;
++            pending_stage = 2;
++          } else {
++            pending_stage = 0;
++          }
++          continue;
++        }
++
++        if (pending_stage == 2) {
++          const bool sgt_ok =
++              instr.vector_opcode == AluVectorOpcode::kSgt &&
++              instr.vector_and_constant_result.storage_target ==
++                  InstructionStorageTarget::kRegister &&
++              instr.vector_and_constant_result.storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.vector_and_constant_result.storage_index == pending_reg &&
++              instr.vector_and_constant_result.GetUsedWriteMask() == 0b0001 &&
++              instr.scalar_result.GetUsedWriteMask() == 0 &&
++              instr.vector_operands[0].storage_source == InstructionStorageSource::kRegister &&
++              instr.vector_operands[0].storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.vector_operands[0].storage_index == pending_reg &&
++              !instr.vector_operands[0].is_negated && !instr.vector_operands[0].is_absolute_value &&
++              instr.vector_operands[0].GetComponent(0) == SwizzleSource::kX &&
++              instr.vector_operands[1].storage_source == InstructionStorageSource::kRegister &&
++              instr.vector_operands[1].storage_addressing_mode ==
++                  InstructionStorageAddressingMode::kAbsolute &&
++              instr.vector_operands[1].storage_index == pending_z_reg &&
++              !instr.vector_operands[1].is_negated && !instr.vector_operands[1].is_absolute_value &&
++              instr.vector_operands[1].GetComponent(0) ==
++                  GetSwizzleFromComponentIndex(pending_z_comp);
++          if (sgt_ok) {
++            MajinShadowLookup entry;
++            entry.tfetch_instr_offset = pending_tfetch_offset;
++            entry.sgt_instr_offset = instr_offset;
++            entry.fetch_constant = pending_fetch_constant;
++            majin_shadow_lookups_.push_back(entry);
++          }
++          pending_stage = 0;
++        }
++      }
++    }
++  }
++}
++
+ uint32_t Shader::GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
+                                           reg::SQ_CONTEXT_MISC sq_context_misc,
+                                           uint32_t& param_gen_pos_out) const {
+@@ -1042,6 +1204,7 @@ void ShaderTranslator::TranslateExecInstructions(const ParsedExecInstruction& in
+       } else {
+         ParsedTextureFetchInstruction tfetch_instr;
+         ParseTextureFetchInstruction(op.texture_fetch(), tfetch_instr);
++        current_fetch_instr_offset_ = instr_offset;
+         ProcessTextureFetchInstruction(tfetch_instr);
+       }
+     } else {
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index 7b2dc9f..feea12b 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -100,18 +100,23 @@
+ REXCVAR_DEFINE_BOOL(majin_shadow_diag, false, "GPU/Vulkan",
+                     "Majin: log (deduplicated) shadow-pass classification mismatches to diagnose "
+                     "shadow flickering.");
+-REXCVAR_DEFINE_DOUBLE(majin_shadow_slope_bias, 0.30, "GPU/Vulkan",
+-                      "Majin: slope-scaled depth bias factor applied to shadow depth passes when the "
+-                      "game provides zero bias, eliminating grazing-angle wall acne.")
++REXCVAR_DEFINE_DOUBLE(majin_shadow_slope_bias, 0.00, "GPU/Vulkan",
++                      "Majin: signed slope-scaled depth bias factor applied to shadow depth passes "
++                      "when the game provides zero bias (default 0.00).")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_DOUBLE(majin_shadow_constant_bias, 0.00, "GPU/Vulkan",
+                       "Majin: constant depth bias factor applied to shadow depth passes when the game "
+                       "provides zero bias.")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+-REXCVAR_DEFINE_DOUBLE(majin_shadow_bias_clamp, 0.002, "GPU/Vulkan",
+-                      "Majin: depth bias clamp applied to shadow depth passes to prevent "
+-                      "shadow erosion and glowing halos on grazing silhouette edges.")
++REXCVAR_DEFINE_DOUBLE(majin_shadow_bias_clamp, 0.000, "GPU/Vulkan",
++                      "Majin: depth bias clamp magnitude applied to shadow depth passes to prevent "
++                      "shadow erosion and glowing halos on grazing silhouette edges (default 0.000).")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_BOOL(majin_shadow_two_sided, true, "GPU/Vulkan",
++                    "Majin: render single-sided backface-culled geometry as two-sided in shadow "
++                    "depth passes so hollow stone cliffs and walls cast watertight shadows without "
++                    "base light leaks.")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_BOOL(shader_prebuild_only, false, "GPU/Vulkan",
+                     "Create the stored and prebuild-listed pipelines, save the driver's cache "
+                     "and exit before the game starts (the launcher's Prebuild shaders step)")
+@@ -11290,20 +11295,24 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+                                              depth_bias_constant_factor);
+     float depth_bias_clamp = 0.0f;
+     if (IsShadowMapPass(render_target_cache_.get())) {
+-      const double clamp_val = REXCVAR_GET(majin_shadow_bias_clamp);
+-      if (clamp_val > 0.0 && GetVulkanDevice()->properties().depthBiasClamp) {
+-        depth_bias_clamp = static_cast<float>(clamp_val);
+-      }
+       if (depth_bias_slope_factor == 0.0f && depth_bias_constant_factor == 0.0f) {
+         const double slope_bias = REXCVAR_GET(majin_shadow_slope_bias);
+         const double const_bias = REXCVAR_GET(majin_shadow_constant_bias);
+-        if (slope_bias > 0.0) {
++        if (slope_bias != 0.0) {
+           depth_bias_slope_factor = static_cast<float>(slope_bias) * 16.0f;
+         }
+-        if (const_bias > 0.0) {
++        if (const_bias != 0.0) {
+           depth_bias_constant_factor = static_cast<float>(const_bias);
+         }
+       }
++      const double clamp_val = REXCVAR_GET(majin_shadow_bias_clamp);
++      if (clamp_val != 0.0 && GetVulkanDevice()->properties().depthBiasClamp) {
++        const float abs_clamp = std::abs(static_cast<float>(clamp_val));
++        const bool is_negative_bias =
++            (depth_bias_slope_factor < 0.0f) ||
++            (depth_bias_slope_factor == 0.0f && depth_bias_constant_factor < 0.0f);
++        depth_bias_clamp = is_negative_bias ? -abs_clamp : abs_clamp;
++      }
+     }
+     depth_bias_constant_factor *=
+         regs.Get<reg::RB_DEPTH_INFO>().depth_format == xenos::DepthRenderTargetFormat::kD24S8
+@@ -11471,7 +11480,11 @@ void VulkanCommandProcessor::UpdateDynamicState(const draw_util::ViewportInfo& v
+       } else if (pa_su_sc_mode_cntl.cull_back) {
+         cull_mode = VK_CULL_MODE_BACK_BIT;
+       }
+     }
++    if (cull_mode == VK_CULL_MODE_BACK_BIT && IsShadowMapPass(render_target_cache_.get()) &&
++        REXCVAR_GET(majin_shadow_two_sided) && (GetPackedMajinShadowParams() & 0x3u) != 0u) {
++      cull_mode = VK_CULL_MODE_NONE;
++    }
+     VkFrontFace front_face = (primitive_polygonal && pa_su_sc_mode_cntl.face != 0)
+                                  ? VK_FRONT_FACE_CLOCKWISE
+                                  : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+@@ -12249,6 +12262,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+     const uint32_t dof_packed = GetPackedMajinDofParams();
+     dirty |= system_constants_.fh1_padding[0] != dof_packed;
+     system_constants_.fh1_padding[0] = dof_packed;
++    const uint32_t shadow_packed = GetPackedMajinShadowParams();
++    dirty |= system_constants_.fh1_padding[1] != shadow_packed;
++    system_constants_.fh1_padding[1] = shadow_packed;
+   }
+ 
+   if (edram_fragment_shader_interlock) {

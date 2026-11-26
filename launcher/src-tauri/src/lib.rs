@@ -130,6 +130,14 @@ fn default_foliage_alpha_mode() -> String {
     "solid".into()
 }
 
+fn default_shadow_pcf_mode() -> String {
+    "soft".into()
+}
+
+fn default_shadow_sssm_mode() -> String {
+    "auto".into()
+}
+
 fn default_bloom_intensity() -> f64 {
     0.80
 }
@@ -167,7 +175,7 @@ fn default_shadow_scale() -> u32 {
 }
 
 fn default_shadow_slope_bias() -> f64 {
-    0.30
+    0.0
 }
 
 fn default_shadow_constant_bias() -> f64 {
@@ -175,7 +183,7 @@ fn default_shadow_constant_bias() -> f64 {
 }
 
 fn default_shadow_bias_clamp() -> f64 {
-    0.002
+    0.0
 }
 
 fn deserialize_nullable_f64_slope_bias<'de, D>(deserializer: D) -> Result<f64, D::Error>
@@ -183,7 +191,7 @@ where
     D: serde::Deserializer<'de>,
 {
     let opt = Option::<f64>::deserialize(deserializer)?;
-    Ok(opt.unwrap_or(0.30))
+    Ok(opt.unwrap_or(0.0))
 }
 
 fn deserialize_nullable_f64_zero<'de, D>(deserializer: D) -> Result<f64, D::Error>
@@ -199,7 +207,7 @@ where
     D: serde::Deserializer<'de>,
 {
     let opt = Option::<f64>::deserialize(deserializer)?;
-    Ok(opt.unwrap_or(0.002))
+    Ok(opt.unwrap_or(0.0))
 }
 
 fn deserialize_nullable_u32_shadow_scale<'de, D>(deserializer: D) -> Result<u32, D::Error>
@@ -284,6 +292,30 @@ where
     }
 }
 
+fn deserialize_nullable_shadow_pcf_mode<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_ascii_lowercase();
+    match trimmed.as_str() {
+        "soft" | "bilinear" | "ultra" | "original" => Ok(trimmed),
+        _ => Ok("soft".into()),
+    }
+}
+
+fn deserialize_nullable_shadow_sssm_mode<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_ascii_lowercase();
+    match trimmed.as_str() {
+        "auto" | "original" | "subtle" | "off" => Ok(trimmed),
+        _ => Ok("auto".into()),
+    }
+}
+
 fn deserialize_nullable_bool_false<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -303,6 +335,16 @@ pub struct Settings {
     pub render_scale: u32,
     #[serde(rename = "ShadowScale", default = "default_shadow_scale", deserialize_with = "deserialize_nullable_u32_shadow_scale")]
     pub shadow_scale: u32,
+    #[serde(rename = "ShadowPcfMode", default = "default_shadow_pcf_mode", deserialize_with = "deserialize_nullable_shadow_pcf_mode")]
+    pub shadow_pcf_mode: String,
+    #[serde(rename = "ShadowReceiverBias", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub shadow_receiver_bias: bool,
+    #[serde(rename = "ShadowTwoSided", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub shadow_two_sided: bool,
+    #[serde(rename = "ShadowTexelSnap", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub shadow_texel_snap: bool,
+    #[serde(rename = "ShadowSssmMode", default = "default_shadow_sssm_mode", deserialize_with = "deserialize_nullable_shadow_sssm_mode")]
+    pub shadow_sssm_mode: String,
     #[serde(rename = "ShadowSlopeBias", default = "default_shadow_slope_bias", deserialize_with = "deserialize_nullable_f64_slope_bias")]
     pub shadow_slope_bias: f64,
     #[serde(rename = "ShadowConstantBias", default = "default_shadow_constant_bias", deserialize_with = "deserialize_nullable_f64_zero")]
@@ -392,9 +434,14 @@ impl Default for Settings {
             fullscreen: false,
             render_scale: 1,
             shadow_scale: 2,
-            shadow_slope_bias: 0.30,
+            shadow_pcf_mode: "soft".into(),
+            shadow_receiver_bias: true,
+            shadow_two_sided: true,
+            shadow_texel_snap: true,
+            shadow_sssm_mode: "auto".into(),
+            shadow_slope_bias: 0.0,
             shadow_constant_bias: 0.0,
-            shadow_bias_clamp: 0.002,
+            shadow_bias_clamp: 0.0,
             rendering_path: "Vulkan".into(),
             frame_rate_mode: "30".into(),
             vsync: true,
@@ -1441,6 +1488,19 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.render_scale.to_string(),
         "-ShadowScale".to_string(),
         settings.shadow_scale.to_string(),
+        "-ShadowPcfMode".to_string(),
+        match settings.shadow_pcf_mode.as_str() {
+            "soft" | "bilinear" | "ultra" | "original" => settings.shadow_pcf_mode.clone(),
+            _ => "soft".to_string(),
+        },
+        format!("-ShadowReceiverBias:${}", settings.shadow_receiver_bias),
+        format!("-ShadowTwoSided:${}", settings.shadow_two_sided),
+        format!("-ShadowTexelSnap:${}", settings.shadow_texel_snap),
+        "-ShadowSssmMode".to_string(),
+        match settings.shadow_sssm_mode.as_str() {
+            "auto" | "original" | "subtle" | "off" => settings.shadow_sssm_mode.clone(),
+            _ => "auto".to_string(),
+        },
         "-ShadowSlopeBias".to_string(),
         format!("{:.2}", settings.shadow_slope_bias),
         "-ShadowConstantBias".to_string(),

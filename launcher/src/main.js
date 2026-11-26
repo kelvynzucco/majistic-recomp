@@ -108,9 +108,14 @@ const defaultSettings = {
   Fullscreen: false,
   RenderScale: 1,
   ShadowScale: 2,
-  ShadowSlopeBias: 0.30,
+  ShadowPcfMode: "soft",
+  ShadowReceiverBias: true,
+  ShadowTwoSided: true,
+  ShadowTexelSnap: true,
+  ShadowSssmMode: "auto",
+  ShadowSlopeBias: 0.00,
   ShadowConstantBias: 0.000,
-  ShadowBiasClamp: 0.002,
+  ShadowBiasClamp: 0.000,
   RenderingPath: "Vulkan",
   FrameRateMode: "30",
   VSync: true,
@@ -261,6 +266,11 @@ const elements = {
   fullscreen: document.getElementById("fullscreen"),
   renderScale: document.getElementById("renderScale"),
   shadowScale: document.getElementById("shadowScale"),
+  shadowPcfMode: document.getElementById("shadowPcfMode"),
+  shadowReceiverBias: document.getElementById("shadowReceiverBias"),
+  shadowTwoSided: document.getElementById("shadowTwoSided"),
+  shadowTexelSnap: document.getElementById("shadowTexelSnap"),
+  shadowSssmMode: document.getElementById("shadowSssmMode"),
   shadowDepthBiasSection: document.getElementById("shadowDepthBiasSection"),
   shadowSlopeBias: document.getElementById("shadowSlopeBias"),
   shadowSlopeBiasVal: document.getElementById("shadowSlopeBiasVal"),
@@ -269,6 +279,7 @@ const elements = {
   shadowBiasClamp: document.getElementById("shadowBiasClamp"),
   shadowBiasClampVal: document.getElementById("shadowBiasClampVal"),
   btnResetShadowBias: document.getElementById("btnResetShadowBias"),
+  btnNegativeShadowBias: document.getElementById("btnNegativeShadowBias"),
   btnZeroShadowBias: document.getElementById("btnZeroShadowBias"),
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
@@ -829,22 +840,35 @@ function populateForm(settings) {
   if (elements.fullscreen) elements.fullscreen.value = String(!!settings.Fullscreen);
   if (elements.renderScale) elements.renderScale.value = String(settings.RenderScale || 1);
   if (elements.shadowScale) elements.shadowScale.value = String(settings.ShadowScale !== undefined ? settings.ShadowScale : 2);
+  if (elements.shadowPcfMode) {
+    const validPcf = ["soft", "bilinear", "ultra", "original"];
+    const pcf = String(settings.ShadowPcfMode || "soft").toLowerCase();
+    elements.shadowPcfMode.value = validPcf.includes(pcf) ? pcf : "soft";
+  }
+  if (elements.shadowReceiverBias) elements.shadowReceiverBias.checked = settings.ShadowReceiverBias ?? true;
+  if (elements.shadowTwoSided) elements.shadowTwoSided.checked = settings.ShadowTwoSided ?? true;
+  if (elements.shadowTexelSnap) elements.shadowTexelSnap.checked = settings.ShadowTexelSnap ?? true;
+  if (elements.shadowSssmMode) {
+    const validSssm = ["auto", "original", "subtle", "off"];
+    const sssm = String(settings.ShadowSssmMode || "auto").toLowerCase();
+    elements.shadowSssmMode.value = validSssm.includes(sssm) ? sssm : "auto";
+  }
   if (elements.shadowSlopeBias) {
-    const slopeVal = Math.min(3.0, Math.max(0.0, safeFloat(settings.ShadowSlopeBias, 0.30)));
+    const slopeVal = Math.min(3.0, Math.max(-2.0, safeFloat(settings.ShadowSlopeBias, 0.0)));
     elements.shadowSlopeBias.value = slopeVal.toFixed(2);
     if (elements.shadowSlopeBiasVal) {
       elements.shadowSlopeBiasVal.textContent = slopeVal.toFixed(2);
     }
   }
   if (elements.shadowConstantBias) {
-    const constVal = Math.min(0.05, Math.max(0.0, safeFloat(settings.ShadowConstantBias, 0.0)));
+    const constVal = Math.min(0.05, Math.max(-0.05, safeFloat(settings.ShadowConstantBias, 0.0)));
     elements.shadowConstantBias.value = constVal.toFixed(3);
     if (elements.shadowConstantBiasVal) {
       elements.shadowConstantBiasVal.textContent = constVal.toFixed(3);
     }
   }
   if (elements.shadowBiasClamp) {
-    const clampVal = Math.min(0.02, Math.max(0.0, safeFloat(settings.ShadowBiasClamp, 0.002)));
+    const clampVal = Math.min(0.02, Math.max(0.0, safeFloat(settings.ShadowBiasClamp, 0.0)));
     elements.shadowBiasClamp.value = clampVal.toFixed(3);
     if (elements.shadowBiasClampVal) {
       elements.shadowBiasClampVal.textContent = clampVal.toFixed(3);
@@ -980,9 +1004,14 @@ function readForm() {
     Fullscreen: elements.fullscreen ? elements.fullscreen.value === "true" : false,
     RenderScale: safeInt(elements.renderScale?.value, 1),
     ShadowScale: safeInt(elements.shadowScale?.value, 2),
-    ShadowSlopeBias: elements.shadowSlopeBias ? safeFloat(elements.shadowSlopeBias.value, 0.30) : safeFloat(currentSettings.ShadowSlopeBias, 0.30),
+    ShadowPcfMode: elements.shadowPcfMode?.value || currentSettings.ShadowPcfMode || "soft",
+    ShadowReceiverBias: elements.shadowReceiverBias ? elements.shadowReceiverBias.checked : (currentSettings.ShadowReceiverBias ?? true),
+    ShadowTwoSided: elements.shadowTwoSided ? elements.shadowTwoSided.checked : (currentSettings.ShadowTwoSided ?? true),
+    ShadowTexelSnap: elements.shadowTexelSnap ? elements.shadowTexelSnap.checked : (currentSettings.ShadowTexelSnap ?? true),
+    ShadowSssmMode: elements.shadowSssmMode?.value || currentSettings.ShadowSssmMode || "auto",
+    ShadowSlopeBias: elements.shadowSlopeBias ? safeFloat(elements.shadowSlopeBias.value, 0.0) : safeFloat(currentSettings.ShadowSlopeBias, 0.0),
     ShadowConstantBias: elements.shadowConstantBias ? safeFloat(elements.shadowConstantBias.value, 0.0) : safeFloat(currentSettings.ShadowConstantBias, 0.0),
-    ShadowBiasClamp: elements.shadowBiasClamp ? safeFloat(elements.shadowBiasClamp.value, 0.002) : safeFloat(currentSettings.ShadowBiasClamp, 0.002),
+    ShadowBiasClamp: elements.shadowBiasClamp ? safeFloat(elements.shadowBiasClamp.value, 0.0) : safeFloat(currentSettings.ShadowBiasClamp, 0.0),
     RenderingPath: elements.renderingPath?.value || "Vulkan",
     FrameRateMode: elements.frameRateMode?.value || "30",
     VSync: elements.vsync ? elements.vsync.checked : true,
@@ -1773,6 +1802,12 @@ async function applyShadowBiasPreset(slope, constant, clamp) {
 if (elements.btnResetShadowBias) {
   elements.btnResetShadowBias.addEventListener("click", () => {
     applyShadowBiasPreset(0.30, 0.000, 0.002);
+  });
+}
+
+if (elements.btnNegativeShadowBias) {
+  elements.btnNegativeShadowBias.addEventListener("click", () => {
+    applyShadowBiasPreset(-0.30, 0.000, 0.002);
   });
 }
 

@@ -47,6 +47,19 @@ REXCVAR_DEFINE_BOOL(
     "Xbox 360 640x360 behavior)")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(
+    majin_shadow_texel_snap, true, "Majin/Graphics",
+    "Snap orthographic shadow cascade XY frustum bounds to host shadow-map texel increments to "
+    "eliminate shadow edge shimmering during camera movement")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_STRING(
+    majin_shadow_sssm_mode, "auto", "Majin/Graphics",
+    "Screen-space shadow blur (SSSM) mode: auto (off for 4x4/6x6 PCF, 0.5x for 2x2 PCF, full "
+    "for original), original (1.0x), subtle (0.5x), or off (0.0x pure 3D PCF)")
+    .allowed({"auto", "original", "subtle", "off"})
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 namespace {
 
 std::atomic<bool> s_fullres_3452_allocated{false};
@@ -72,6 +85,49 @@ void GetActiveDrawResolutionScale(uint32_t& scale_x_out, uint32_t& scale_y_out) 
                          : QueryIntFlag("draw_resolution_scale_y", 1);
   scale_x_out = static_cast<uint32_t>(std::clamp(sx, 1, 8));
   scale_y_out = static_cast<uint32_t>(std::clamp(sy, 1, 8));
+}
+
+uint32_t GetActiveShadowScale() {
+  const int32_t ss = QueryIntFlag("majin_shadow_scale", 0);
+  if (ss >= 4) return 4u;
+  if (ss >= 2) return 2u;
+  if (ss >= 1) return 1u;
+  uint32_t sx = 1, sy = 1;
+  GetActiveDrawResolutionScale(sx, sy);
+  return std::clamp(sx, 1u, 4u);
+}
+
+float GetActiveSssmBlurMultiplier() {
+  std::string mode = REXCVAR_GET(majin_shadow_sssm_mode);
+  std::transform(mode.begin(), mode.end(), mode.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  if (mode == "original" || mode == "full" || mode == "on") {
+    return 1.0f;
+  }
+  if (mode == "subtle" || mode == "half" || mode == "reduced") {
+    return 0.5f;
+  }
+  if (mode == "off" || mode == "none" || mode == "0") {
+    return 0.0f;
+  }
+  // "auto": coordinate SSSM screen-space blur with 3D shadow PCF mode so flat floors and
+  // steep stone walls have consistent softness without double-blurring or floor/wall mismatch.
+  std::string pcf = rex::cvar::GetFlagByName("majin_shadow_pcf_mode");
+  std::transform(pcf.begin(), pcf.end(), pcf.begin(),
+                 [](unsigned char c) { return char(std::tolower(c)); });
+  const std::string backend = rex::cvar::GetFlagByName("gpu_backend");
+  if (!backend.empty() && backend != "vulkan") {
+    // PCF SPIR-V enhancement runs on Vulkan; preserve full SSSM blur on D3D12.
+    return 1.0f;
+  }
+  if (pcf == "original" || pcf == "native" || pcf == "off" || pcf == "1tap") {
+    return 1.0f;
+  }
+  if (pcf == "bilinear" || pcf == "2x2" || pcf == "sharp") {
+    return 0.5f;
+  }
+  // Default ("soft" 4x4 or "ultra" 6x6): let 3D world-space PCF define shadow softness.
+  return 0.0f;
 }
 
 uint32_t LoadGuestU32BE(uint8_t* ptr) {
@@ -153,9 +209,11 @@ void Majin_SssmPromoteFullRes3452(PPCRegister& r3, PPCRegister& r4) {
       orig_w, orig_h, new_w, new_h);
 }
 
-// 0x82195CD8 (sub_82195C58): scale GXDS_ShadowSize.zw by 1 / RenderScale.
+// 0x82195CD8 (sub_82195C58): scale GXDS_ShadowSize.zw by 1 / RenderScale and apply SSSM blur mode.
 void Majin_SssmShadowSizeScale(PPCRegister& r5) {
-  if (!REXCVAR_GET(majin_sssm_fullres_fix)) {
+  const bool fullres = REXCVAR_GET(majin_sssm_fullres_fix);
+  const float blur_mult = GetActiveSssmBlurMultiplier();
+  if (!fullres && blur_mult == 1.0f) {
     return;
   }
 
@@ -180,12 +238,14 @@ void Majin_SssmShadowSizeScale(PPCRegister& r5) {
 
   uint32_t scale_x = 1;
   uint32_t scale_y = 1;
-  GetActiveDrawResolutionScale(scale_x, scale_y);
+  if (fullres) {
+    GetActiveDrawResolutionScale(scale_x, scale_y);
+  }
 
   const float new_w = orig_w * static_cast<float>(scale_x);
   const float new_h = orig_h * static_cast<float>(scale_y);
-  const float new_inv_w = orig_inv_w / static_cast<float>(scale_x);
-  const float new_inv_h = orig_inv_h / static_cast<float>(scale_y);
+  const float new_inv_w = (orig_inv_w / static_cast<float>(scale_x)) * blur_mult;
+  const float new_inv_h = (orig_inv_h / static_cast<float>(scale_y)) * blur_mult;
 
   StoreGuestFloatBE(buf + 0, new_w);
   StoreGuestFloatBE(buf + 4, new_h);
@@ -193,14 +253,15 @@ void Majin_SssmShadowSizeScale(PPCRegister& r5) {
   StoreGuestFloatBE(buf + 12, new_inv_h);
 
   static std::atomic<uint32_t> s_logged_size_scale{0};
+  const uint32_t mult_code = static_cast<uint32_t>(blur_mult * 100.0f + 0.5f) & 0xFFu;
   const uint32_t packed =
-      (static_cast<uint32_t>(orig_w) << 12) | (scale_x << 6) | scale_y;
+      (static_cast<uint32_t>(orig_w) << 16) | (scale_x << 12) | (scale_y << 8) | mult_code;
   if (s_logged_size_scale.exchange(packed, std::memory_order_relaxed) != packed) {
     REXLOG_INFO(
-        "majin_sssm_fullres_fix active (ShadowSize): scale={}x{}, {:.0f}x{:.0f} -> {:.0f}x{:.0f} "
-        "(step {:.6f},{:.6f} -> {:.6f},{:.6f})",
-        scale_x, scale_y, orig_w, orig_h, new_w, new_h, orig_inv_w, orig_inv_h, new_inv_w,
-        new_inv_h);
+        "majin_sssm active (ShadowSize): fullres={}, scale={}x{}, sssm_blur_mult={:.2f}, "
+        "{:.0f}x{:.0f} -> {:.0f}x{:.0f} (step {:.6f},{:.6f} -> {:.6f},{:.6f})",
+        fullres, scale_x, scale_y, blur_mult, orig_w, orig_h, new_w, new_h, orig_inv_w, orig_inv_h,
+        new_inv_w, new_inv_h);
   }
 }
 
@@ -349,5 +410,92 @@ void Majin_SssmPs3UvAlign(PPCRegister& r10) {
         "majin_sssm_fullres_fix active (PS#3 UV align): scale={}x{}, shift_u=-{:.6f}, "
         "shift_v=-{:.6f}",
         scale_x, scale_y, shift_u, shift_v);
+  }
+}
+
+// 0x82193628 (sub_82193628 entry, right after `mflr r12`, < 0x821C0000: identical in PAL and USA):
+// Snap orthographic shadow cascade XY AABB bounds (r4+0..24) to exact world-space host shadow-map
+// texel increments so static shadow edges stay locked to world geometry during camera movement.
+void Majin_ShadowCascadeTexelSnap(PPCRegister& r1, PPCRegister& r4, PPCRegister& r12) {
+  if (!REXCVAR_GET(majin_shadow_texel_snap)) {
+    return;
+  }
+
+  // Only snap pure orthographic PSSM cascades from sub_8218F0D0 (lr=0x8218F89C).
+  // Leave sub_8218FE38's LiSPSM pre-warp (0x82191014) and post-warp (0x82192004) untouched so
+  // non-linear perspective warping never jumps between quantized bounds.
+  const uint32_t caller = r12.u32;
+  if (caller != 0x8218F89Cu) {
+    return;
+  }
+
+  const uint32_t stack_ptr = r1.u32;
+  const uint32_t aabb_addr = r4.u32;
+  if (stack_ptr < 0x10000 || aabb_addr < 0x10000) {
+    return;
+  }
+
+  auto* mem = REX_KERNEL_MEMORY();
+  uint8_t* aabb = mem->TranslateVirtual<uint8_t*>(aabb_addr);
+  // In sub_8218F0D0, M_lightView is built at r1+208 by sub_82A037A8 (LookAtLH with eye = camera).
+  // Row 3 holds world origin in light-view space: (+48 = -dot(eye, X), +52 = -dot(eye, Y), +60 = 1).
+  uint8_t* light_view = mem->TranslateVirtual<uint8_t*>(stack_ptr + 208);
+  if (!aabb || !light_view) {
+    return;
+  }
+
+  const float origin_x = LoadGuestFloatBE(light_view + 48);
+  const float origin_y = LoadGuestFloatBE(light_view + 52);
+  const float m33 = LoadGuestFloatBE(light_view + 60);
+  if (!std::isfinite(origin_x) || !std::isfinite(origin_y) || !std::isfinite(m33) ||
+      std::fabs(m33 - 1.0f) > 1e-3f) {
+    return;
+  }
+
+  float min_x = LoadGuestFloatBE(aabb + 0);
+  float min_y = LoadGuestFloatBE(aabb + 4);
+  float max_x = LoadGuestFloatBE(aabb + 16);
+  float max_y = LoadGuestFloatBE(aabb + 20);
+
+  const uint32_t shadow_scale = GetActiveShadowScale();
+  const float map_res = 768.0f * static_cast<float>(shadow_scale);
+
+  auto snap_axis = [map_res](float& mn, float& mx, float origin) -> bool {
+    const float extent = mx - mn;
+    if (!std::isfinite(mn) || !std::isfinite(mx) || extent < 0.05f || extent > 100000.0f) {
+      return false;
+    }
+    // Quantize extent upwards in smooth 1/12-octave (~5.9%) steps with >= 2 texel margin
+    // so snapping center by <= 0.5 texel never clips the frustum and texel size stays constant
+    // across small camera rotations.
+    const float min_extent = extent * (1.0f + 2.0f / map_res);
+    const float q_extent = std::exp2(std::ceil(std::log2(min_extent) * 12.0f) / 12.0f);
+    const float texel = q_extent / map_res;
+    const float center = 0.5f * (mn + mx);
+    // Anchor center to world-space light-view origin so camera translation cancels out and
+    // static world vertices always land at a constant sub-texel phase.
+    const float snapped_center =
+        std::floor((center - origin) / texel + 0.5f) * texel + origin;
+    mn = snapped_center - 0.5f * q_extent;
+    mx = snapped_center + 0.5f * q_extent;
+    return true;
+  };
+
+  if (!snap_axis(min_x, max_x, origin_x) || !snap_axis(min_y, max_y, origin_y)) {
+    return;
+  }
+
+  StoreGuestFloatBE(aabb + 0, min_x);
+  StoreGuestFloatBE(aabb + 4, min_y);
+  StoreGuestFloatBE(aabb + 16, max_x);
+  StoreGuestFloatBE(aabb + 20, max_y);
+
+  static std::atomic<uint32_t> s_logged_snap{0};
+  const uint32_t bit = 1u | (shadow_scale << 4);
+  if (s_logged_snap.exchange(bit, std::memory_order_relaxed) != bit) {
+    REXLOG_INFO(
+        "majin_shadow_texel_snap active (world-anchored): caller=0x{:08X}, shadow_scale={}x "
+        "({:.0f}px grid), light_origin=({:.2f}, {:.2f})",
+        caller, shadow_scale, map_res, origin_x, origin_y);
   }
 }

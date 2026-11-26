@@ -117,6 +117,7 @@ const defaultSettings = {
   PresentDither: false,
   PostEffect: "dedither_fxaa",
   DeDitherStrength: 0.85,
+  FoliageAlphaMode: "solid",
   Upscaler: "bilinear",
   CasSharpness: 0.0,
   FsrReduction: 0.0,
@@ -283,6 +284,7 @@ const elements = {
   deDitherStrength: document.getElementById("deDitherStrength"),
   deDitherStrengthVal: document.getElementById("deDitherStrengthVal"),
   deDitherStrengthContainer: document.getElementById("deDitherStrengthContainer"),
+  foliageAlphaMode: document.getElementById("foliageAlphaMode"),
   postProcessingSlidersRow: document.getElementById("postProcessingSlidersRow"),
   deDitherDisabledBadge: document.getElementById("deDitherDisabledBadge"),
   vsync: document.getElementById("vsync"),
@@ -878,6 +880,11 @@ function populateForm(settings) {
       elements.deDitherStrengthVal.textContent = strength.toFixed(2);
     }
   }
+  if (elements.foliageAlphaMode) {
+    const validModes = ["solid", "smooth", "lush", "original"];
+    const mode = String(settings.FoliageAlphaMode || "solid").toLowerCase();
+    elements.foliageAlphaMode.value = validModes.includes(mode) ? mode : "solid";
+  }
   updateDeDitherVisibility();
   if (elements.vsync) elements.vsync.checked = settings.VSync ?? true;
   if (elements.presentDither) elements.presentDither.checked = settings.PresentDither ?? false;
@@ -983,6 +990,7 @@ function readForm() {
     WindowFps: elements.windowFps ? elements.windowFps.checked : false,
     PostEffect: elements.postEffect?.value || "dedither_fxaa",
     DeDitherStrength: elements.deDitherStrength ? safeFloat(elements.deDitherStrength.value, 0.85) : safeFloat(currentSettings.DeDitherStrength, 0.85),
+    FoliageAlphaMode: elements.foliageAlphaMode?.value || currentSettings.FoliageAlphaMode || "solid",
     Upscaler: elements.upscaler?.value || "bilinear",
     CasSharpness: elements.casSharpness ? safeFloat(elements.casSharpness.value, 0.0) : safeFloat(currentSettings.CasSharpness, 0.0),
     FsrReduction: elements.fsrReduction ? safeFloat(elements.fsrReduction.value, 0.0) : safeFloat(currentSettings.FsrReduction, 0.0),

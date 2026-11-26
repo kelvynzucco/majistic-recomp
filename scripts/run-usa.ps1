@@ -10,6 +10,7 @@ param(
     [ValidateRange(0.0, 0.05)][double]$ShadowBiasClamp = 0.002,
     [ValidateSet('none','fxaa','fxaa_extreme','dedither','dedither_fxaa','dedither_fxaa_extreme','dedither_debug')][string]$PostEffect = 'none',
     [ValidateRange(0.0, 1.0)][double]$DeDitherStrength = 0.85,
+    [ValidateSet('solid','smooth','lush','original')][string]$FoliageAlphaMode = 'solid',
     [ValidateSet('fsr','cas','bilinear')][string]$Upscaler = 'fsr',
     [ValidateSet('Default','D3D12','ROV','RTV','Vulkan','Vulkan_FSI','Vulkan_FBO')][string]$RenderingPath = 'Default',
     [ValidateSet('Controller','KeyboardMouse')][string]$InputMode = 'Controller',
@@ -359,6 +360,7 @@ if ($DepthOfFieldIntensity -ge 0.0) {
 }
 $launchArgs += "--majin_dof=$($dofVal.ToString([Globalization.CultureInfo]::InvariantCulture))"
 $launchArgs += "--majin_dof_mode=$($DepthOfFieldMode.ToLowerInvariant())"
+$launchArgs += "--majin_foliage_alpha_mode=$($FoliageAlphaMode.ToLowerInvariant())"
 
 # Handle Bloom intensity (accepts float directly or bool)
 $bloomVal = 0.80

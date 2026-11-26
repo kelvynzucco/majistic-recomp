@@ -584,6 +584,32 @@
                     </p>
                   </div>
 
+                  <!-- Foliage Alpha Cutout (Anti-Holes) -->
+                  <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <label
+                        for="foliageAlphaMode"
+                        class="text-xs text-slate-300"
+                      >
+                        Foliage Alpha Cutout (Anti-Holes)
+                      </label>
+                      <select
+                        id="foliageAlphaMode"
+                        class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
+                      >
+                        <option value="solid" selected>Solid Cutout (0.50)</option>
+                        <option value="smooth">Smooth Fade (Anti-Hole)</option>
+                        <option value="lush">Lush Cutout (0.25)</option>
+                        <option value="original">Original 360 (Dithered)</option>
+                      </select>
+                    </div>
+                    <p class="text-[10px] text-slate-400 leading-tight">
+                      Eliminates 360 Bayer 4x4 foliage &amp; shadow holes. Smooth
+                      Fade keeps leaves solid while preserving smooth camera
+                      fade.
+                    </p>
+                  </div>
+
                   <!-- Upscaler Sharpening Controls -->
                   <div
                     id="upscalerSharpeningContainer"

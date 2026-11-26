@@ -118,6 +118,10 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   // Read current live cvar states
   const std::string post_effect = rex::cvar::Query<std::string>("swap_post_effect");
   const double dedither_strength = rex::cvar::Query<double>("swap_dedither_strength");
+  std::string foliage_alpha_mode = "solid";
+  if (!rex::cvar::GetFlagByName("majin_foliage_alpha_mode").empty()) {
+    foliage_alpha_mode = rex::cvar::Query<std::string>("majin_foliage_alpha_mode");
+  }
   const std::string upscaler = rex::cvar::Query<std::string>("present_effect");
   const double mouse_sens = rex::cvar::Query<double>("mnk_sensitivity");
   const double fov_scale = rex::cvar::Query<double>("majin_fov_scale");
@@ -182,6 +186,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
 
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
+  ReplaceJsonField(json, "FoliageAlphaMode", "\"" + foliage_alpha_mode + "\"");
   ReplaceJsonField(json, "Upscaler", "\"" + upscaler + "\"");
   ReplaceJsonField(json, "CasSharpness", cas_buf);
   ReplaceJsonField(json, "FsrReduction", fsr_buf);
@@ -495,6 +500,32 @@ void InGameMenuDialog::DrawGraphicsTab() {
       rex::cvar::SetFlagByName("swap_dedither_strength", str_buf);
     }
     DrawHintText("Controls foliage cross-blend strength (0.00 = off, 1.00 = max smoothing).");
+  }
+
+  ImGui::Spacing();
+  {
+    std::string cur_a2m = rex::cvar::GetFlagByName("majin_foliage_alpha_mode");
+    if (cur_a2m.empty()) cur_a2m = "solid";
+    static const char* kA2mLabels[] = {
+        "Solid Cutout (0.50 - Zero Dither)",
+        "Smooth Fade (Anti-Hole + Camera Fade)",
+        "Lush Cutout (0.25 - Fuller)",
+        "Original 360 (Bayer 4x4 Dithered)",
+    };
+    static const char* kA2mValues[] = {"solid", "smooth", "lush", "original"};
+    int a2m_idx = 0;
+    for (int i = 0; i < 4; ++i) {
+      if (cur_a2m == kA2mValues[i]) {
+        a2m_idx = i;
+        break;
+      }
+    }
+    ImGui::Text("Foliage Alpha Cutout (Anti-Holes):");
+    ImGui::SetNextItemWidth(360.0f);
+    if (ImGui::Combo("##FoliageAlphaMode", &a2m_idx, kA2mLabels, 4)) {
+      rex::cvar::SetFlagByName("majin_foliage_alpha_mode", kA2mValues[a2m_idx]);
+    }
+    DrawHintText("Overrides 360 Bayer 4x4 foliage/shadow dither & A2M holes. Smooth Fade keeps leaves solid (>=0.75) while preserving camera fade (hot-reload).");
   }
 
   ImGui::Spacing();

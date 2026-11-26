@@ -353,4 +353,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 Copy-Item -LiteralPath (Join-Path $patchRoot 'majin_dof_shaders.h') -Destination (Join-Path $source 'src\graphics\majin_dof_shaders.h') -Force
 
-Write-Host "[1.1 - 1.27] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"
+# 1.28: Apply Majin uniform Alpha-to-Mask foliage cutout modes (Vulkan + D3D12)
+$majinFoliageAlphaPatch = Join-Path $patchRoot 'majin-foliage-alpha-cutout.patch'
+git -C $source apply --reverse --check $majinFoliageAlphaPatch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git -C $source apply --check $majinFoliageAlphaPatch
+    Check-Native 'Majin foliage alpha cutout patch check'
+    git -C $source apply $majinFoliageAlphaPatch
+    Check-Native 'Majin foliage alpha cutout patch application'
+}
+
+Write-Host "[1.1 - 1.28] ReXGlue SDK source checked out, submodules initialized, and all patches applied successfully!"

@@ -1,0 +1,558 @@
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -86,6 +86,13 @@ class CommandProcessor {
+     kDeDitherFxaaExtreme,
+     kDeDitherDebug,
+   };
++
++  enum class AlphaToMaskMode : uint32_t {
++    kOriginal = 0,  // Native Xbox 360 Bayer 4x4 (1..16) & 2x2 A2M dither
++    kSmooth = 1,    // Anti-Hole + Smooth Fade: Bayer*0.75 (0.75..12.0), solid leaves >= 0.75, preserves camera fade
++    kSolid = 2,     // Uniform 0.50 alpha cutout (Bayer -> 8.0, A2M -> 0xAA) - zero holes, zero dithering
++    kLush = 3,      // Uniform 0.25 alpha cutout (Bayer -> 4.0, A2M -> 0xFF) - fuller leaf fringes, zero holes
++  };
+ 
+   CommandProcessor(GraphicsSystem* graphics_system, system::KernelState* kernel_state);
+   virtual ~CommandProcessor();
+@@ -124,6 +131,11 @@ class CommandProcessor {
+   bool GetActualMajinDofBokeh() const {
+     return majin_dof_bokeh_actual_.load(std::memory_order_relaxed);
+   }
++  AlphaToMaskMode GetDesiredAlphaToMaskMode() const { return alpha_to_mask_mode_desired_; }
++  void SetDesiredAlphaToMaskMode(AlphaToMaskMode mode);
++  AlphaToMaskMode GetActualAlphaToMaskMode() const {
++    return alpha_to_mask_mode_actual_.load(std::memory_order_relaxed);
++  }
+   uint32_t GetPackedMajinDofParams() const {
+     float intensity = majin_dof_intensity_actual_.load(std::memory_order_relaxed);
+     if (intensity < 0.0f) intensity = 0.0f;
+@@ -366,6 +378,8 @@ class CommandProcessor {
+   std::atomic<float> majin_dof_intensity_actual_{0.40f};
+   bool majin_dof_bokeh_desired_ = true;
+   std::atomic<bool> majin_dof_bokeh_actual_{true};
++  AlphaToMaskMode alpha_to_mask_mode_desired_ = AlphaToMaskMode::kSolid;
++  std::atomic<AlphaToMaskMode> alpha_to_mask_mode_actual_{AlphaToMaskMode::kSolid};
+ 
+   // Set by backend command processors to their legacy memexport readback cvar
+   // name (for explicit-override compatibility).
+diff --git a/include/rex/graphics/pipeline/shader/shader.h b/include/rex/graphics/pipeline/shader/shader.h
+--- a/include/rex/graphics/pipeline/shader/shader.h
++++ b/include/rex/graphics/pipeline/shader/shader.h
+@@ -958,6 +958,10 @@ class Shader {
+     return (writes_color_targets() & (uint32_t(1) << i)) != 0;
+   }
+ 
++  // Majin: ALU instruction offset of the final scalar cndeq computing a 4x4 Bayer
++  // dither threshold (1..16) before foliage alpha kill_gt, or UINT32_MAX if none.
++  uint32_t majin_bayer_cndeq_instr_offset() const { return majin_bayer_cndeq_instr_offset_; }
++
+   // Host translations with the specified modification bits. Not thread-safe
+   // with respect to translation creation/destruction.
+   const std::unordered_map<uint64_t, Translation*>& translations() const { return translations_; }
+@@ -1053,8 +1057,10 @@ class Shader {
+   uint64_t fh1_memo_modification_ = 0;
+ 
+   uint32_t ucode_storage_index_ = UINT32_MAX;
++  uint32_t majin_bayer_cndeq_instr_offset_ = UINT32_MAX;
+ 
+  private:
++  void DetectMajinBayerDither();
+   void GatherExecInformation(const ParsedExecInstruction& instr,
+                              ucode::VertexFetchInstruction& previous_vfetch_full,
+                              uint32_t& unique_texture_bindings,
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -328,6 +328,17 @@ void CommandProcessor::SetDesiredMajinDofBokeh(bool bokeh) {
+   });
+ }
+ 
++void CommandProcessor::SetDesiredAlphaToMaskMode(AlphaToMaskMode mode) {
++  if (alpha_to_mask_mode_desired_ == mode) {
++    return;
++  }
++  alpha_to_mask_mode_desired_ = mode;
++  alpha_to_mask_mode_actual_.store(mode, std::memory_order_relaxed);
++  CallInThread([this, mode]() {
++    alpha_to_mask_mode_actual_.store(mode, std::memory_order_relaxed);
++  });
++}
++
+ void CommandProcessor::WorkerThreadMain() {
+   if (!SetupContext()) {
+     rex::FatalError("Unable to setup command processor internal state");
+diff --git a/src/graphics/graphics_system.cpp b/src/graphics/graphics_system.cpp
+--- a/src/graphics/graphics_system.cpp
++++ b/src/graphics/graphics_system.cpp
+@@ -54,6 +54,11 @@ REXCVAR_DEFINE_STRING(majin_dof_mode, "bokeh", "GPU",
+     .allowed({"bokeh", "native"})
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++REXCVAR_DEFINE_STRING(majin_foliage_alpha_mode, "solid", "GPU",
++                      "Foliage alpha cutout mode: solid (uniform 0.50), smooth (anti-hole + camera fade), lush (uniform 0.25), or original (360 dither)")
++    .allowed({"solid", "smooth", "lush", "original"})
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ REXCVAR_DEFINE_BOOL(store_shaders, true, "GPU",
+                     "Store shaders persistently and load them when loading games to avoid "
+                     "runtime spikes and freezes when playing the game not for the first time.");
+@@ -220,6 +225,31 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+         }
+       });
+ 
++  auto parse_a2m_mode = [](std::string_view v) -> CommandProcessor::AlphaToMaskMode {
++    std::string lowered(v);
++    std::transform(lowered.begin(), lowered.end(), lowered.begin(),
++                   [](unsigned char c) { return char(std::tolower(c)); });
++    if (lowered == "original" || lowered == "native" || lowered == "dither") {
++      return CommandProcessor::AlphaToMaskMode::kOriginal;
++    }
++    if (lowered == "smooth" || lowered == "fade" || lowered == "hybrid" || lowered == "antihole") {
++      return CommandProcessor::AlphaToMaskMode::kSmooth;
++    }
++    if (lowered == "lush" || lowered == "full") {
++      return CommandProcessor::AlphaToMaskMode::kLush;
++    }
++    return CommandProcessor::AlphaToMaskMode::kSolid;
++  };
++  command_processor_->SetDesiredAlphaToMaskMode(
++      parse_a2m_mode(REXCVAR_GET(majin_foliage_alpha_mode)));
++  rex::cvar::RegisterChangeCallback(
++      "majin_foliage_alpha_mode",
++      [this, parse_a2m_mode](std::string_view, std::string_view new_value) {
++        if (command_processor_) {
++          command_processor_->SetDesiredAlphaToMaskMode(parse_a2m_mode(new_value));
++        }
++      });
++
+   // Register GPU MMIO handlers
+   // GPU registers are at 0x7FC80000-0x7FCFFFFF
+   memory_->AddVirtualMappedRange(0x7FC80000,  // base address
+@@ -308,6 +338,7 @@ X_STATUS GraphicsSystem::SetupGuestGpu(runtime::FunctionDispatcher* function_dis
+ 
+ void GraphicsSystem::Shutdown() {
+   rex::cvar::UnregisterChangeCallbacks("swap_post_effect");
++  rex::cvar::UnregisterChangeCallbacks("majin_foliage_alpha_mode");
+   if (command_processor_) {
+     command_processor_->Shutdown();
+     command_processor_.reset();
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -11960,6 +11960,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+       flags |= SpirvShaderTranslator::kSysFlag_FSIDepthStencilEarlyWrite;
+     }
+   }
++  const AlphaToMaskMode a2m_mode = GetActualAlphaToMaskMode();
++  flags |= (uint32_t(a2m_mode) & 3u)
++           << SpirvShaderTranslator::kSysFlag_MajinFoliageAlphaMode_Shift;
+   dirty |= system_constants_.flags != flags;
+   system_constants_.flags = flags;
+ 
+@@ -12150,11 +12153,34 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+     }
+   }
+ 
+-  // Alpha test.
+-  dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
+-  system_constants_.alpha_test_reference = rb_alpha_ref;
+-  uint32_t alpha_to_mask =
+-      rb_colorcontrol.alpha_to_mask_enable ? (rb_colorcontrol.value >> 24) | (UINT32_C(1) << 8) : 0;
++  // Alpha test and alpha to mask (supports uniform cutout & smooth fade modes).
++  float alpha_test_ref = rb_alpha_ref;
++  uint32_t alpha_to_mask = 0;
++  if (rb_colorcontrol.alpha_to_mask_enable) {
++    if (a2m_mode == AlphaToMaskMode::kSolid) {
++      alpha_to_mask = 0xAAu | (UINT32_C(1) << 8);
++    } else if (a2m_mode == AlphaToMaskMode::kLush) {
++      alpha_to_mask = 0xFFu | (UINT32_C(1) << 8);
++      if (rb_colorcontrol.alpha_test_enable &&
++          (rb_colorcontrol.alpha_func == xenos::CompareFunction::kGreater ||
++           rb_colorcontrol.alpha_func == xenos::CompareFunction::kGreaterEqual)) {
++        alpha_test_ref = std::min(alpha_test_ref, 0.25f);
++      }
++    } else if (a2m_mode == AlphaToMaskMode::kSmooth) {
++      uint32_t raw_offsets = (rb_colorcontrol.value >> 24) & 0xFFu;
++      uint32_t smooth_offsets = 0;
++      for (uint32_t s = 0; s < 8; s += 2) {
++        uint32_t off = (raw_offsets >> s) & 3u;
++        if (off == 0u) off = 1u;
++        smooth_offsets |= off << s;
++      }
++      alpha_to_mask = smooth_offsets | (UINT32_C(1) << 8);
++    } else {
++      alpha_to_mask = (rb_colorcontrol.value >> 24) | (UINT32_C(1) << 8);
++    }
++  }
++  dirty |= system_constants_.alpha_test_reference != alpha_test_ref;
++  system_constants_.alpha_test_reference = alpha_test_ref;
+   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
+   system_constants_.alpha_to_mask = alpha_to_mask;
+ 
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -4691,6 +4691,8 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
+       flags |= DxbcShaderTranslator::kSysFlag_ROVDepthStencilEarlyWrite;
+     }
+   }
++  const AlphaToMaskMode a2m_mode = GetActualAlphaToMaskMode();
++  flags |= (uint32_t(a2m_mode) & 3u) << DxbcShaderTranslator::kSysFlag_MajinFoliageAlphaMode_Shift;
+   dirty |= system_constants_.flags != flags;
+   system_constants_.flags = flags;
+ 
+@@ -4813,11 +4815,34 @@ void D3D12CommandProcessor::UpdateSystemConstantValues(
+   system_constants_.sample_count_log2[0] = sample_count_log2_x;
+   system_constants_.sample_count_log2[1] = sample_count_log2_y;
+ 
+-  // Alpha test and alpha to coverage.
+-  dirty |= system_constants_.alpha_test_reference != rb_alpha_ref;
+-  system_constants_.alpha_test_reference = rb_alpha_ref;
+-  uint32_t alpha_to_mask =
+-      rb_colorcontrol.alpha_to_mask_enable ? (rb_colorcontrol.value >> 24) | (1 << 8) : 0;
++  // Alpha test and alpha to coverage (supports uniform cutout & smooth fade modes).
++  float alpha_test_ref = rb_alpha_ref;
++  uint32_t alpha_to_mask = 0;
++  if (rb_colorcontrol.alpha_to_mask_enable) {
++    if (a2m_mode == AlphaToMaskMode::kSolid) {
++      alpha_to_mask = 0xAAu | (1u << 8);
++    } else if (a2m_mode == AlphaToMaskMode::kLush) {
++      alpha_to_mask = 0xFFu | (1u << 8);
++      if (rb_colorcontrol.alpha_test_enable &&
++          (rb_colorcontrol.alpha_func == xenos::CompareFunction::kGreater ||
++           rb_colorcontrol.alpha_func == xenos::CompareFunction::kGreaterEqual)) {
++        alpha_test_ref = std::min(alpha_test_ref, 0.25f);
++      }
++    } else if (a2m_mode == AlphaToMaskMode::kSmooth) {
++      uint32_t raw_offsets = (rb_colorcontrol.value >> 24) & 0xFFu;
++      uint32_t smooth_offsets = 0;
++      for (uint32_t s = 0; s < 8; s += 2) {
++        uint32_t off = (raw_offsets >> s) & 3u;
++        if (off == 0u) off = 1u;
++        smooth_offsets |= off << s;
++      }
++      alpha_to_mask = smooth_offsets | (1u << 8);
++    } else {
++      alpha_to_mask = (rb_colorcontrol.value >> 24) | (1u << 8);
++    }
++  }
++  dirty |= system_constants_.alpha_test_reference != alpha_test_ref;
++  system_constants_.alpha_test_reference = alpha_test_ref;
+   dirty |= system_constants_.alpha_to_mask != alpha_to_mask;
+   system_constants_.alpha_to_mask = alpha_to_mask;
+ 
+diff --git a/include/rex/graphics/pipeline/shader/dxbc_translator.h b/include/rex/graphics/pipeline/shader/dxbc_translator.h
+index 3b0fd61..387e580 100644
+--- a/include/rex/graphics/pipeline/shader/dxbc_translator.h
++++ b/include/rex/graphics/pipeline/shader/dxbc_translator.h
+@@ -237,7 +237,9 @@ class DxbcShaderTranslator : public ShaderTranslator {
+     // should be safe at least temporarily).
+     kSysFlag_ROVDepthStencilEarlyWrite_Shift,
+ 
+-    kSysFlag_Count,
++    // Majin: 2-bit foliage alpha cutout mode (0=original, 1=smooth, 2=solid, 3=lush).
++    kSysFlag_MajinFoliageAlphaMode_Shift,
++    kSysFlag_Count = kSysFlag_MajinFoliageAlphaMode_Shift + 2,
+ 
+     kSysFlag_SharedMemoryIsUAV = 1u << kSysFlag_SharedMemoryIsUAV_Shift,
+     kSysFlag_XYDividedByW = 1u << kSysFlag_XYDividedByW_Shift,
+diff --git a/include/rex/graphics/pipeline/shader/spirv_translator.h b/include/rex/graphics/pipeline/shader/spirv_translator.h
+index 4bd4a4c..069dee6 100644
+--- a/include/rex/graphics/pipeline/shader/spirv_translator.h
++++ b/include/rex/graphics/pipeline/shader/spirv_translator.h
+@@ -163,7 +163,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
+     // should be safe at least temporarily).
+     kSysFlag_FSIDepthStencilEarlyWrite_Shift,
+ 
+-    kSysFlag_Count,
++    // Majin: 2-bit foliage alpha cutout mode (0=original, 1=smooth, 2=solid, 3=lush).
++    kSysFlag_MajinFoliageAlphaMode_Shift,
++    kSysFlag_Count = kSysFlag_MajinFoliageAlphaMode_Shift + 2,
+ 
+     // For HostVertexShaderType kVertex, if fullDrawIndexUint32 is not
+     // supported (ignored otherwise), whether to fetch the index manually
+diff --git a/include/rex/graphics/pipeline/shader/translator.h b/include/rex/graphics/pipeline/shader/translator.h
+index 340ced5..a0b8ad5 100644
+--- a/include/rex/graphics/pipeline/shader/translator.h
++++ b/include/rex/graphics/pipeline/shader/translator.h
+@@ -64,6 +64,9 @@ class ShaderTranslator {
+   // Temporary register count, accessible via static and dynamic addressing.
+   uint32_t register_count() const { return register_count_; }
+ 
++  // Current ALU instruction offset within ucode_data_ (in 3-dword instruction units).
++  uint32_t current_alu_instr_offset() const { return current_alu_instr_offset_; }
++
+   // Emits a translation error that will be passed back in the result.
+   virtual void EmitTranslationError(const char* message, bool is_fatal = true);
+ 
+@@ -146,6 +149,8 @@ class ShaderTranslator {
+ 
+   // Current control flow dword index.
+   uint32_t cf_index_ = 0;
++  // Current ALU instruction offset (in 3-dword instruction units).
++  uint32_t current_alu_instr_offset_ = UINT32_MAX;
+ 
+   // Kept for supporting vfetch_mini.
+   ucode::VertexFetchInstruction previous_vfetch_full_;
+diff --git a/src/graphics/pipeline/shader/dxbc_translator_alu.cpp b/src/graphics/pipeline/shader/dxbc_translator_alu.cpp
+index 66834e5..255adfa 100644
+--- a/src/graphics/pipeline/shader/dxbc_translator_alu.cpp
++++ b/src/graphics/pipeline/shader/dxbc_translator_alu.cpp
+@@ -164,6 +164,35 @@ void DxbcShaderTranslator::ProcessVectorAluOperation(
+     case AluVectorOpcode::kCndEq:
+       a_.OpEq(per_component_dest, operands[0], dxbc::Src::LF(0.0f));
+       a_.OpMovC(per_component_dest, dxbc::Src::R(system_temp_result_), operands[1], operands[2]);
++      if (is_pixel_shader() && rex::bit_count(used_result_components) == 1 &&
++          current_alu_instr_offset() == current_shader().majin_bayer_cndeq_instr_offset()) {
++        // Majin: Dynamically transform 4x4 Bayer dither threshold (1..16) according to
++        // majin_foliage_alpha_mode encoded in system constants flags:
++        //   0 (original): native 1..16 Bayer
++        //   1 (smooth):   bayer * 0.75 (0.75..12.0) - solid leaves >= 0.75, preserves camera fade
++        //   2 (solid):    uniform 8.0 (alpha >= 0.50 cutout)
++        //   3 (lush):     uniform 4.0 (alpha >= 0.25 cutout)
++        uint32_t bayer_comp = 0;
++        rex::bit_scan_forward(used_result_components, &bayer_comp);
++        dxbc::Src bayer_src(dxbc::Src::R(system_temp_result_).Select(bayer_comp));
++        uint32_t mode_temp = PushSystemTemp();
++        a_.OpUBFE(dxbc::Dest::R(mode_temp, 0b0001), dxbc::Src::LU(2),
++                  dxbc::Src::LU(kSysFlag_MajinFoliageAlphaMode_Shift), LoadFlagsSystemConstant());
++        a_.OpMul(dxbc::Dest::R(mode_temp, 0b0100), bayer_src, dxbc::Src::LF(0.75f));
++        a_.OpIEq(dxbc::Dest::R(mode_temp, 0b0010), dxbc::Src::R(mode_temp, dxbc::Src::kXXXX),
++                 dxbc::Src::LU(1));
++        a_.OpMovC(per_component_dest, dxbc::Src::R(mode_temp, dxbc::Src::kYYYY),
++                  dxbc::Src::R(mode_temp, dxbc::Src::kZZZZ), bayer_src);
++        a_.OpIEq(dxbc::Dest::R(mode_temp, 0b0010), dxbc::Src::R(mode_temp, dxbc::Src::kXXXX),
++                 dxbc::Src::LU(2));
++        a_.OpMovC(per_component_dest, dxbc::Src::R(mode_temp, dxbc::Src::kYYYY),
++                  dxbc::Src::LF(8.0f), bayer_src);
++        a_.OpIEq(dxbc::Dest::R(mode_temp, 0b0010), dxbc::Src::R(mode_temp, dxbc::Src::kXXXX),
++                 dxbc::Src::LU(3));
++        a_.OpMovC(per_component_dest, dxbc::Src::R(mode_temp, dxbc::Src::kYYYY),
++                  dxbc::Src::LF(4.0f), bayer_src);
++        PopSystemTemp();
++      }
+       break;
+     case AluVectorOpcode::kCndGe:
+       a_.OpGE(per_component_dest, operands[0], dxbc::Src::LF(0.0f));
+diff --git a/src/graphics/pipeline/shader/spirv_translator_alu.cpp b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
+index 706ac7e..f24bbae 100644
+--- a/src/graphics/pipeline/shader/spirv_translator_alu.cpp
++++ b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
+@@ -421,8 +421,8 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
+ 
+     case ucode::AluVectorOpcode::kCndEq:
+     case ucode::AluVectorOpcode::kCndGe:
+-    case ucode::AluVectorOpcode::kCndGt:
+-      return builder_->createTriOp(
++    case ucode::AluVectorOpcode::kCndGt: {
++      spv::Id cnd_result = builder_->createTriOp(
+           spv::OpSelect, result_type,
+           builder_->createBinOp(spv::Op(kOps[size_t(instr.vector_opcode)]),
+                                 type_bool_vectors_[used_result_component_count - 1],
+@@ -433,6 +433,36 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
+                                used_result_components),
+           GetOperandComponents(operand_storage[2], instr.vector_operands[2],
+                                used_result_components));
++      if (instr.vector_opcode == ucode::AluVectorOpcode::kCndEq && is_pixel_shader() &&
++          used_result_component_count == 1 &&
++          current_alu_instr_offset() == current_shader().majin_bayer_cndeq_instr_offset()) {
++        // Majin: Dynamically transform 4x4 Bayer dither threshold (1..16) according to
++        // majin_foliage_alpha_mode encoded in system constants flags bits 30:31:
++        //   0 (original): native 1..16 Bayer
++        //   1 (smooth):   bayer * 0.75 (0.75..12.0) - solid leaves >= 0.75, preserves camera fade
++        //   2 (solid):    uniform 8.0 (alpha >= 0.50 cutout)
++        //   3 (lush):     uniform 4.0 (alpha >= 0.25 cutout)
++        spv::Id mode = builder_->createTriOp(
++            spv::OpBitFieldUExtract, type_uint_, main_system_constant_flags_,
++            builder_->makeUintConstant(kSysFlag_MajinFoliageAlphaMode_Shift),
++            builder_->makeUintConstant(2));
++        spv::Id smooth_val = builder_->createNoContractionBinOp(
++            spv::OpFMul, type_float_, cnd_result, builder_->makeFloatConstant(0.75f));
++        spv::Id is_smooth = builder_->createBinOp(spv::OpIEqual, type_bool_, mode,
++                                                  builder_->makeUintConstant(1));
++        spv::Id is_solid = builder_->createBinOp(spv::OpIEqual, type_bool_, mode,
++                                                 builder_->makeUintConstant(2));
++        spv::Id is_lush = builder_->createBinOp(spv::OpIEqual, type_bool_, mode,
++                                                builder_->makeUintConstant(3));
++        cnd_result = builder_->createTriOp(spv::OpSelect, type_float_, is_smooth, smooth_val,
++                                           cnd_result);
++        cnd_result = builder_->createTriOp(spv::OpSelect, type_float_, is_solid,
++                                           builder_->makeFloatConstant(8.0f), cnd_result);
++        cnd_result = builder_->createTriOp(spv::OpSelect, type_float_, is_lush,
++                                           builder_->makeFloatConstant(4.0f), cnd_result);
++      }
++      return cnd_result;
++    }
+ 
+     case ucode::AluVectorOpcode::kDp4:
+     case ucode::AluVectorOpcode::kDp3:
+diff --git a/src/graphics/pipeline/shader/translator.cpp b/src/graphics/pipeline/shader/translator.cpp
+index 9d23a41..2a46eae 100644
+--- a/src/graphics/pipeline/shader/translator.cpp
++++ b/src/graphics/pipeline/shader/translator.cpp
+@@ -312,6 +312,10 @@ void Shader::AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer) {
+ 
+   is_ucode_analyzed_ = true;
+ 
++  if (type() == xenos::ShaderType::kPixel && kills_pixels_) {
++    DetectMajinBayerDither();
++  }
++
+   // An empty shader can be created internally by shader translators as a dummy,
+   // don't dump it.
+   if (!REXCVAR_GET(dump_shaders).empty() && !ucode_data().empty()) {
+@@ -319,6 +323,145 @@ void Shader::AnalyzeUcode(string::StringBuffer& ucode_disasm_buffer) {
+   }
+ }
+ 
++void Shader::DetectMajinBayerDither() {
++  // Detects Majin's ALU-evaluated 4x4 Bayer screen-door dither pattern:
++  //   3 vector cndeq (write_mask == 0b1111, selecting row from high literal constants c248..c255)
++  //   3 scalar cndeq (1-component writes, selecting column element from row_reg)
++  //   immediately followed by add(..., -bayer) or mad(..., ..., -bayer).
++  uint32_t vec_cndeq_count = 0;
++  uint32_t row_reg = UINT32_MAX;
++  uint32_t scalar_stage = 0;
++  uint32_t s_reg = UINT32_MAX;
++  uint32_t s_comp = 0;
++  uint32_t candidate_offset = UINT32_MAX;
++
++  for (uint32_t i = 0; i < cf_pair_index_bound_; ++i) {
++    ControlFlowInstruction cf_ab[2];
++    UnpackControlFlowInstructions(ucode_data_.data() + i * 3, cf_ab);
++    for (uint32_t j = 0; j < 2; ++j) {
++      const ControlFlowInstruction& cf = cf_ab[j];
++      if (!IsControlFlowOpcodeExec(cf.opcode())) {
++        continue;
++      }
++      uint32_t cf_index = i * 2 + j;
++      ParsedExecInstruction exec_instr;
++      switch (cf.opcode()) {
++        case ControlFlowOpcode::kExec:
++        case ControlFlowOpcode::kExecEnd:
++          ParseControlFlowExec(cf.exec, cf_index, exec_instr);
++          break;
++        case ControlFlowOpcode::kCondExec:
++        case ControlFlowOpcode::kCondExecEnd:
++        case ControlFlowOpcode::kCondExecPredClean:
++        case ControlFlowOpcode::kCondExecPredCleanEnd:
++          ParseControlFlowCondExec(cf.cond_exec, cf_index, exec_instr);
++          break;
++        case ControlFlowOpcode::kCondExecPred:
++        case ControlFlowOpcode::kCondExecPredEnd:
++          ParseControlFlowCondExecPred(cf.cond_exec_pred, cf_index, exec_instr);
++          break;
++        default:
++          continue;
++      }
++      uint32_t sequence = exec_instr.sequence;
++      for (uint32_t instr_offset = exec_instr.instruction_address;
++           instr_offset < exec_instr.instruction_address + exec_instr.instruction_count;
++           ++instr_offset, sequence >>= 2) {
++        if (sequence & 0b01) {
++          continue;
++        }
++        auto& op = *reinterpret_cast<const AluInstruction*>(ucode_data_.data() + instr_offset * 3);
++        ParsedAluInstruction instr;
++        ParseAluInstruction(op, type(), instr);
++        if (instr.IsNop()) {
++          continue;
++        }
++
++        if (candidate_offset != UINT32_MAX) {
++          const uint32_t dst_wm = instr.vector_and_constant_result.GetUsedWriteMask();
++          bool confirmed = false;
++          if (!instr.is_predicated && rex::bit_count(dst_wm) == 1) {
++            uint32_t dst_comp = 0;
++            rex::bit_scan_forward(dst_wm, &dst_comp);
++            auto is_neg_bayer = [&](const InstructionOperand& oper) {
++              return oper.storage_source == InstructionStorageSource::kRegister &&
++                     oper.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
++                     oper.storage_index == s_reg && oper.is_negated && !oper.is_absolute_value &&
++                     oper.GetComponent(dst_comp) == GetSwizzleFromComponentIndex(s_comp);
++            };
++            if (instr.vector_opcode == AluVectorOpcode::kAdd &&
++                is_neg_bayer(instr.vector_operands[1])) {
++              confirmed = true;
++            } else if (instr.vector_opcode == AluVectorOpcode::kMad &&
++                       is_neg_bayer(instr.vector_operands[2])) {
++              confirmed = true;
++            }
++          }
++          if (confirmed) {
++            majin_bayer_cndeq_instr_offset_ = candidate_offset;
++            return;
++          }
++          candidate_offset = UINT32_MAX;
++          scalar_stage = 0;
++        }
++
++        if (instr.vector_opcode != AluVectorOpcode::kCndEq || instr.is_predicated ||
++            instr.vector_and_constant_result.storage_target != InstructionStorageTarget::kRegister ||
++            instr.vector_and_constant_result.storage_addressing_mode !=
++                InstructionStorageAddressingMode::kAbsolute) {
++          continue;
++        }
++
++        const uint32_t dst_wm = instr.vector_and_constant_result.GetUsedWriteMask();
++        const uint32_t dst_reg = instr.vector_and_constant_result.storage_index;
++        const InstructionOperand& op1 = instr.vector_operands[1];
++        const InstructionOperand& op2 = instr.vector_operands[2];
++
++        auto is_high_const = [](const InstructionOperand& oper) {
++          return oper.storage_source == InstructionStorageSource::kConstantFloat &&
++                 oper.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
++                 oper.storage_index >= 248 && !oper.is_negated && !oper.is_absolute_value;
++        };
++        auto is_reg = [](const InstructionOperand& oper, uint32_t reg) {
++          return oper.storage_source == InstructionStorageSource::kRegister &&
++                 oper.storage_addressing_mode == InstructionStorageAddressingMode::kAbsolute &&
++                 oper.storage_index == reg && !oper.is_negated && !oper.is_absolute_value;
++        };
++
++        if (dst_wm == 0b1111 && is_high_const(op1)) {
++          if (is_high_const(op2)) {
++            vec_cndeq_count = 1;
++            row_reg = dst_reg;
++            scalar_stage = 0;
++          } else if (vec_cndeq_count >= 1 && is_reg(op2, row_reg)) {
++            ++vec_cndeq_count;
++            row_reg = dst_reg;
++            scalar_stage = 0;
++          }
++        } else if (vec_cndeq_count >= 3 && rex::bit_count(dst_wm) == 1) {
++          uint32_t dst_comp = 0;
++          rex::bit_scan_forward(dst_wm, &dst_comp);
++          if (scalar_stage == 0 && is_reg(op1, row_reg) && is_reg(op2, row_reg)) {
++            scalar_stage = 1;
++            s_reg = dst_reg;
++            s_comp = dst_comp;
++          } else if (scalar_stage == 1 && is_reg(op1, row_reg) && is_reg(op2, s_reg) &&
++                     op2.GetComponent(dst_comp) == GetSwizzleFromComponentIndex(s_comp)) {
++            scalar_stage = 2;
++            s_reg = dst_reg;
++            s_comp = dst_comp;
++          } else if (scalar_stage == 2 && dst_reg == s_reg && dst_comp == s_comp &&
++                     is_reg(op1, row_reg) && is_reg(op2, s_reg) &&
++                     op2.GetComponent(dst_comp) == GetSwizzleFromComponentIndex(s_comp)) {
++            scalar_stage = 3;
++            candidate_offset = instr_offset;
++          }
++        }
++      }
++    }
++  }
++}
++
+ uint32_t Shader::GetInterpolatorInputMask(reg::SQ_PROGRAM_CNTL sq_program_cntl,
+                                           reg::SQ_CONTEXT_MISC sq_context_misc,
+                                           uint32_t& param_gen_pos_out) const {
+@@ -905,6 +1048,7 @@ void ShaderTranslator::TranslateExecInstructions(const ParsedExecInstruction& in
+       auto& op = *reinterpret_cast<const AluInstruction*>(op_ptr);
+       ParsedAluInstruction alu_instr;
+       ParseAluInstruction(op, current_shader().type(), alu_instr);
++      current_alu_instr_offset_ = instr_offset;
+       ProcessAluInstruction(alu_instr, eM_potentially_written_before);
+       if (alu_instr.vector_and_constant_result.storage_target ==
+               InstructionStorageTarget::kExportData &&

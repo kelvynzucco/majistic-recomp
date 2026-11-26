@@ -126,6 +126,10 @@ fn default_dof_mode() -> String {
     "bokeh".into()
 }
 
+fn default_foliage_alpha_mode() -> String {
+    "solid".into()
+}
+
 fn default_bloom_intensity() -> f64 {
     0.80
 }
@@ -268,6 +272,18 @@ where
     }
 }
 
+fn deserialize_nullable_foliage_alpha_mode<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    let trimmed = opt.unwrap_or_default().trim().to_ascii_lowercase();
+    match trimmed.as_str() {
+        "smooth" | "lush" | "original" | "solid" => Ok(trimmed),
+        _ => Ok("solid".into()),
+    }
+}
+
 fn deserialize_nullable_bool_false<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -303,6 +319,8 @@ pub struct Settings {
     pub post_effect: String,
     #[serde(rename = "DeDitherStrength", default = "default_dedither_strength", deserialize_with = "deserialize_nullable_f64")]
     pub dedither_strength: f64,
+    #[serde(rename = "FoliageAlphaMode", default = "default_foliage_alpha_mode", deserialize_with = "deserialize_nullable_foliage_alpha_mode")]
+    pub foliage_alpha_mode: String,
     #[serde(default = "default_upscaler")]
     pub upscaler: String,
     #[serde(default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
@@ -382,6 +400,7 @@ impl Default for Settings {
             vsync: true,
             post_effect: "dedither_fxaa".into(),
             dedither_strength: 0.85,
+            foliage_alpha_mode: "solid".into(),
             upscaler: "bilinear".into(),
             skip_intro_logos: false,
             skip_cutscenes: false,
@@ -1432,6 +1451,11 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.post_effect,
         "-DeDitherStrength".to_string(),
         settings.dedither_strength.to_string(),
+        "-FoliageAlphaMode".to_string(),
+        match settings.foliage_alpha_mode.as_str() {
+            "smooth" | "lush" | "original" | "solid" => settings.foliage_alpha_mode.clone(),
+            _ => "solid".to_string(),
+        },
         "-Upscaler".to_string(),
         settings.upscaler,
         "-RenderingPath".to_string(),

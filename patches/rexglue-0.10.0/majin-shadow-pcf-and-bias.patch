@@ -91,7 +91,7 @@ index 5e858c7..8379592 100644
                               ucode::VertexFetchInstruction& previous_vfetch_full,
                               uint32_t& unique_texture_bindings,
 diff --git a/include/rex/graphics/pipeline/shader/spirv_translator.h b/include/rex/graphics/pipeline/shader/spirv_translator.h
-index 069dee6..ef6bbef 100644
+index 069dee6..9b4fa07 100644
 --- a/include/rex/graphics/pipeline/shader/spirv_translator.h
 +++ b/include/rex/graphics/pipeline/shader/spirv_translator.h
 @@ -15,6 +15,7 @@
@@ -102,17 +102,18 @@ index 069dee6..ef6bbef 100644
  #include <utility>
  #include <vector>
  
-@@ -695,6 +696,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
+@@ -695,6 +696,10 @@ class SpirvShaderTranslator : public ShaderTranslator {
    spv::Id ProcessScalarAluOperation(const ParsedAluInstruction& instr,
                                      uint8_t memexport_eM_potentially_written_before,
                                      bool& predicate_written);
 +  // Majin: runtime-switchable sub-texel shadow PCF + Receiver Plane Depth Bias for KbPreZSSSM*.
 +  spv::Id EmitMajinShadowPcf(spv::Id original_lit, spv::Id receiver_z,
-+                             size_t image_binding_index, size_t sampler_binding_index);
++                             size_t image_binding_index, size_t sampler_binding_index,
++                             uint32_t cascade_index);
  
    // Perform endian swap of a uint scalar or vector.
    spv::Id EndianSwap32Uint(spv::Id value, spv::Id endian);
-@@ -927,6 +931,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
+@@ -927,6 +932,7 @@ class SpirvShaderTranslator : public ShaderTranslator {
      kSystemConstantFh1Native,
      kSystemConstantFh1NativeTextures,
      kSystemConstantFh1FullRasterTextures,
@@ -120,13 +121,22 @@ index 069dee6..ef6bbef 100644
      kSystemConstantFh1VrEye,
    };
    spv::Id uniform_system_constants_;
-@@ -1029,6 +1034,9 @@ class SpirvShaderTranslator : public ShaderTranslator {
+@@ -1029,6 +1035,18 @@ class SpirvShaderTranslator : public ShaderTranslator {
    // FH1 (#164), PS with fh1_dirt_seam: the interpolated u and its seam-safe replacement - float.
    spv::Id var_main_fh1_dirt_seam_u_;
    spv::Id var_main_fh1_dirt_seam_safe_u_;
-+  // Majin: saved normalized shadow UV (vec2) & texture/sampler binding indices per sgt offset.
++  // Majin: saved normalized shadow UV (vec2), uniform pre-branch cascade derivatives (vec3 uvz),
++  // and texture/sampler/cascade binding indices per sgt offset.
++  struct MajinShadowSgtBinding {
++    size_t image_binding_index;
++    size_t sampler_binding_index;
++    uint32_t cascade_index;
++  };
 +  spv::Id var_main_majin_shadow_uv_;
-+  std::unordered_map<uint32_t, std::pair<size_t, size_t>> majin_shadow_sgt_bindings_;
++  std::array<spv::Id, 3> var_main_majin_shadow_ddx_;
++  std::array<spv::Id, 3> var_main_majin_shadow_ddy_;
++  uint32_t majin_shadow_uniform_deriv_mask_ = 0;
++  std::unordered_map<uint32_t, MajinShadowSgtBinding> majin_shadow_sgt_bindings_;
    // float4[register_count()].
    spv::Id var_main_registers_;
    // Memory export variables are created only when needed.
@@ -261,19 +271,22 @@ index 8d3c61e..5644b1b 100644
      command_processor_->Shutdown();
      command_processor_.reset();
 diff --git a/src/graphics/pipeline/shader/spirv_translator.cpp b/src/graphics/pipeline/shader/spirv_translator.cpp
-index 4bc4b2c..1a10b9e 100644
+index 4bc4b2c..c1a2d16 100644
 --- a/src/graphics/pipeline/shader/spirv_translator.cpp
 +++ b/src/graphics/pipeline/shader/spirv_translator.cpp
-@@ -189,6 +189,8 @@ void SpirvShaderTranslator::Reset() {
+@@ -189,6 +189,11 @@ void SpirvShaderTranslator::Reset() {
    input_output_fh1_dirt_seam_ = spv::NoResult;
    var_main_fh1_dirt_seam_u_ = spv::NoResult;
    var_main_fh1_dirt_seam_safe_u_ = spv::NoResult;
 +  var_main_majin_shadow_uv_ = spv::NoResult;
++  var_main_majin_shadow_ddx_.fill(spv::NoResult);
++  var_main_majin_shadow_ddy_.fill(spv::NoResult);
++  majin_shadow_uniform_deriv_mask_ = 0;
 +  majin_shadow_sgt_bindings_.clear();
    output_per_vertex_member_count_ = 0;
    output_per_vertex_member_clip_distance_ = UINT32_MAX;
    output_per_vertex_member_cull_distance_ = UINT32_MAX;
-@@ -384,6 +386,8 @@ void SpirvShaderTranslator::StartTranslation() {
+@@ -384,6 +389,8 @@ void SpirvShaderTranslator::StartTranslation() {
        {"fh1_native", offsetof(SystemConstants, fh1_native), type_float4_},
        {"fh1_native_textures", offsetof(SystemConstants, fh1_native_textures), type_uint_},
        {"fh1_full_raster_textures", offsetof(SystemConstants, fh1_full_raster_textures), type_uint_},
@@ -282,7 +295,7 @@ index 4bc4b2c..1a10b9e 100644
        {"fh1_vr_eye", offsetof(SystemConstants, fh1_vr_eye), type_float4_},
    };
    id_vector_temp_.clear();
-@@ -584,6 +588,11 @@ void SpirvShaderTranslator::StartTranslation() {
+@@ -584,6 +591,37 @@ void SpirvShaderTranslator::StartTranslation() {
      var_main_tfetch_gradients_v_ =
          builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float3_,
                                   "xe_var_tfetch_gradients_v", const_float3_0_);
@@ -290,15 +303,134 @@ index 4bc4b2c..1a10b9e 100644
 +      var_main_majin_shadow_uv_ =
 +          builder_->createVariable(spv::NoPrecision, spv::StorageClassFunction, type_float2_,
 +                                   "xe_var_majin_shadow_uv", const_float2_0_);
++      static const char* const kMajinShadowDdxNames[3] = {
++          "xe_var_majin_shadow_ddx_0",
++          "xe_var_majin_shadow_ddx_1",
++          "xe_var_majin_shadow_ddx_2",
++      };
++      static const char* const kMajinShadowDdyNames[3] = {
++          "xe_var_majin_shadow_ddy_0",
++          "xe_var_majin_shadow_ddy_1",
++          "xe_var_majin_shadow_ddy_2",
++      };
++      uint32_t lookup_cascade_mask = 0;
++      for (const auto& entry : current_shader().majin_shadow_lookups()) {
++        if (entry.fetch_constant >= 5u && entry.fetch_constant <= 7u) {
++          lookup_cascade_mask |= UINT32_C(1) << (7u - entry.fetch_constant);
++        }
++      }
++      for (uint32_t c = 0; c < 3u; ++c) {
++        if (lookup_cascade_mask & (UINT32_C(1) << c)) {
++          var_main_majin_shadow_ddx_[c] = builder_->createVariable(
++              spv::NoPrecision, spv::StorageClassFunction, type_float3_, kMajinShadowDdxNames[c],
++              const_float3_0_);
++          var_main_majin_shadow_ddy_[c] = builder_->createVariable(
++              spv::NoPrecision, spv::StorageClassFunction, type_float3_, kMajinShadowDdyNames[c],
++              const_float3_0_);
++        }
++      }
 +    }
      if (register_count()) {
        spv::Id type_register_array =
            builder_->makeArrayType(type_float4_, builder_->makeUintConstant(register_count()), 1);
+@@ -3396,6 +3434,92 @@ void SpirvShaderTranslator::StartFragmentShaderInMain() {
+                                     id_vector_temp_));
+   }
+ 
++  // Majin: pre-compute per-cascade shadow UV & receiver-Z derivatives in uniform control flow
++  // before any predicated (p0) cascade branch. In KbPreZSSSM2/3, each cascade (tf7<-r3, tf6<-r4,
++  // tf5<-r5) is sampled inside an `if (p0)` branch split by viewZ; evaluating OpDPdxFine/OpDPdyFine
++  // inside that branch causes 2x2 quads straddling a cascade split plane to read inactive lanes,
++  // disabling RPB and leaving a moving 2px horizontal dark line on sunlit two-sided floors.
++  if (!current_shader().majin_shadow_lookups().empty()) {
++    uint32_t cascade_mask = 0;
++    for (const auto& entry : current_shader().majin_shadow_lookups()) {
++      if (entry.fetch_constant >= 5u && entry.fetch_constant <= 7u) {
++        const uint32_t c = 7u - entry.fetch_constant;
++        const uint32_t interp_reg = 3u + c;
++        if (interp_reg != param_gen_interpolator && interp_reg < xenos::kMaxInterpolators &&
++            (interpolator_mask & (UINT32_C(1) << interp_reg)) &&
++            input_output_interpolators_[interp_reg] != spv::NoResult &&
++            var_main_majin_shadow_ddx_[c] != spv::NoResult &&
++            var_main_majin_shadow_ddy_[c] != spv::NoResult) {
++          cascade_mask |= UINT32_C(1) << c;
++        }
++      }
++    }
++    majin_shadow_uniform_deriv_mask_ = cascade_mask;
++    if (cascade_mask != 0) {
++      builder_->addCapability(spv::CapabilityDerivativeControl);
++      id_vector_temp_.clear();
++      id_vector_temp_.push_back(builder_->makeIntConstant(kSystemConstantMajinShadowParams));
++      spv::Id shadow_params = builder_->createLoad(
++          builder_->createAccessChain(spv::StorageClassUniform, uniform_system_constants_,
++                                      id_vector_temp_),
++          spv::NoPrecision);
++      spv::Id pcf_mode = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, shadow_params,
++                                               const_uint_0_, builder_->makeUintConstant(2));
++      spv::Id rpb_bit = builder_->createTriOp(spv::OpBitFieldUExtract, type_uint_, shadow_params,
++                                              builder_->makeUintConstant(2),
++                                              builder_->makeUintConstant(1));
++      spv::Id need_rpb = builder_->createBinOp(
++          spv::OpLogicalAnd, type_bool_,
++          builder_->createBinOp(spv::OpINotEqual, type_bool_, pcf_mode, const_uint_0_),
++          builder_->createBinOp(spv::OpINotEqual, type_bool_, rpb_bit, const_uint_0_));
++
++      // Dynamically uniform branch: skips derivative ALU completely in Original 360 or RPB-off mode.
++      SpirvBuilder::IfBuilder if_need_rpb(need_rpb, spv::SelectionControlDontFlattenMask,
++                                          *builder_);
++      {
++        spv::Id const_half = builder_->makeFloatConstant(0.5f);
++        spv::Id const_neg_half = builder_->makeFloatConstant(-0.5f);
++        spv::Id const_z_max = builder_->makeFloatConstant(0.999f);
++        spv::Id const_w_eps = builder_->makeFloatConstant(1e-6f);
++        for (uint32_t c = 0; c < 3u; ++c) {
++          if (!(cascade_mask & (UINT32_C(1) << c))) {
++            continue;
++          }
++          spv::Id clip =
++              builder_->createLoad(input_output_interpolators_[3u + c], spv::NoPrecision);
++          spv::Id clip_x = builder_->createCompositeExtract(clip, type_float_, 0);
++          spv::Id clip_y = builder_->createCompositeExtract(clip, type_float_, 1);
++          spv::Id clip_z = builder_->createCompositeExtract(clip, type_float_, 2);
++          spv::Id clip_w = builder_->createCompositeExtract(clip, type_float_, 3);
++          spv::Id abs_w = builder_->createUnaryBuiltinCall(type_float_, ext_inst_glsl_std_450_,
++                                                           GLSLstd450FAbs, clip_w);
++          spv::Id safe_w = builder_->createTriOp(
++              spv::OpSelect, type_float_,
++              builder_->createBinOp(spv::OpFOrdGreaterThan, type_bool_, abs_w, const_w_eps),
++              clip_w, const_float_1_);
++          spv::Id inv_w = builder_->createNoContractionBinOp(spv::OpFDiv, type_float_,
++                                                             const_float_1_, safe_w);
++          spv::Id u = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_, clip_x,
++              builder_->createNoContractionBinOp(spv::OpFMul, type_float_, const_half, inv_w));
++          spv::Id v = builder_->createNoContractionBinOp(
++              spv::OpFMul, type_float_, clip_y,
++              builder_->createNoContractionBinOp(spv::OpFMul, type_float_, const_neg_half, inv_w));
++          spv::Id z_raw =
++              builder_->createNoContractionBinOp(spv::OpFMul, type_float_, clip_z, inv_w);
++          spv::Id z = builder_->createBinBuiltinCall(type_float_, ext_inst_glsl_std_450_,
++                                                     GLSLstd450NMin, z_raw, const_z_max);
++          spv::Id uvz = builder_->createCompositeConstruct(type_float3_, {u, v, z});
++          spv::Id ddx = builder_->createUnaryOp(spv::OpDPdxFine, type_float3_, uvz);
++          spv::Id ddy = builder_->createUnaryOp(spv::OpDPdyFine, type_float3_, uvz);
++          builder_->createStore(ddx, var_main_majin_shadow_ddx_[c]);
++          builder_->createStore(ddy, var_main_majin_shadow_ddy_[c]);
++        }
++      }
++      if_need_rpb.makeEndIf();
++    }
++  }
++
+   // FH1 (#164): seam-safe dirt map u. The car's dirt map is wrapped round the body, its u taken
+   // from an angle in the vertex shader, so u is about 1 on one side of the front centre line and
+   // about 0 on the other: the triangles across that line interpolate it the long way round and
 diff --git a/src/graphics/pipeline/shader/spirv_translator_alu.cpp b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
-index f24bbae..95e0d3e 100644
+index f24bbae..d27e868 100644
 --- a/src/graphics/pipeline/shader/spirv_translator_alu.cpp
 +++ b/src/graphics/pipeline/shader/spirv_translator_alu.cpp
-@@ -399,17 +399,26 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
+@@ -399,17 +399,28 @@ spv::Id SpirvShaderTranslator::ProcessVectorAluOperation(
      case ucode::AluVectorOpcode::kSeq:
      case ucode::AluVectorOpcode::kSgt:
      case ucode::AluVectorOpcode::kSge:
@@ -324,7 +456,9 @@ index f24bbae..95e0d3e 100644
 +          used_result_component_count == 1 && var_main_majin_shadow_uv_ != spv::NoResult) {
 +        auto it = majin_shadow_sgt_bindings_.find(current_alu_instr_offset());
 +        if (it != majin_shadow_sgt_bindings_.end()) {
-+          cmp_result = EmitMajinShadowPcf(cmp_result, op1, it->second.first, it->second.second);
++          cmp_result = EmitMajinShadowPcf(cmp_result, op1, it->second.image_binding_index,
++                                          it->second.sampler_binding_index,
++                                          it->second.cascade_index);
 +        }
 +      }
 +      return cmp_result;
@@ -332,13 +466,14 @@ index f24bbae..95e0d3e 100644
  
      case ucode::AluVectorOpcode::kFrc:
      case ucode::AluVectorOpcode::kTrunc:
-@@ -1228,4 +1237,372 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
+@@ -1228,4 +1239,399 @@ spv::Id SpirvShaderTranslator::ProcessScalarAluOperation(
    return spv::NoResult;
  }
  
 +spv::Id SpirvShaderTranslator::EmitMajinShadowPcf(spv::Id original_lit, spv::Id receiver_z,
 +                                                  size_t image_binding_index,
-+                                                  size_t sampler_binding_index) {
++                                                  size_t sampler_binding_index,
++                                                  uint32_t cascade_index) {
 +  // Load packed Majin shadow params from SystemConstants::fh1_padding[1]:
 +  //   bits 0..1: pcf_mode (0=original 1-tap, 1=2x2 bilinear, 2=4x4 cubic B-spline, 3=6x6 tent)
 +  //   bit  2:    receiver_plane_bias_enable (0=off, 1=on)
@@ -400,16 +535,42 @@ index f24bbae..95e0d3e 100644
 +                                            builder_->makeUintConstant(1));
 +    spv::Id rpb_on = builder_->createBinOp(spv::OpINotEqual, type_bool_, rpb_bit, const_uint_0_);
 +
-+    builder_->addCapability(spv::CapabilityDerivativeControl);
-+    spv::Id dtx_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float2_, texel_coord);
-+    spv::Id dtx_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float2_, texel_coord);
-+    spv::Id dz_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float_, receiver_z);
-+    spv::Id dz_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float_, receiver_z);
++    spv::Id dtx_dx_x, dtx_dx_y, dtx_dy_x, dtx_dy_y, dz_dx, dz_dy;
++    if (cascade_index < 3u &&
++        (majin_shadow_uniform_deriv_mask_ & (UINT32_C(1) << cascade_index)) != 0) {
++      // Use continuous derivatives pre-computed in uniform control flow (StartFragmentShaderInMain)
++      // from the raw cascade interpolator (r3/r4/r5) so 2x2 quads straddling a cascade split plane
++      // never lose RPB across the predicated (p0) branch.
++      spv::Id ddx_uvz =
++          builder_->createLoad(var_main_majin_shadow_ddx_[cascade_index], spv::NoPrecision);
++      spv::Id ddy_uvz =
++          builder_->createLoad(var_main_majin_shadow_ddy_[cascade_index], spv::NoPrecision);
++      dtx_dx_x = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_, builder_->createCompositeExtract(ddx_uvz, type_float_, 0),
++          size_x);
++      dtx_dx_y = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_, builder_->createCompositeExtract(ddx_uvz, type_float_, 1),
++          size_y);
++      dtx_dy_x = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_, builder_->createCompositeExtract(ddy_uvz, type_float_, 0),
++          size_x);
++      dtx_dy_y = builder_->createNoContractionBinOp(
++          spv::OpFMul, type_float_, builder_->createCompositeExtract(ddy_uvz, type_float_, 1),
++          size_y);
++      dz_dx = builder_->createCompositeExtract(ddx_uvz, type_float_, 2);
++      dz_dy = builder_->createCompositeExtract(ddy_uvz, type_float_, 2);
++    } else {
++      builder_->addCapability(spv::CapabilityDerivativeControl);
++      spv::Id dtx_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float2_, texel_coord);
++      spv::Id dtx_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float2_, texel_coord);
++      dz_dx = builder_->createUnaryOp(spv::OpDPdxFine, type_float_, receiver_z);
++      dz_dy = builder_->createUnaryOp(spv::OpDPdyFine, type_float_, receiver_z);
 +
-+    spv::Id dtx_dx_x = builder_->createCompositeExtract(dtx_dx, type_float_, 0);
-+    spv::Id dtx_dx_y = builder_->createCompositeExtract(dtx_dx, type_float_, 1);
-+    spv::Id dtx_dy_x = builder_->createCompositeExtract(dtx_dy, type_float_, 0);
-+    spv::Id dtx_dy_y = builder_->createCompositeExtract(dtx_dy, type_float_, 1);
++      dtx_dx_x = builder_->createCompositeExtract(dtx_dx, type_float_, 0);
++      dtx_dx_y = builder_->createCompositeExtract(dtx_dx, type_float_, 1);
++      dtx_dy_x = builder_->createCompositeExtract(dtx_dy, type_float_, 0);
++      dtx_dy_y = builder_->createCompositeExtract(dtx_dy, type_float_, 1);
++    }
 +
 +    spv::Id det = builder_->createNoContractionBinOp(
 +        spv::OpFSub, type_float_,
@@ -706,7 +867,7 @@ index f24bbae..95e0d3e 100644
 +
  }  // namespace rex::graphics
 diff --git a/src/graphics/pipeline/shader/spirv_translator_fetch.cpp b/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
-index dda7544..4824007 100644
+index dda7544..9d00cf2 100644
 --- a/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
 +++ b/src/graphics/pipeline/shader/spirv_translator_fetch.cpp
 @@ -609,6 +609,8 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
@@ -727,7 +888,7 @@ index dda7544..4824007 100644
        if (sampler_index == SIZE_MAX || image_2d_array_or_cube_unsigned_index == SIZE_MAX ||
            image_2d_array_or_cube_signed_index == SIZE_MAX) {
          bindings_set_up = false;
-@@ -987,6 +991,25 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
+@@ -987,6 +991,29 @@ void SpirvShaderTranslator::ProcessTextureFetchInstruction(
        rex::bit_scan_forward(coordinates_needed_components, &coordinate_component_index);
        coordinates[coordinate_component_index] = coordinates_operand;
      }
@@ -746,8 +907,12 @@ index dda7544..4824007 100644
 +        id_vector_temp_.push_back(coordinates[1]);
 +        builder_->createStore(builder_->createCompositeConstruct(type_float2_, id_vector_temp_),
 +                              var_main_majin_shadow_uv_);
++        const uint32_t cascade_index =
++            (shadow_lookup->fetch_constant >= 5u && shadow_lookup->fetch_constant <= 7u)
++                ? (7u - shadow_lookup->fetch_constant)
++                : UINT32_MAX;
 +        majin_shadow_sgt_bindings_[shadow_lookup->sgt_instr_offset] = {
-+            saved_image_2d_unsigned_binding_index, saved_sampler_binding_index};
++            saved_image_2d_unsigned_binding_index, saved_sampler_binding_index, cascade_index};
 +      }
 +    }
      // FH1 (#164): the car's dirt map at its seam-safe u (StartFragmentShaderInMain), while the

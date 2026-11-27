@@ -24,6 +24,16 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
   void OnDraw(ImGuiIO& io) override;
 
  private:
+  enum class Tab : int {
+    kGraphics = 0,
+    kShadow,
+    kAtmosphere,
+    kControls,
+    kFixes,
+    kPreferences,
+  };
+
+  void DrawSidebar();
   void DrawGraphicsTab();
   void DrawShadowTab();
   void DrawAtmosphereTab();
@@ -38,6 +48,7 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
   std::function<void()> on_quit_;
   std::function<void()> on_clear_caches_;
 
+  Tab active_tab_ = Tab::kGraphics;
   bool show_quit_confirm_ = false;
   std::string save_status_msg_;
   float save_status_timer_ = 0.0f;

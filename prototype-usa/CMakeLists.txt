@@ -71,6 +71,7 @@ set(MAJIN_SOURCES
     ${MAJIN_SHARED_DIR}/post_effects.cpp
     ${MAJIN_SHARED_DIR}/sssm_uv_align.cpp
     ${MAJIN_SHARED_DIR}/language.cpp
+    ${MAJIN_SHARED_DIR}/ui_fonts.cpp
     ${MAJIN_SHARED_DIR}/in_game_menu.cpp
 )
 

@@ -22,6 +22,7 @@
 #include "vulkan_hooks.h"
 #include "scene_resolution.h"
 #include "edition_offsets.h"
+#include "ui_fonts.h"
 #include "in_game_menu.h"
 #if defined(_WIN32)
 #ifndef NOMINMAX
@@ -458,50 +459,70 @@ class MajinApp : public rex::ReXApp {
     });
   }
 
+  void OnConfigureFonts(ImFontAtlas* atlas) override {
+    majin::RegisterLauncherFonts(atlas);
+  }
+
   void OnConfigureStyle(ImGuiStyle& style, rex::ui::Style& ui_style) override {
     (void)ui_style;
-    style.WindowRounding = 8.0f;
-    style.ChildRounding = 6.0f;
-    style.FrameRounding = 5.0f;
-    style.PopupRounding = 6.0f;
+    style.WindowRounding = 12.0f;
+    style.ChildRounding = 10.0f;
+    style.FrameRounding = 7.0f;
+    style.PopupRounding = 10.0f;
     style.ScrollbarRounding = 6.0f;
-    style.GrabRounding = 4.0f;
-    style.TabRounding = 5.0f;
+    style.GrabRounding = 6.0f;
+    style.TabRounding = 8.0f;
     style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize = 1.0f;
     style.FrameBorderSize = 1.0f;
-    style.ItemSpacing = ImVec2(8.0f, 6.0f);
-    style.ItemInnerSpacing = ImVec2(6.0f, 4.0f);
-    style.WindowPadding = ImVec2(12.0f, 12.0f);
-    style.FramePadding = ImVec2(8.0f, 5.0f);
+    style.PopupBorderSize = 1.0f;
+    style.ScrollbarSize = 10.0f;
+    style.GrabMinSize = 14.0f;
+    style.ItemSpacing = ImVec2(10.0f, 8.0f);
+    style.ItemInnerSpacing = ImVec2(8.0f, 5.0f);
+    style.WindowPadding = ImVec2(14.0f, 14.0f);
+    style.FramePadding = ImVec2(10.0f, 6.0f);
 
+    // Launcher palette (tailwind.config.js):
+    // darkBg #0f1117 | darkCard #181b24 | darkControl #232734 | darkBorder #32384a
+    // accent #38bdf8 | majin #6da712 / #7cb818 / #b5de63
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_Text] = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.55f, 0.60f, 0.68f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.09f, 0.10f, 0.13f, 0.96f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.12f, 0.14f, 0.17f, 0.60f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.10f, 0.11f, 0.14f, 0.98f);
-    colors[ImGuiCol_Border] = ImVec4(0.22f, 0.24f, 0.30f, 0.80f);
+    colors[ImGuiCol_Text] = ImVec4(0.945f, 0.961f, 0.976f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.580f, 0.639f, 0.722f, 1.00f);
+    colors[ImGuiCol_WindowBg] = ImVec4(0.059f, 0.067f, 0.090f, 0.97f);
+    colors[ImGuiCol_ChildBg] = ImVec4(0.094f, 0.106f, 0.141f, 0.92f);
+    colors[ImGuiCol_PopupBg] = ImVec4(0.094f, 0.106f, 0.141f, 0.99f);
+    colors[ImGuiCol_Border] = ImVec4(0.196f, 0.220f, 0.290f, 0.85f);
     colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.17f, 0.21f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.20f, 0.23f, 0.28f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.24f, 0.28f, 0.34f, 1.00f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.13f, 0.15f, 0.19f, 1.00f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.11f, 0.13f, 0.16f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(0.22f, 0.74f, 0.97f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.22f, 0.74f, 0.97f, 0.80f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.35f, 0.82f, 1.00f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.16f, 0.19f, 0.24f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.35f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.22f, 0.74f, 0.97f, 0.60f);
-    colors[ImGuiCol_Header] = ImVec4(0.18f, 0.22f, 0.28f, 0.80f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.25f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.22f, 0.74f, 0.97f, 0.40f);
-    colors[ImGuiCol_Tab] = ImVec4(0.13f, 0.15f, 0.18f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.22f, 0.74f, 0.97f, 0.40f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.18f, 0.22f, 0.27f, 1.00f);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.11f, 0.13f, 0.15f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.15f, 0.17f, 0.21f, 1.00f);
+    colors[ImGuiCol_FrameBg] = ImVec4(0.137f, 0.153f, 0.204f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.180f, 0.204f, 0.270f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.220f, 0.251f, 0.330f, 1.00f);
+    colors[ImGuiCol_TitleBg] = ImVec4(0.094f, 0.106f, 0.141f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.094f, 0.106f, 0.141f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.094f, 0.106f, 0.141f, 0.85f);
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.094f, 0.106f, 0.141f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.094f, 0.106f, 0.141f, 0.65f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.196f, 0.220f, 0.290f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.278f, 0.333f, 0.412f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.220f, 0.741f, 0.973f, 0.85f);
+    colors[ImGuiCol_CheckMark] = ImVec4(0.220f, 0.741f, 0.973f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.220f, 0.741f, 0.973f, 0.95f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.490f, 0.827f, 0.988f, 1.00f);
+    colors[ImGuiCol_Button] = ImVec4(0.137f, 0.153f, 0.204f, 1.00f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.196f, 0.220f, 0.290f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.220f, 0.741f, 0.973f, 0.35f);
+    colors[ImGuiCol_Header] = ImVec4(0.427f, 0.655f, 0.071f, 0.24f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.220f, 0.741f, 0.973f, 0.22f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.220f, 0.741f, 0.973f, 0.35f);
+    colors[ImGuiCol_Separator] = ImVec4(0.196f, 0.220f, 0.290f, 0.75f);
+    colors[ImGuiCol_SeparatorHovered] = ImVec4(0.220f, 0.741f, 0.973f, 0.65f);
+    colors[ImGuiCol_SeparatorActive] = ImVec4(0.220f, 0.741f, 0.973f, 1.00f);
+    colors[ImGuiCol_Tab] = ImVec4(0.094f, 0.106f, 0.141f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.137f, 0.153f, 0.204f, 1.00f);
+    colors[ImGuiCol_TabActive] = ImVec4(0.427f, 0.655f, 0.071f, 0.24f);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.094f, 0.106f, 0.141f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.137f, 0.153f, 0.204f, 1.00f);
+    colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.04f, 0.05f, 0.07f, 0.68f);
   }
 
   // Override virtual hooks for customization:

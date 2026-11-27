@@ -252,6 +252,19 @@ std::string UpperAscii(std::string s) {
   return s;
 }
 
+int32_t GetEffectiveFpsLimit() {
+  if (!rex::cvar::GetFlagByName("majin_fps_limit").empty()) {
+    const int32_t limit = rex::cvar::Query<int32_t>("majin_fps_limit");
+    if (limit >= 0) return limit;
+  }
+  return rex::cvar::Query<bool>("majin_60fps") ? 60 : 30;
+}
+
+void ApplyLiveFpsLimit(int32_t fps_limit) {
+  rex::cvar::SetFlagByName("majin_fps_limit", std::to_string(fps_limit));
+  rex::cvar::SetFlagByName("majin_60fps", (fps_limit == 0 || fps_limit > 30) ? "true" : "false");
+}
+
 // Persisted across menu open/close during a play session.
 // Opens fullscreen by default; switching to windowed mode remembers position & size.
 struct OverlayWindowState {
@@ -495,6 +508,11 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   char bias_clamp_buf[32];
   snprintf(bias_clamp_buf, sizeof(bias_clamp_buf), "%.3f", shadow_bias_clamp);
 
+  const int32_t active_fps_limit = GetEffectiveFpsLimit();
+  const std::string frame_rate_mode =
+      (active_fps_limit == 0) ? "Uncapped" : (active_fps_limit > 30 ? "60" : "30");
+
+  ReplaceJsonField(json, "FrameRateMode", "\"" + frame_rate_mode + "\"");
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
   ReplaceJsonField(json, "FoliageAlphaMode", "\"" + foliage_alpha_mode + "\"");
@@ -978,6 +996,43 @@ void InGameMenuDialog::DrawGraphicsTab() {
 
   // Card 1: Display & Anti-Aliasing
   if (BeginCard("CardGraphicsDisplay", "DISPLAY & ANTI-ALIASING", ICON_SOLAR_MONITOR)) {
+    // Frame Rate Limit (live hot-reload via guest vblank pacing + Vulkan hook)
+    {
+      const int32_t current_fps = GetEffectiveFpsLimit();
+      const char* fps_labels_std[] = {
+          "30 FPS (Native)",
+          "60 FPS (Patched)",
+      };
+      const int32_t fps_values_std[] = {30, 60};
+      const char* fps_labels_dev[] = {
+          "30 FPS (Native)",
+          "60 FPS (Patched)",
+          "Uncapped (Experimental)",
+      };
+      const int32_t fps_values_dev[] = {30, 60, 0};
+
+      const char* const* fps_labels = dev_mode ? fps_labels_dev : fps_labels_std;
+      const int32_t* fps_values = dev_mode ? fps_values_dev : fps_values_std;
+      const int fps_count = dev_mode ? IM_ARRAYSIZE(fps_values_dev) : IM_ARRAYSIZE(fps_values_std);
+
+      int fps_idx = (current_fps == 0 && dev_mode) ? 2 : (current_fps > 30 ? 1 : 0);
+      DrawControlLabel("Frame Rate Limit");
+      if (current_fps == 0) {
+        DrawExperimentalBadge();
+      }
+      ImGui::SetNextItemWidth(ControlWidth());
+      if (ImGui::Combo("##FrameRateLimit", &fps_idx, fps_labels, fps_count)) {
+        ApplyLiveFpsLimit(fps_values[fps_idx]);
+      }
+      if (current_fps == 0 && rex::cvar::Query<bool>("vsync")) {
+        DrawHintText("Uncapped guest pacing active. Disable VSync (or launch with VSync off on Vulkan) to exceed your monitor's refresh rate.");
+      } else {
+        DrawHintText("Switches guest frame pacing live without restarting (30 FPS native or 60 FPS patched).");
+      }
+    }
+
+    ImGui::Spacing();
+
     // Upscaler (present_effect)
     const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
     const char* upscaler_labels[] = {
@@ -1659,6 +1714,9 @@ void InGameMenuDialog::DrawPreferencesTab() {
         if (cur_post == "dedither" || cur_post == "dedither_debug") {
           rex::cvar::SetFlagByName("swap_post_effect", "dedither_fxaa");
         }
+        if (GetEffectiveFpsLimit() == 0) {
+          ApplyLiveFpsLimit(60);
+        }
       }
       ImGui::PopStyleColor(2);
     } else {
@@ -1681,9 +1739,12 @@ void InGameMenuDialog::DrawPreferencesTab() {
     const std::string upscaler = rex::cvar::GetFlagByName("present_effect");
     const std::string aa = rex::cvar::GetFlagByName("swap_post_effect");
     const int32_t active_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
+    const int32_t active_fps = GetEffectiveFpsLimit();
 
     ImGui::BulletText("Render Path: %s", backend.empty() ? "d3d12" : backend.c_str());
     ImGui::BulletText("Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
+    ImGui::BulletText("Frame Rate Limit: %s (Live hot-reload)",
+                      active_fps == 0 ? "Uncapped" : (active_fps > 30 ? "60 FPS" : "30 FPS"));
     ImGui::BulletText("Shadow Quality: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));
     ImGui::BulletText("Upscaler: %s", upscaler.empty() ? "bilinear" : upscaler.c_str());
     ImGui::BulletText("Anti-Aliasing: %s", aa.empty() ? "none" : aa.c_str());

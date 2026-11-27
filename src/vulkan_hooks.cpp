@@ -88,18 +88,26 @@ VKAPI_ATTR VkResult VKAPI_CALL QueuePresent(
                         present_mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR);
 
   if (REXCVAR_GET(majin_vulkan_pacing) && !is_fifo) {
-    const bool is_60fps = rex::cvar::Query<bool>("majin_60fps");
-    const int64_t target_interval_ns = is_60fps ? 16'666'666 : 33'333'333;
-
-    const auto now = std::chrono::steady_clock::now();
-    const auto last = g_last_present_time.load(std::memory_order_relaxed);
-    const int64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last).count();
-    const int64_t delay_ns = target_interval_ns - elapsed_ns;
-
-    if (delay_ns > 200'000) {  // only wait if more than 0.2 ms remains
-      PreciseWait(delay_ns);
+    int32_t fps_limit = -1;
+    if (!rex::cvar::GetFlagByName("majin_fps_limit").empty()) {
+      fps_limit = rex::cvar::Query<int32_t>("majin_fps_limit");
     }
-    g_last_present_time.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
+    if (fps_limit < 0) {
+      fps_limit = rex::cvar::Query<bool>("majin_60fps") ? 60 : 30;
+    }
+
+    if (fps_limit > 0) {
+      const int64_t target_interval_ns = 1'000'000'000LL / fps_limit;
+      const auto now = std::chrono::steady_clock::now();
+      const auto last = g_last_present_time.load(std::memory_order_relaxed);
+      const int64_t elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - last).count();
+      const int64_t delay_ns = target_interval_ns - elapsed_ns;
+
+      if (delay_ns > 200'000) {  // only wait if more than 0.2 ms remains
+        PreciseWait(delay_ns);
+      }
+      g_last_present_time.store(std::chrono::steady_clock::now(), std::memory_order_relaxed);
+    }
   }
 
   return g_queue_present(queue, present_info);

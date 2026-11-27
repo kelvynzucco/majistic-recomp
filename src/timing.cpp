@@ -11,7 +11,13 @@
 #include <cmath>
 
 REXCVAR_DEFINE_BOOL(majin_60fps, false, "Graphics",
-    "Opt-in 60 FPS test mode for Majistic Recomp");
+    "Opt-in 60 FPS test mode for Majistic Recomp")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_INT32(majin_fps_limit, -1, "Graphics",
+    "Live frame rate limit override (-1 = follow majin_60fps, 0 = uncapped, 30/60 = target FPS)")
+    .range(-1, 240)
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 REXCVAR_DEFINE_BOOL(majin_skip_intro_logos, false, "Gameplay",
     "Skip startup publisher and developer logos and jump directly to the title screen");
@@ -24,6 +30,9 @@ thread_local uint32_t main_object = 0;
 constexpr uint32_t kRatio = 0x150F8, kRate = 0x15104;
 
 bool Enabled() {
+  const int32_t fps_limit = REXCVAR_GET(majin_fps_limit);
+  if (fps_limit == 0 || fps_limit > 30) return true;
+  if (fps_limit > 0 && fps_limit <= 30) return false;
   return REXCVAR_GET(majin_60fps);
 }
 bool Span(uint32_t object, uint32_t size) {

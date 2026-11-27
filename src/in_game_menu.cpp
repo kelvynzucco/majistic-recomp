@@ -145,6 +145,34 @@ void DrawControlLabel(const char* label) {
   PopFontSafe(fonts.semibold);
 }
 
+bool DrawDefaultResetButton(const char* id, bool is_default, const char* tooltip = nullptr) {
+  const auto& fonts = GetUiFonts();
+  PushFontSafe(fonts.caption);
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 3.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+  if (is_default) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.118f, 0.133f, 0.180f, 0.55f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.150f, 0.170f, 0.225f, 0.70f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.180f, 0.205f, 0.270f, 0.85f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.50f, 0.60f, 0.85f));
+  } else {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.149f, 0.173f, 0.235f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.220f, 0.300f, 0.420f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.260f, 0.360f, 0.500f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, kColSkyAccent);
+  }
+  ImGui::PushID(id);
+  const bool clicked = ImGui::Button("Default");
+  ImGui::PopID();
+  if (tooltip && tooltip[0] != '\0' && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+    ImGui::SetTooltip("%s", tooltip);
+  }
+  ImGui::PopStyleColor(4);
+  ImGui::PopStyleVar(2);
+  PopFontSafe(fonts.caption);
+  return clicked;
+}
+
 void DrawTabPageHeader(const char* icon, const char* title, const char* subtitle) {
   const auto& fonts = GetUiFonts();
   PushFontSafe(fonts.title);
@@ -466,7 +494,7 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   if (!rex::cvar::GetFlagByName("majin_shadow_receiver_bias").empty()) {
     shadow_receiver_bias = rex::cvar::Query<bool>("majin_shadow_receiver_bias");
   }
-  bool shadow_two_sided = true;
+  bool shadow_two_sided = false;
   if (!rex::cvar::GetFlagByName("majin_shadow_two_sided").empty()) {
     shadow_two_sided = rex::cvar::Query<bool>("majin_shadow_two_sided");
   }
@@ -1381,10 +1409,17 @@ void InGameMenuDialog::DrawShadowTab() {
     }
 
     DrawControlLabel("Shadow Resolution Scale");
-    ImGui::SetNextItemWidth(ControlWidth());
+    ImGui::SetNextItemWidth(ControlWidth(330.0f));
     if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
       const int new_val = shadow_scale_values[shadow_idx];
       rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
+      if (on_clear_caches_) {
+        on_clear_caches_();
+      }
+    }
+    ImGui::SameLine();
+    if (DrawDefaultResetButton("DefShadowScale", shadow_idx == 1, "Reset to default (2x - Enhanced)")) {
+      rex::cvar::SetFlagByName("majin_shadow_scale", "2");
       if (on_clear_caches_) {
         on_clear_caches_();
       }
@@ -1417,9 +1452,13 @@ void InGameMenuDialog::DrawShadowTab() {
       if (!is_vulkan) {
         DrawVulkanOnlyBadge();
       }
-      ImGui::SetNextItemWidth(ControlWidth());
+      ImGui::SetNextItemWidth(ControlWidth(330.0f));
       if (ImGui::Combo("##ShadowPcfMode", &pcf_idx, kPcfLabels, 4)) {
         rex::cvar::SetFlagByName("majin_shadow_pcf_mode", kPcfValues[pcf_idx]);
+      }
+      ImGui::SameLine();
+      if (DrawDefaultResetButton("DefShadowPcf", pcf_idx == 0, "Reset to default (4x4 Cubic PCF)")) {
+        rex::cvar::SetFlagByName("majin_shadow_pcf_mode", "soft");
       }
       DrawHintText("Sub-texel shadow filtering in KbPreZSSSM* shaders. Eliminates stone-wall striping and makes sunlight move smoothly at 60 FPS (hot-reload).");
 
@@ -1432,18 +1471,26 @@ void InGameMenuDialog::DrawShadowTab() {
       if (ImGui::Checkbox("Receiver Plane Depth Bias (Anti-Striping)", &rpb_enabled)) {
         rex::cvar::SetFlagByName("majin_shadow_receiver_bias", rpb_enabled ? "true" : "false");
       }
+      ImGui::SameLine(0.0f, 10.0f);
+      if (DrawDefaultResetButton("DefShadowRpb", rpb_enabled, "Reset to default (On)")) {
+        rex::cvar::SetFlagByName("majin_shadow_receiver_bias", "true");
+      }
       DrawHintText("Computes per-texel tangent-plane depth slope in PCF to remove grazing stone-wall stripes without Peter-Panning (hot-reload).");
 
       ImGui::Spacing();
 
-      bool two_sided_shadows = true;
+      bool two_sided_shadows = false;
       if (!rex::cvar::GetFlagByName("majin_shadow_two_sided").empty()) {
         two_sided_shadows = rex::cvar::Query<bool>("majin_shadow_two_sided");
       }
-      if (ImGui::Checkbox("Two-Sided Shadow Casters (Anti-Light-Leak)", &two_sided_shadows)) {
+      if (ImGui::Checkbox("Two-Sided Shadow Casters (Experimental)", &two_sided_shadows)) {
         rex::cvar::SetFlagByName("majin_shadow_two_sided", two_sided_shadows ? "true" : "false");
       }
-      DrawHintText("Disables backface culling in shadow depth passes so single-sided rock cliffs and stone walls cast watertight shadows without base light leaks (hot-reload).");
+      ImGui::SameLine(0.0f, 10.0f);
+      if (DrawDefaultResetButton("DefShadowTwoSided", !two_sided_shadows, "Reset to default (Off)")) {
+        rex::cvar::SetFlagByName("majin_shadow_two_sided", "false");
+      }
+      DrawHintText("Default Off (native 360 front-face culling): prevents extra polygonal shadows on stone walls and ground. Enabling seals hollow rock bases at the cost of single-sided shell artifacts (hot-reload).");
       ImGui::EndDisabled();
     }
 
@@ -1457,6 +1504,10 @@ void InGameMenuDialog::DrawShadowTab() {
       }
       if (ImGui::Checkbox("Cascade Texel Snapping (Anti-Shimmer)", &texel_snap)) {
         rex::cvar::SetFlagByName("majin_shadow_texel_snap", texel_snap ? "true" : "false");
+      }
+      ImGui::SameLine(0.0f, 10.0f);
+      if (DrawDefaultResetButton("DefShadowTexelSnap", texel_snap, "Reset to default (On)")) {
+        rex::cvar::SetFlagByName("majin_shadow_texel_snap", "true");
       }
       DrawHintText("Snaps orthographic shadow cascade bounds to shadow-map texel increments so edges stay stable during camera movement (hot-reload).");
     }
@@ -1482,9 +1533,13 @@ void InGameMenuDialog::DrawShadowTab() {
         }
       }
       DrawControlLabel("Screen-Space Shadow Blur (SSSM)");
-      ImGui::SetNextItemWidth(ControlWidth());
+      ImGui::SetNextItemWidth(ControlWidth(330.0f));
       if (ImGui::Combo("##ShadowSssmMode", &sssm_idx, kSssmLabels, 4)) {
         rex::cvar::SetFlagByName("majin_shadow_sssm_mode", kSssmValues[sssm_idx]);
+      }
+      ImGui::SameLine();
+      if (DrawDefaultResetButton("DefShadowSssm", sssm_idx == 0, "Reset to default (Auto)")) {
+        rex::cvar::SetFlagByName("majin_shadow_sssm_mode", "auto");
       }
       DrawHintText("Coordinates screen-space shadow blur with 3D PCF so flat floors and steep walls share uniform shadow softness (hot-reload).");
     }
@@ -1509,7 +1564,7 @@ void InGameMenuDialog::DrawShadowTab() {
     }
     float slope_val = is_vulkan ? static_cast<float>(current_slope_bias) : 0.0f;
     DrawControlLabel("Shadow Slope-Scaled Depth Bias");
-    ImGui::SetNextItemWidth(ControlWidth(320.0f));
+    ImGui::SetNextItemWidth(ControlWidth(260.0f));
     if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, -2.0f, 3.0f, is_vulkan ? "%.2f" : "Off")) {
       char buf[32];
       snprintf(buf, sizeof(buf), "%.2f", slope_val);
@@ -1529,7 +1584,11 @@ void InGameMenuDialog::DrawShadowTab() {
       snprintf(buf, sizeof(buf), "%.2f", slope_val);
       rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
     }
-    DrawHintText("Signed slope bias for shadow passes (default: 0.00; negative values push casters deeper in Reversed-Z).");
+    ImGui::SameLine();
+    if (DrawDefaultResetButton("DefShadowSlopeBias", std::abs(slope_val) < 0.005f, "Reset to default (0.00)")) {
+      rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.00");
+    }
+    DrawHintText("Signed slope bias for shadow passes (default: 0.00). With Two-Sided Off, positive bias is isolated to static world geometry so characters and foliage stay clean.");
 
     ImGui::Spacing();
 
@@ -1541,7 +1600,7 @@ void InGameMenuDialog::DrawShadowTab() {
     }
     float const_val = is_vulkan ? static_cast<float>(current_const_bias) : 0.0f;
     DrawControlLabel("Shadow Constant Depth Bias");
-    ImGui::SetNextItemWidth(ControlWidth(320.0f));
+    ImGui::SetNextItemWidth(ControlWidth(260.0f));
     if (ImGui::SliderFloat("##ShadowConstBias", &const_val, -0.050f, 0.050f, is_vulkan ? "%.3f" : "Off")) {
       char buf[32];
       snprintf(buf, sizeof(buf), "%.3f", const_val);
@@ -1561,7 +1620,11 @@ void InGameMenuDialog::DrawShadowTab() {
       snprintf(buf, sizeof(buf), "%.3f", const_val);
       rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
     }
-    DrawHintText("Fine signed constant offset added to shadow depth passes (default: 0.000).");
+    ImGui::SameLine();
+    if (DrawDefaultResetButton("DefShadowConstBias", std::abs(const_val) < 0.0005f, "Reset to default (0.000)")) {
+      rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    }
+    DrawHintText("Fine signed constant offset added to shadow depth passes (default: 0.000; isolated to static world geometry when positive with Two-Sided Off).");
 
     ImGui::Spacing();
 
@@ -1573,7 +1636,7 @@ void InGameMenuDialog::DrawShadowTab() {
     }
     float clamp_val = is_vulkan ? static_cast<float>(current_bias_clamp) : 0.0f;
     DrawControlLabel("Shadow Depth Bias Clamp");
-    ImGui::SetNextItemWidth(ControlWidth(320.0f));
+    ImGui::SetNextItemWidth(ControlWidth(260.0f));
     if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, is_vulkan ? "%.3f" : "Off")) {
       char buf[32];
       snprintf(buf, sizeof(buf), "%.3f", clamp_val);
@@ -1592,6 +1655,10 @@ void InGameMenuDialog::DrawShadowTab() {
       char buf[32];
       snprintf(buf, sizeof(buf), "%.3f", clamp_val);
       rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+    }
+    ImGui::SameLine();
+    if (DrawDefaultResetButton("DefShadowBiasClamp", std::abs(clamp_val) < 0.0005f, "Reset to default (0.000)")) {
+      rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
     }
     DrawHintText("Caps maximum slope bias magnitude on silhouette edges; sign automatically matches bias sign (default: 0.000).");
 

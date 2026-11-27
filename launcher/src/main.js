@@ -168,7 +168,7 @@ const defaultSettings = {
   ShadowScale: 2,
   ShadowPcfMode: "soft",
   ShadowReceiverBias: true,
-  ShadowTwoSided: true,
+  ShadowTwoSided: false,
   ShadowTexelSnap: true,
   ShadowSssmMode: "auto",
   ShadowSlopeBias: 0.00,
@@ -932,7 +932,7 @@ function populateForm(settings) {
     elements.shadowPcfMode.value = validPcf.includes(pcf) ? pcf : "soft";
   }
   if (elements.shadowReceiverBias) elements.shadowReceiverBias.checked = settings.ShadowReceiverBias ?? true;
-  if (elements.shadowTwoSided) elements.shadowTwoSided.checked = settings.ShadowTwoSided ?? true;
+  if (elements.shadowTwoSided) elements.shadowTwoSided.checked = settings.ShadowTwoSided ?? false;
   if (elements.shadowTexelSnap) elements.shadowTexelSnap.checked = settings.ShadowTexelSnap ?? true;
   if (elements.shadowSssmMode) {
     const validSssm = ["auto", "original", "subtle", "off"];
@@ -1088,6 +1088,7 @@ function populateForm(settings) {
   }
 
   updateAllSliderFills();
+  updateShadowDefaultButtons();
 }
 
 function readForm() {
@@ -1098,7 +1099,7 @@ function readForm() {
     ShadowScale: safeInt(elements.shadowScale?.value, 2),
     ShadowPcfMode: elements.shadowPcfMode?.value || currentSettings.ShadowPcfMode || "soft",
     ShadowReceiverBias: elements.shadowReceiverBias ? elements.shadowReceiverBias.checked : (currentSettings.ShadowReceiverBias ?? true),
-    ShadowTwoSided: elements.shadowTwoSided ? elements.shadowTwoSided.checked : (currentSettings.ShadowTwoSided ?? true),
+    ShadowTwoSided: elements.shadowTwoSided ? elements.shadowTwoSided.checked : (currentSettings.ShadowTwoSided ?? false),
     ShadowTexelSnap: elements.shadowTexelSnap ? elements.shadowTexelSnap.checked : (currentSettings.ShadowTexelSnap ?? true),
     ShadowSssmMode: elements.shadowSssmMode?.value || currentSettings.ShadowSssmMode || "auto",
     ShadowSlopeBias: elements.shadowSlopeBias ? safeFloat(elements.shadowSlopeBias.value, 0.0) : safeFloat(currentSettings.ShadowSlopeBias, 0.0),
@@ -1842,12 +1843,83 @@ if (elements.fogIntensity) {
   });
 }
 
+const SHADOW_CONTROL_DEFAULTS = {
+  shadowScale: { type: "select", value: "2" },
+  shadowPcfMode: { type: "select", value: "soft" },
+  shadowReceiverBias: { type: "checkbox", value: true },
+  shadowTexelSnap: { type: "checkbox", value: true },
+  shadowTwoSided: { type: "checkbox", value: false },
+  shadowSssmMode: { type: "select", value: "auto" },
+  shadowSlopeBias: { type: "range", value: 0.0, decimals: 2, tol: 0.005, valEl: () => elements.shadowSlopeBiasVal },
+  shadowConstantBias: { type: "range", value: 0.0, decimals: 3, tol: 0.0005, valEl: () => elements.shadowConstantBiasVal },
+  shadowBiasClamp: { type: "range", value: 0.0, decimals: 3, tol: 0.0005, valEl: () => elements.shadowBiasClampVal },
+};
+
+function updateShadowDefaultButtons() {
+  document.querySelectorAll("[data-shadow-default]").forEach((btn) => {
+    const key = btn.getAttribute("data-shadow-default");
+    const spec = SHADOW_CONTROL_DEFAULTS[key];
+    const el = elements[key];
+    if (!spec || !el) return;
+    let isDefault = true;
+    if (spec.type === "checkbox") {
+      isDefault = el.checked === spec.value;
+    } else if (spec.type === "select") {
+      isDefault = el.value === spec.value;
+    } else if (spec.type === "range") {
+      isDefault = Math.abs(parseFloat(el.value) - spec.value) < spec.tol;
+    }
+    btn.classList.toggle("text-slate-500", isDefault);
+    btn.classList.toggle("border-darkBorder/60", isDefault);
+    btn.classList.toggle("bg-darkPanel/80", isDefault);
+    btn.classList.toggle("text-accent", !isDefault);
+    btn.classList.toggle("border-accent/40", !isDefault);
+    btn.classList.toggle("bg-accent/10", !isDefault);
+  });
+}
+
+async function resetShadowControlToDefault(key) {
+  const spec = SHADOW_CONTROL_DEFAULTS[key];
+  const el = elements[key];
+  if (!spec || !el) return;
+  if (spec.type === "checkbox") {
+    el.checked = spec.value;
+  } else if (spec.type === "select") {
+    el.value = spec.value;
+    refreshCustomSelect(el);
+  } else if (spec.type === "range") {
+    const formatted = spec.value.toFixed(spec.decimals);
+    el.value = formatted;
+    const valEl = spec.valEl ? spec.valEl() : null;
+    if (valEl) valEl.textContent = formatted;
+    updateSliderFill(el);
+  }
+  updateShadowDefaultButtons();
+  const settings = readForm();
+  currentSettings = settings;
+  try {
+    await invoke("save_settings", { settings });
+  } catch {
+    // ignore
+  }
+}
+
+document.querySelectorAll("[data-shadow-default]").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = btn.getAttribute("data-shadow-default");
+    resetShadowControlToDefault(key);
+  });
+});
+
 if (elements.shadowSlopeBias) {
   elements.shadowSlopeBias.addEventListener("input", (e) => {
     const val = parseFloat(e.target.value);
     if (elements.shadowSlopeBiasVal && !isNaN(val)) {
       elements.shadowSlopeBiasVal.textContent = val.toFixed(2);
     }
+    updateShadowDefaultButtons();
   });
 }
 
@@ -1857,6 +1929,7 @@ if (elements.shadowConstantBias) {
     if (elements.shadowConstantBiasVal && !isNaN(val)) {
       elements.shadowConstantBiasVal.textContent = val.toFixed(3);
     }
+    updateShadowDefaultButtons();
   });
 }
 
@@ -1866,6 +1939,7 @@ if (elements.shadowBiasClamp) {
     if (elements.shadowBiasClampVal && !isNaN(val)) {
       elements.shadowBiasClampVal.textContent = val.toFixed(3);
     }
+    updateShadowDefaultButtons();
   });
 }
 
@@ -1885,7 +1959,9 @@ async function applyShadowBiasPreset(slope, constant, clamp) {
     if (elements.shadowBiasClampVal) elements.shadowBiasClampVal.textContent = clamp.toFixed(3);
     updateSliderFill(elements.shadowBiasClamp);
   }
+  updateShadowDefaultButtons();
   const settings = readForm();
+  currentSettings = settings;
   try {
     await invoke("save_settings", { settings });
   } catch {
@@ -1977,7 +2053,11 @@ document.addEventListener("change", async (e) => {
       e.target.closest("#tabPreferences") ||
       e.target.closest("#tabBuild"))
   ) {
+    if (e.target.closest("#tabShadow")) {
+      updateShadowDefaultButtons();
+    }
     const settings = readForm();
+    currentSettings = settings;
     try {
       await invoke("save_settings", { settings });
     } catch {

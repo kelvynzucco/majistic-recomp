@@ -1057,14 +1057,24 @@
                     <label for="shadowScale" class="text-xs text-slate-300">
                       Shadow Resolution Scale
                     </label>
-                    <select
-                      id="shadowScale"
-                      class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
-                    >
-                      <option value="1">1x - Native</option>
-                      <option value="2" selected>2x - Enhanced</option>
-                      <option value="4">4x - Ultra Clean</option>
-                    </select>
+                    <div class="flex items-center gap-1.5">
+                      <select
+                        id="shadowScale"
+                        class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
+                      >
+                        <option value="1">1x - Native</option>
+                        <option value="2" selected>2x - Enhanced</option>
+                        <option value="4">4x - Ultra Clean</option>
+                      </select>
+                      <button
+                        type="button"
+                        data-shadow-default="shadowScale"
+                        title="Reset to default (2x - Enhanced)"
+                        class="shadow-default-btn px-2 py-1 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                      >
+                        Default
+                      </button>
+                    </div>
                   </div>
                   <p class="text-[10px] text-slate-400 leading-tight">
                     Scales shadow map resolution dynamically (1x = native 360,
@@ -1078,17 +1088,27 @@
                     <label for="shadowPcfMode" class="text-xs text-slate-300">
                       Shadow Filtering (PCF)
                     </label>
-                    <select
-                      id="shadowPcfMode"
-                      class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
-                    >
-                      <option value="soft" selected>
-                        4x4 Cubic PCF (Recommended)
-                      </option>
-                      <option value="bilinear">2x2 Bilinear PCF (Sharp)</option>
-                      <option value="ultra">6x6 Tent PCF (Ultra Soft)</option>
-                      <option value="original">Original 360 (1-Tap)</option>
-                    </select>
+                    <div class="flex items-center gap-1.5">
+                      <select
+                        id="shadowPcfMode"
+                        class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
+                      >
+                        <option value="soft" selected>
+                          4x4 Cubic PCF (Recommended)
+                        </option>
+                        <option value="bilinear">2x2 Bilinear PCF (Sharp)</option>
+                        <option value="ultra">6x6 Tent PCF (Ultra Soft)</option>
+                        <option value="original">Original 360 (1-Tap)</option>
+                      </select>
+                      <button
+                        type="button"
+                        data-shadow-default="shadowPcfMode"
+                        title="Reset to default (4x4 Cubic PCF)"
+                        class="shadow-default-btn px-2 py-1 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                      >
+                        Default
+                      </button>
+                    </div>
                   </div>
                   <p class="text-[10px] text-slate-400 leading-tight">
                     Sub-texel shadow filtering in Vulkan. Eliminates stone-wall
@@ -1098,69 +1118,98 @@
 
                 <!-- Receiver Plane Depth Bias & Cascade Texel Snapping -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label
-                    class="flex items-start gap-2 p-2.5 rounded-lg bg-darkControl/60 cursor-pointer"
+                  <div
+                    class="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-darkControl/60"
                   >
-                    <input
-                      type="checkbox"
-                      id="shadowReceiverBias"
-                      checked
-                      class="mt-0.5 accent-accent rounded cursor-pointer"
-                    />
-                    <span class="space-y-0.5">
-                      <span class="block text-xs text-slate-200"
-                        >Receiver Plane Bias</span
-                      >
-                      <span
-                        class="block text-[10px] text-slate-400 leading-tight"
-                        >Removes grazing wall stripes in PCF without
-                        Peter-Panning.</span
-                      >
-                    </span>
-                  </label>
-                  <label
-                    class="flex items-start gap-2 p-2.5 rounded-lg bg-darkControl/60 cursor-pointer"
+                    <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        id="shadowReceiverBias"
+                        checked
+                        class="mt-0.5 accent-accent rounded cursor-pointer shrink-0"
+                      />
+                      <span class="space-y-0.5">
+                        <span class="block text-xs text-slate-200"
+                          >Receiver Plane Bias</span
+                        >
+                        <span
+                          class="block text-[10px] text-slate-400 leading-tight"
+                          >Removes grazing wall stripes in PCF without
+                          Peter-Panning.</span
+                        >
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      data-shadow-default="shadowReceiverBias"
+                      title="Reset to default (On)"
+                      class="shadow-default-btn px-1.5 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                    >
+                      Default
+                    </button>
+                  </div>
+                  <div
+                    class="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-darkControl/60"
                   >
-                    <input
-                      type="checkbox"
-                      id="shadowTexelSnap"
-                      checked
-                      class="mt-0.5 accent-accent rounded cursor-pointer"
-                    />
-                    <span class="space-y-0.5">
-                      <span class="block text-xs text-slate-200"
-                        >Cascade Texel Snapping</span
-                      >
-                      <span
-                        class="block text-[10px] text-slate-400 leading-tight"
-                        >Stabilizes shadow edges during camera movement.</span
-                      >
-                    </span>
-                  </label>
+                    <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        id="shadowTexelSnap"
+                        checked
+                        class="mt-0.5 accent-accent rounded cursor-pointer shrink-0"
+                      />
+                      <span class="space-y-0.5">
+                        <span class="block text-xs text-slate-200"
+                          >Cascade Texel Snapping</span
+                        >
+                        <span
+                          class="block text-[10px] text-slate-400 leading-tight"
+                          >Stabilizes shadow edges during camera movement.</span
+                        >
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      data-shadow-default="shadowTexelSnap"
+                      title="Reset to default (On)"
+                      class="shadow-default-btn px-1.5 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                    >
+                      Default
+                    </button>
+                  </div>
                 </div>
 
-                <!-- Two-Sided Shadow Casters (Vulkan anti-light-leak) -->
-                <label
-                  class="flex items-start gap-2 p-2.5 rounded-lg bg-darkControl/60 cursor-pointer"
+                <!-- Two-Sided Shadow Casters (Experimental) -->
+                <div
+                  class="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-darkControl/60"
                 >
-                  <input
-                    type="checkbox"
-                    id="shadowTwoSided"
-                    checked
-                    class="mt-0.5 accent-accent rounded cursor-pointer"
-                  />
-                  <span class="space-y-0.5">
-                    <span class="block text-xs text-slate-200"
-                      >Two-Sided Shadow Casters (Anti-Light-Leak)</span
-                    >
-                    <span
-                      class="block text-[10px] text-slate-400 leading-tight"
-                      >Disables backface culling in Vulkan shadow passes so
-                      single-sided rock cliffs and stone walls cast watertight
-                      shadows without base light leaks.</span
-                    >
-                  </span>
-                </label>
+                  <label class="flex items-start gap-2 cursor-pointer flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      id="shadowTwoSided"
+                      class="mt-0.5 accent-accent rounded cursor-pointer shrink-0"
+                    />
+                    <span class="space-y-0.5">
+                      <span class="block text-xs text-slate-200"
+                        >Two-Sided Shadow Casters (Experimental)</span
+                      >
+                      <span
+                        class="block text-[10px] text-slate-400 leading-tight"
+                        >Default Off (native 360 front-face culling): prevents
+                        extra polygonal wall/ground shadows. Enabling seals
+                        hollow rock bases at the cost of shell artifacts.</span
+                      >
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    data-shadow-default="shadowTwoSided"
+                    title="Reset to default (Off)"
+                    class="shadow-default-btn px-2 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                  >
+                    Default
+                  </button>
+                </div>
 
                 <!-- Screen-Space Shadow Blur (SSSM) -->
                 <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1.5">
@@ -1168,15 +1217,25 @@
                     <label for="shadowSssmMode" class="text-xs text-slate-300">
                       Screen-Space Shadow Blur (SSSM)
                     </label>
-                    <select
-                      id="shadowSssmMode"
-                      class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
-                    >
-                      <option value="auto" selected>Auto (Matches PCF)</option>
-                      <option value="original">Original (Full Blur)</option>
-                      <option value="subtle">Subtle (0.5x Blur)</option>
-                      <option value="off">Off (Pure 3D PCF)</option>
-                    </select>
+                    <div class="flex items-center gap-1.5">
+                      <select
+                        id="shadowSssmMode"
+                        class="rounded-md bg-darkPanel border border-darkBorder text-xs text-slate-200 px-2 py-1 focus:outline-none focus:border-accent"
+                      >
+                        <option value="auto" selected>Auto (Matches PCF)</option>
+                        <option value="original">Original (Full Blur)</option>
+                        <option value="subtle">Subtle (0.5x Blur)</option>
+                        <option value="off">Off (Pure 3D PCF)</option>
+                      </select>
+                      <button
+                        type="button"
+                        data-shadow-default="shadowSssmMode"
+                        title="Reset to default (Auto)"
+                        class="shadow-default-btn px-2 py-1 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                      >
+                        Default
+                      </button>
+                    </div>
                   </div>
                   <p class="text-[10px] text-slate-400 leading-tight">
                     Coordinates screen-space blur with 3D PCF for uniform shadow
@@ -1269,18 +1328,28 @@
 
                   <!-- Shadow Slope-Scaled Depth Bias -->
                   <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                       <label
                         for="shadowSlopeBias"
                         class="text-xs text-slate-300"
                       >
                         Shadow Slope-Scaled Depth Bias
                       </label>
-                      <span
-                        id="shadowSlopeBiasVal"
-                        class="text-xs font-mono text-accent font-semibold"
-                        >0.00</span
-                      >
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          id="shadowSlopeBiasVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.00</span
+                        >
+                        <button
+                          type="button"
+                          data-shadow-default="shadowSlopeBias"
+                          title="Reset to default (0.00)"
+                          class="shadow-default-btn px-2 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                        >
+                          Default
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="range"
@@ -1292,25 +1361,36 @@
                       class="w-full accent-accent cursor-pointer h-2 rounded-lg border-none outline-none focus:outline-none focus:ring-0"
                     />
                     <p class="text-[10px] text-slate-400 leading-tight">
-                      Signed slope bias for shadow depth passes (default: 0.00;
-                      supports negative values for Reversed-Z).
+                      Signed slope bias for shadow depth passes (default: 0.00).
+                      With Two-Sided Off, positive bias isolates static world
+                      geometry so characters stay clean.
                     </p>
                   </div>
 
                   <!-- Shadow Constant Depth Bias -->
                   <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                       <label
                         for="shadowConstantBias"
                         class="text-xs text-slate-300"
                       >
                         Shadow Constant Depth Bias
                       </label>
-                      <span
-                        id="shadowConstantBiasVal"
-                        class="text-xs font-mono text-accent font-semibold"
-                        >0.000</span
-                      >
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          id="shadowConstantBiasVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.000</span
+                        >
+                        <button
+                          type="button"
+                          data-shadow-default="shadowConstantBias"
+                          title="Reset to default (0.000)"
+                          class="shadow-default-btn px-2 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                        >
+                          Default
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="range"
@@ -1323,24 +1403,35 @@
                     />
                     <p class="text-[10px] text-slate-400 leading-tight">
                       Fine signed constant offset added to shadow depth passes
-                      (default: 0.000).
+                      (default: 0.000; isolated to static world geometry when
+                      positive with Two-Sided Off).
                     </p>
                   </div>
 
                   <!-- Shadow Depth Bias Clamp -->
                   <div class="p-2.5 rounded-lg bg-darkControl/60 space-y-1">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                       <label
                         for="shadowBiasClamp"
                         class="text-xs text-slate-300"
                       >
                         Shadow Depth Bias Clamp
                       </label>
-                      <span
-                        id="shadowBiasClampVal"
-                        class="text-xs font-mono text-accent font-semibold"
-                        >0.000</span
-                      >
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          id="shadowBiasClampVal"
+                          class="text-xs font-mono text-accent font-semibold"
+                          >0.000</span
+                        >
+                        <button
+                          type="button"
+                          data-shadow-default="shadowBiasClamp"
+                          title="Reset to default (0.000)"
+                          class="shadow-default-btn px-2 py-0.5 rounded-md bg-darkPanel/80 border border-darkBorder/60 text-[10px] font-medium text-slate-500 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer shrink-0"
+                        >
+                          Default
+                        </button>
+                      </div>
                     </div>
                     <input
                       type="range"

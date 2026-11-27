@@ -339,7 +339,7 @@ pub struct Settings {
     pub shadow_pcf_mode: String,
     #[serde(rename = "ShadowReceiverBias", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub shadow_receiver_bias: bool,
-    #[serde(rename = "ShadowTwoSided", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    #[serde(rename = "ShadowTwoSided", default = "default_false", deserialize_with = "deserialize_nullable_bool_false")]
     pub shadow_two_sided: bool,
     #[serde(rename = "ShadowTexelSnap", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
     pub shadow_texel_snap: bool,
@@ -440,7 +440,7 @@ impl Default for Settings {
             shadow_scale: 2,
             shadow_pcf_mode: "soft".into(),
             shadow_receiver_bias: true,
-            shadow_two_sided: true,
+            shadow_two_sided: false,
             shadow_texel_snap: true,
             shadow_sssm_mode: "auto".into(),
             shadow_slope_bias: 0.0,

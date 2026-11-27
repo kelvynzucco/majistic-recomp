@@ -41,6 +41,8 @@ param(
     $Bloom = 0.80,
     [ValidateRange(0.0, 2.0)][double]$BloomIntensity = 0.80,
     [ValidateRange(0.0, 1.0)][double]$FogIntensity = 0.80,
+    $TepeuAmbientVfx = $true,
+    $Tyndall = $true,
     [ValidateRange(0.0, 1.0)][double]$CasSharpness = 0.0,
     [ValidateRange(0.0, 2.0)][double]$FsrReduction = 0.0,
     $WindowFps = $null,
@@ -297,6 +299,8 @@ if ($isRecordPerf -and $enableRuntimeLogs -and $logPath -and (-not $ShaderPrebui
 }
 $is60fps = ($FrameRateMode -eq '60' -or $FrameRateMode -eq 'Uncapped')
 $launchArgs += "--majin_60fps=$($is60fps.ToString().ToLowerInvariant())"
+$fpsLimitArg = if ($FrameRateMode -eq 'Uncapped') { 0 } elseif ($FrameRateMode -eq '60') { 60 } else { 30 }
+$launchArgs += "--majin_fps_limit=$fpsLimitArg"
 $isSkipCutscenes = ConvertTo-Bool $SkipCutscenes
 $launchArgs += "--majin_skip_cutscenes=$($isSkipCutscenes.ToString().ToLowerInvariant())"
 $launchArgs += "--majin_cutscene_speed=$CutsceneSpeed"
@@ -386,6 +390,10 @@ if ($BloomIntensity -ne 0.80) {
 }
 $launchArgs += "--majin_bloom=$($bloomVal.ToString([Globalization.CultureInfo]::InvariantCulture))"
 $launchArgs += "--majin_fog=$($FogIntensity.ToString([Globalization.CultureInfo]::InvariantCulture))"
+$isTepeuAmbientVfx = ConvertTo-Bool $TepeuAmbientVfx
+$launchArgs += "--majin_tepeu_ambient_vfx=$($isTepeuAmbientVfx.ToString().ToLowerInvariant())"
+$isTyndall = ConvertTo-Bool $Tyndall
+$launchArgs += "--majin_tyndall=$($isTyndall.ToString().ToLowerInvariant())"
 
 $isAutoCapture = ConvertTo-Bool $AutoCapture
 if ($isAutoCapture) {

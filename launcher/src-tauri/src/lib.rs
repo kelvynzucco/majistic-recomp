@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 mod prebuild;
 mod saves;
@@ -413,6 +413,10 @@ pub struct Settings {
     pub bloom_intensity: f64,
     #[serde(rename = "FogIntensity", default = "default_fog_intensity", deserialize_with = "deserialize_nullable_f64_080")]
     pub fog_intensity: f64,
+    #[serde(rename = "TepeuAmbientVfx", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub tepeu_ambient_vfx: bool,
+    #[serde(rename = "Tyndall", default = "default_true", deserialize_with = "deserialize_nullable_bool_true")]
+    pub tyndall: bool,
     #[serde(rename = "CasSharpness", default = "default_cas_sharpness", deserialize_with = "deserialize_nullable_f64")]
     pub cas_sharpness: f64,
     #[serde(rename = "FsrReduction", default = "default_fsr_reduction", deserialize_with = "deserialize_nullable_f64")]
@@ -473,6 +477,8 @@ impl Default for Settings {
             bloom: true,
             bloom_intensity: 0.80,
             fog_intensity: 0.80,
+            tepeu_ambient_vfx: true,
+            tyndall: true,
             cas_sharpness: 0.0,
             fsr_reduction: 0.0,
             present_dither: false,
@@ -1441,7 +1447,7 @@ fn clean_shader_cache() -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn launch_game(settings: Settings) -> Result<(), String> {
+fn launch_game(app_handle: tauri::AppHandle, settings: Settings) -> Result<(), String> {
     save_settings(settings.clone())?;
 
     let root = get_project_root();
@@ -1562,6 +1568,8 @@ fn launch_game(settings: Settings) -> Result<(), String> {
         settings.bloom_intensity.to_string(),
         "-FogIntensity".to_string(),
         settings.fog_intensity.to_string(),
+        format!("-TepeuAmbientVfx:${}", settings.tepeu_ambient_vfx),
+        format!("-Tyndall:${}", settings.tyndall),
         "-CasSharpness".to_string(),
         settings.cas_sharpness.to_string(),
         "-FsrReduction".to_string(),
@@ -1631,8 +1639,20 @@ fn launch_game(settings: Settings) -> Result<(), String> {
             Err(format!("Game failed to start (exit status {}):\n\n{}", status, msg))
         }
         Ok(None) => {
+            // Issue #23: immediately stop frontend timers, hide the window, and suspend WebView2
+            // before exiting the launcher so zero background Chromium processes contend with majin.exe.
+            let _ = app_handle.emit("game-started", ());
+            if let Some(window) = app_handle.get_webview_window("main") {
+                #[cfg(windows)]
+                {
+                    let _ = window.with_webview(|webview| unsafe {
+                        let _ = webview.controller().SetIsVisible(false);
+                    });
+                }
+                let _ = window.hide();
+            }
             std::thread::spawn(|| {
-                std::thread::sleep(std::time::Duration::from_millis(300));
+                std::thread::sleep(std::time::Duration::from_millis(150));
                 std::process::exit(0);
             });
             Ok(())
@@ -2365,6 +2385,20 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Issue #23: suspend/resume WebView2 compositor when the launcher window is minimized/restored.
+            #[cfg(windows)]
+            if matches!(event, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Focused(_)) {
+                if let Some(webview_win) = window.app_handle().get_webview_window(window.label()) {
+                    let is_min = webview_win.is_minimized().unwrap_or(false);
+                    let is_vis = webview_win.is_visible().unwrap_or(true);
+                    let should_be_visible = is_vis && !is_min;
+                    let _ = webview_win.with_webview(move |webview| unsafe {
+                        let _ = webview.controller().SetIsVisible(should_be_visible);
+                    });
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             load_settings,

@@ -437,6 +437,14 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   }
   const double bloom = rex::cvar::Query<double>("majin_bloom");
   const double fog = rex::cvar::Query<double>("majin_fog");
+  bool tepeu_ambient_vfx = true;
+  if (!rex::cvar::GetFlagByName("majin_tepeu_ambient_vfx").empty()) {
+    tepeu_ambient_vfx = rex::cvar::Query<bool>("majin_tepeu_ambient_vfx");
+  }
+  bool tyndall_enabled = true;
+  if (!rex::cvar::GetFlagByName("majin_tyndall").empty()) {
+    tyndall_enabled = rex::cvar::Query<bool>("majin_tyndall");
+  }
   const bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
   const bool dither = rex::cvar::Query<bool>("present_dither");
   const bool vsync = rex::cvar::Query<bool>("vsync");
@@ -511,7 +519,12 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   const int32_t active_fps_limit = GetEffectiveFpsLimit();
   const std::string frame_rate_mode =
       (active_fps_limit == 0) ? "Uncapped" : (active_fps_limit > 30 ? "60" : "30");
+  int32_t active_render_scale = 1;
+  if (!rex::cvar::GetFlagByName("resolution_scale").empty()) {
+    active_render_scale = std::clamp(rex::cvar::Query<int32_t>("resolution_scale"), 1, 3);
+  }
 
+  ReplaceJsonField(json, "RenderScale", std::to_string(active_render_scale));
   ReplaceJsonField(json, "FrameRateMode", "\"" + frame_rate_mode + "\"");
   ReplaceJsonField(json, "PostEffect", "\"" + post_effect + "\"");
   ReplaceJsonField(json, "DeDitherStrength", strength_buf);
@@ -528,6 +541,8 @@ bool InGameMenuDialog::SaveSettingsToLauncherConfig() {
   ReplaceJsonField(json, "Bloom", bloom > 0.0 ? "true" : "false");
   ReplaceJsonField(json, "BloomIntensity", bloom_buf);
   ReplaceJsonField(json, "FogIntensity", fog_buf);
+  ReplaceJsonField(json, "TepeuAmbientVfx", tepeu_ambient_vfx ? "true" : "false");
+  ReplaceJsonField(json, "Tyndall", tyndall_enabled ? "true" : "false");
   ReplaceJsonField(json, "PauseDistortion", pause_distortion ? "true" : "false");
   ReplaceJsonField(json, "PresentDither", dither ? "true" : "false");
   ReplaceJsonField(json, "WindowFps", window_fps ? "true" : "false");
@@ -589,7 +604,7 @@ void InGameMenuDialog::DrawSidebar() {
                         active_tab_ == Tab::kFixes)) {
       active_tab_ = Tab::kFixes;
     }
-    if (DrawSidebarItem("##NavPreferences", ICON_SOLAR_SETTINGS, "Game Preferences",
+    if (DrawSidebarItem("##NavPreferences", ICON_SOLAR_SETTINGS, "Preferences",
                         active_tab_ == Tab::kPreferences)) {
       active_tab_ = Tab::kPreferences;
     }
@@ -610,6 +625,7 @@ void InGameMenuDialog::DrawSidebar() {
                             ImGuiWindowFlags_NoScrollbar)) {
         const std::string backend = rex::cvar::GetFlagByName("gpu_backend");
         const std::string res_scale = rex::cvar::GetFlagByName("resolution_scale");
+        const bool is_vulkan = (backend == "vulkan");
         const std::string backend_upper = UpperAscii(backend.empty() ? "d3d12" : backend);
 
         PushFontSafe(fonts.caption);
@@ -617,7 +633,7 @@ void InGameMenuDialog::DrawSidebar() {
         ImGui::TextUnformatted("ACTIVE SESSION");
         ImGui::PopStyleColor();
 
-        ImGui::PushStyleColor(ImGuiCol_Text, kColSkyAccent);
+        ImGui::PushStyleColor(ImGuiCol_Text, is_vulkan ? kColSkyAccent : kColAmberText);
         ImGui::Text("%s", backend_upper.c_str());
         ImGui::PopStyleColor();
         ImGui::SameLine();
@@ -990,12 +1006,46 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
 
 void InGameMenuDialog::DrawGraphicsTab() {
   DrawTabPageHeader(ICON_SOLAR_MONITOR, "Graphics",
-                    "Upscaling, anti-aliasing, field of view, draw distance, and post-processing.");
+                    "Display scaling, frame rate, sync, upscaling, anti-aliasing, camera, and visual effects.");
 
   const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
+  const bool is_vulkan = (rex::cvar::GetFlagByName("gpu_backend") == "vulkan");
 
-  // Card 1: Display & Anti-Aliasing
-  if (BeginCard("CardGraphicsDisplay", "DISPLAY & ANTI-ALIASING", ICON_SOLAR_MONITOR)) {
+  // Card 1: Display & Output (Render Scale, Frame Rate Limit, VSync, Dither, Window FPS)
+  if (BeginCard("CardGraphicsDisplay", "DISPLAY & OUTPUT", ICON_SOLAR_MONITOR)) {
+    // Render Scale (Vulkan live hot-reload; D3D12 deprecated / restart required)
+    {
+      int32_t current_scale = 1;
+      if (!rex::cvar::GetFlagByName("resolution_scale").empty()) {
+        current_scale = std::clamp(rex::cvar::Query<int32_t>("resolution_scale"), 1, 3);
+      }
+      const char* scale_labels[] = {
+          "1x - 720p (Native)",
+          "2x - 1440p",
+          "3x - 4K",
+      };
+      int scale_idx = current_scale - 1;
+
+      DrawControlLabel("Render Scale");
+      if (!is_vulkan) {
+        DrawVulkanOnlyBadge();
+      }
+      ImGui::BeginDisabled(!is_vulkan);
+      ImGui::SetNextItemWidth(ControlWidth());
+      if (ImGui::Combo("##RenderScale", &scale_idx, scale_labels, IM_ARRAYSIZE(scale_labels))) {
+        const int32_t new_scale = scale_idx + 1;
+        rex::cvar::SetFlagByName("resolution_scale", std::to_string(new_scale));
+      }
+      ImGui::EndDisabled();
+      if (is_vulkan) {
+        DrawHintText("Changes internal 3D rendering resolution live on Vulkan (brief pause while pipelines rebuild).");
+      } else {
+        DrawHintText("Live Render Scale requires Vulkan. DirectX 12 is deprecated (Dev Mode only) and requires restarting via the launcher.");
+      }
+    }
+
+    ImGui::Spacing();
+
     // Frame Rate Limit (live hot-reload via guest vblank pacing + Vulkan hook)
     {
       const int32_t current_fps = GetEffectiveFpsLimit();
@@ -1033,6 +1083,32 @@ void InGameMenuDialog::DrawGraphicsTab() {
 
     ImGui::Spacing();
 
+    bool vsync = rex::cvar::Query<bool>("vsync");
+    if (ImGui::Checkbox("VSync", &vsync)) {
+      rex::cvar::SetFlagByName("vsync", vsync ? "true" : "false");
+    }
+
+    ImGui::Spacing();
+
+    bool dither = rex::cvar::Query<bool>("present_dither");
+    if (ImGui::Checkbox("Output Dithering", &dither)) {
+      rex::cvar::SetFlagByName("present_dither", dither ? "true" : "false");
+    }
+    DrawHintText("Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise.");
+
+    if (dev_mode) {
+      ImGui::Spacing();
+      bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
+      if (ImGui::Checkbox("Window Title FPS", &show_fps)) {
+        rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
+      }
+      DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
+    }
+  }
+  EndCard();
+
+  // Card 2: Upscaling & Anti-Aliasing
+  if (BeginCard("CardGraphicsAA", "UPSCALING & ANTI-ALIASING", ICON_SOLAR_SLIDERS)) {
     // Upscaler (present_effect)
     const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
     const char* upscaler_labels[] = {
@@ -1273,32 +1349,6 @@ void InGameMenuDialog::DrawGraphicsTab() {
     bool pause_distortion = rex::cvar::Query<bool>("majin_pause_distortion");
     if (ImGui::Checkbox("Pause Background Effect", &pause_distortion)) {
       rex::cvar::SetFlagByName("majin_pause_distortion", pause_distortion ? "true" : "false");
-    }
-  }
-  EndCard();
-
-  // Card 4: Output & Presentation
-  if (BeginCard("CardGraphicsOutput", "OUTPUT & PRESENTATION", ICON_SOLAR_INFO)) {
-    bool vsync = rex::cvar::Query<bool>("vsync");
-    if (ImGui::Checkbox("VSync", &vsync)) {
-      rex::cvar::SetFlagByName("vsync", vsync ? "true" : "false");
-    }
-
-    ImGui::Spacing();
-
-    bool dither = rex::cvar::Query<bool>("present_dither");
-    if (ImGui::Checkbox("Output Dithering", &dither)) {
-      rex::cvar::SetFlagByName("present_dither", dither ? "true" : "false");
-    }
-    DrawHintText("Applies swapchain color dithering (present_dither). Disable to eliminate screen grain/noise.");
-
-    if (dev_mode) {
-      ImGui::Spacing();
-      bool show_fps = rex::cvar::Query<bool>("majin_window_fps");
-      if (ImGui::Checkbox("Window Title FPS", &show_fps)) {
-        rex::cvar::SetFlagByName("majin_window_fps", show_fps ? "true" : "false");
-      }
-      DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
     }
   }
   EndCard();
@@ -1665,7 +1715,7 @@ void InGameMenuDialog::DrawFixesTab() {
 }
 
 void InGameMenuDialog::DrawPreferencesTab() {
-  DrawTabPageHeader(ICON_SOLAR_SETTINGS, "Game Preferences",
+  DrawTabPageHeader(ICON_SOLAR_SETTINGS, "Preferences",
                     "Cutscene playback speed, developer diagnostics, and active session details.");
 
   // Card 1: Cutscene Preferences
@@ -1728,7 +1778,7 @@ void InGameMenuDialog::DrawPreferencesTab() {
 
     DrawHintText(
         "Reveal hidden experimental and diagnostic options in the in-game menu "
-        "(De-Dither debug modes and Window Title FPS). Disabled by default.");
+        "(Uncapped FPS, De-Dither debug modes, and Window Title FPS). Disabled by default.");
   }
   EndCard();
 
@@ -1740,9 +1790,12 @@ void InGameMenuDialog::DrawPreferencesTab() {
     const std::string aa = rex::cvar::GetFlagByName("swap_post_effect");
     const int32_t active_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
     const int32_t active_fps = GetEffectiveFpsLimit();
+    const bool is_vulkan = (backend == "vulkan");
 
-    ImGui::BulletText("Render Path: %s", backend.empty() ? "d3d12" : backend.c_str());
-    ImGui::BulletText("Render Scale: %sx (Requires launcher restart to modify)", res_scale.empty() ? "1" : res_scale.c_str());
+    ImGui::BulletText("Render Path: %s%s", backend.empty() ? "d3d12" : backend.c_str(),
+                      is_vulkan ? "" : " (Deprecated - Dev Mode)");
+    ImGui::BulletText("Render Scale: %sx (%s)", res_scale.empty() ? "1" : res_scale.c_str(),
+                      is_vulkan ? "Live hot-reload" : "Requires Vulkan for live switching");
     ImGui::BulletText("Frame Rate Limit: %s (Live hot-reload)",
                       active_fps == 0 ? "Uncapped" : (active_fps > 30 ? "60 FPS" : "30 FPS"));
     ImGui::BulletText("Shadow Quality: %dx (Live dynamic scaling)", active_shadow_scale <= 1 ? 1 : (active_shadow_scale >= 4 ? 4 : 2));

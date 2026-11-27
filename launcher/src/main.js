@@ -53,20 +53,78 @@ const keepAliveCtx = keepAliveCanvas.getContext("2d");
 
 let heartbeatTick = false;
 let heartbeatCounter = 0;
-setInterval(() => {
-  heartbeatTick = !heartbeatTick;
-  heartbeatCounter++;
-  heartbeatEl.style.transform = heartbeatTick ? "translateZ(0)" : "translateZ(1px)";
-  if (keepAliveCtx) {
-    keepAliveCtx.fillStyle = heartbeatTick ? "#0f172a" : "#0f172b";
-    keepAliveCtx.fillRect(0, 0, 1, 1);
+let heartbeatIntervalId = null;
+let gamepadPollIntervalId = null;
+let isGameLaunchSuspended = false;
+
+function stopBackgroundTimers() {
+  if (heartbeatIntervalId !== null) {
+    clearInterval(heartbeatIntervalId);
+    heartbeatIntervalId = null;
   }
-  if (isDevModeCached && heartbeatCounter % 3 === 0) {
-    logToBackend(
-      `JS Heartbeat #${heartbeatCounter} (${heartbeatCounter}s): visibility=${document.visibilityState}, active=<${document.activeElement?.tagName || "none"}>`
-    );
+  if (gamepadPollIntervalId !== null) {
+    clearInterval(gamepadPollIntervalId);
+    gamepadPollIntervalId = null;
   }
-}, 1000);
+}
+
+function startBackgroundTimers() {
+  if (isGameLaunchSuspended || document.hidden) return;
+  if (heartbeatIntervalId === null) {
+    heartbeatIntervalId = setInterval(() => {
+      if (document.hidden || isGameLaunchSuspended) {
+        stopBackgroundTimers();
+        return;
+      }
+      heartbeatTick = !heartbeatTick;
+      heartbeatCounter++;
+      heartbeatEl.style.transform = heartbeatTick ? "translateZ(0)" : "translateZ(1px)";
+      if (keepAliveCtx) {
+        keepAliveCtx.fillStyle = heartbeatTick ? "#0f172a" : "#0f172b";
+        keepAliveCtx.fillRect(0, 0, 1, 1);
+      }
+      if (isDevModeCached && heartbeatCounter % 3 === 0) {
+        logToBackend(
+          `JS Heartbeat #${heartbeatCounter} (${heartbeatCounter}s): visibility=${document.visibilityState}, active=<${document.activeElement?.tagName || "none"}>`
+        );
+      }
+    }, 1000);
+  }
+  if (gamepadPollIntervalId === null) {
+    gamepadPollIntervalId = setInterval(() => {
+      if (document.hidden || isGameLaunchSuspended) {
+        stopBackgroundTimers();
+        return;
+      }
+      // Only poll gamepads when the Controls tab is visible
+      const controlsTab = document.getElementById("tabControls");
+      if (controlsTab && !controlsTab.classList.contains("hidden")) {
+        updateConnectedGamepads();
+      }
+    }, 2500);
+  }
+}
+
+// Issue #23: pause all background JS intervals when hidden/minimized or when the game starts
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopBackgroundTimers();
+  } else {
+    startBackgroundTimers();
+  }
+});
+
+listen("game-started", () => {
+  isGameLaunchSuspended = true;
+  stopBackgroundTimers();
+}).catch(() => {});
+
+listen("game-exited", () => {
+  isGameLaunchSuspended = false;
+  startBackgroundTimers();
+}).catch(() => {});
+
+startBackgroundTimers();
 
 // Watchdog: manual reload keyboard shortcut (F5 or Ctrl+R)
 window.addEventListener("keydown", (e) => {
@@ -148,6 +206,8 @@ const defaultSettings = {
   Bloom: true,
   BloomIntensity: 0.80,
   FogIntensity: 0.80,
+  TepeuAmbientVfx: true,
+  Tyndall: true,
   PauseDistortion: true,
   WindowFps: false,
   DevMode: false,
@@ -166,15 +226,21 @@ let gameStatus = {
 const elements = {
   // Navigation Tabs
   tabBtnGraphics: document.getElementById("tabBtnGraphics"),
+  tabBtnShadow: document.getElementById("tabBtnShadow"),
+  tabBtnAtmosphere: document.getElementById("tabBtnAtmosphere"),
   tabBtnControls: document.getElementById("tabBtnControls"),
   tabBtnSettings: document.getElementById("tabBtnGraphics"),
   tabBtnFixes: document.getElementById("tabBtnFixes"),
+  tabBtnPreferences: document.getElementById("tabBtnPreferences"),
   tabBtnSaves: document.getElementById("tabBtnSaves"),
   tabBtnBuild: document.getElementById("tabBtnBuild"),
   tabGraphics: document.getElementById("tabGraphics"),
+  tabShadow: document.getElementById("tabShadow"),
+  tabAtmosphere: document.getElementById("tabAtmosphere"),
   tabControls: document.getElementById("tabControls"),
   tabSettings: document.getElementById("tabGraphics"),
   tabFixes: document.getElementById("tabFixes"),
+  tabPreferences: document.getElementById("tabPreferences"),
   tabSaves: document.getElementById("tabSaves"),
   tabBuild: document.getElementById("tabBuild"),
   tabSavesCountBadge: document.getElementById("tabSavesCountBadge"),
@@ -278,9 +344,12 @@ const elements = {
   shadowConstantBiasVal: document.getElementById("shadowConstantBiasVal"),
   shadowBiasClamp: document.getElementById("shadowBiasClamp"),
   shadowBiasClampVal: document.getElementById("shadowBiasClampVal"),
+  shadowDepthBiasD3d12Notice: document.getElementById("shadowDepthBiasD3d12Notice"),
   btnResetShadowBias: document.getElementById("btnResetShadowBias"),
   btnNegativeShadowBias: document.getElementById("btnNegativeShadowBias"),
   btnZeroShadowBias: document.getElementById("btnZeroShadowBias"),
+  tepeuAmbientVfx: document.getElementById("tepeuAmbientVfx"),
+  tyndallEnabled: document.getElementById("tyndallEnabled"),
   frameRateMode: document.getElementById("frameRateMode"),
   renderingPath: document.getElementById("renderingPath"),
   upscaler: document.getElementById("upscaler"),
@@ -519,12 +588,18 @@ function switchTab(tab) {
   const inactiveClass =
     "w-full h-11 flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 hover:bg-darkControl/60 transition-all duration-200 cursor-pointer text-left";
 
-  const target = tab === "settings" ? "graphics" : tab;
+  let target = tab === "settings" ? "graphics" : tab;
+  if (!isDevModeCached && (target === "shadow" || target === "atmosphere")) {
+    target = "graphics";
+  }
 
   const tabList = [
     { key: "graphics", el: elements.tabGraphics, btn: elements.tabBtnGraphics },
+    { key: "shadow", el: elements.tabShadow, btn: elements.tabBtnShadow },
+    { key: "atmosphere", el: elements.tabAtmosphere, btn: elements.tabBtnAtmosphere },
     { key: "controls", el: elements.tabControls, btn: elements.tabBtnControls },
     { key: "fixes", el: elements.tabFixes, btn: elements.tabBtnFixes },
+    { key: "preferences", el: elements.tabPreferences, btn: elements.tabBtnPreferences },
     { key: "saves", el: elements.tabSaves, btn: elements.tabBtnSaves },
     { key: "build", el: elements.tabBuild, btn: elements.tabBtnBuild },
   ];
@@ -545,6 +620,9 @@ function switchTab(tab) {
       el.classList.remove("tab-content-active");
       btn.className = inactiveClass;
     }
+    if (btn.hasAttribute("data-dev-only") && !isDevModeCached) {
+      btn.classList.add("hidden");
+    }
   });
 
   if (target === "build") {
@@ -553,12 +631,17 @@ function switchTab(tab) {
     updateConnectedGamepads();
   } else if (target === "saves") {
     loadSaveProfiles();
+  } else if (target === "shadow") {
+    updateShadowBiasVisibility();
   }
 }
 
 if (elements.tabBtnGraphics) elements.tabBtnGraphics.addEventListener("click", () => switchTab("graphics"));
+if (elements.tabBtnShadow) elements.tabBtnShadow.addEventListener("click", () => switchTab("shadow"));
+if (elements.tabBtnAtmosphere) elements.tabBtnAtmosphere.addEventListener("click", () => switchTab("atmosphere"));
 if (elements.tabBtnControls) elements.tabBtnControls.addEventListener("click", () => switchTab("controls"));
 if (elements.tabBtnFixes) elements.tabBtnFixes.addEventListener("click", () => switchTab("fixes"));
+if (elements.tabBtnPreferences) elements.tabBtnPreferences.addEventListener("click", () => switchTab("preferences"));
 if (elements.tabBtnSaves) elements.tabBtnSaves.addEventListener("click", () => switchTab("saves"));
 if (elements.tabBtnBuild) elements.tabBtnBuild.addEventListener("click", () => switchTab("build"));
 if (elements.btnGoToSetup) elements.btnGoToSetup.addEventListener("click", () => switchTab("build"));
@@ -622,6 +705,9 @@ function updateShadowBiasVisibility() {
   if (!elements.renderingPath || !elements.shadowDepthBiasSection) return;
   const isVulkan = String(elements.renderingPath.value || "Vulkan") === "Vulkan";
   elements.shadowDepthBiasSection.classList.toggle("hidden", !isVulkan);
+  if (elements.shadowDepthBiasD3d12Notice) {
+    elements.shadowDepthBiasD3d12Notice.classList.toggle("hidden", isVulkan);
+  }
   if (isVulkan) {
     updateSliderFill(elements.shadowSlopeBias);
     updateSliderFill(elements.shadowConstantBias);
@@ -994,6 +1080,12 @@ function populateForm(settings) {
       elements.fogIntensityVal.textContent = clampedFog <= 0.001 ? "Off" : clampedFog.toFixed(2);
     }
   }
+  if (elements.tepeuAmbientVfx) {
+    elements.tepeuAmbientVfx.checked = settings.TepeuAmbientVfx ?? true;
+  }
+  if (elements.tyndallEnabled) {
+    elements.tyndallEnabled.checked = settings.Tyndall ?? true;
+  }
 
   updateAllSliderFills();
 }
@@ -1046,6 +1138,8 @@ function readForm() {
     Bloom: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 0.80) > 0.001 : true,
     BloomIntensity: elements.bloomIntensity ? safeFloat(elements.bloomIntensity.value, 0.80) : safeFloat(currentSettings.BloomIntensity, 0.80),
     FogIntensity: elements.fogIntensity ? safeFloat(elements.fogIntensity.value, 0.80) : safeFloat(currentSettings.FogIntensity, 0.80),
+    TepeuAmbientVfx: elements.tepeuAmbientVfx ? elements.tepeuAmbientVfx.checked : (currentSettings.TepeuAmbientVfx ?? true),
+    Tyndall: elements.tyndallEnabled ? elements.tyndallEnabled.checked : (currentSettings.Tyndall ?? true),
     DevMode: !!isDevModeCached,
     ActiveSaveProfile: currentSettings.ActiveSaveProfile || "default",
   };
@@ -1849,14 +1943,11 @@ if (elements.inputMode) {
 }
 
 window.addEventListener("gamepadconnected", () => {
-  updateConnectedGamepads();
+  if (!document.hidden && !isGameLaunchSuspended) updateConnectedGamepads();
 });
 window.addEventListener("gamepaddisconnected", () => {
-  updateConnectedGamepads();
+  if (!document.hidden && !isGameLaunchSuspended) updateConnectedGamepads();
 });
-setInterval(() => {
-  updateConnectedGamepads();
-}, 2500);
 
 if (elements.btnWindowClose) {
   elements.btnWindowClose.addEventListener("click", async () => {
@@ -1878,9 +1969,12 @@ document.addEventListener("change", async (e) => {
   if (
     e.target &&
     (e.target.closest("#tabGraphics") ||
+      e.target.closest("#tabShadow") ||
+      e.target.closest("#tabAtmosphere") ||
       e.target.closest("#tabControls") ||
       e.target.closest("#tabSettings") ||
       e.target.closest("#tabFixes") ||
+      e.target.closest("#tabPreferences") ||
       e.target.closest("#tabBuild"))
   ) {
     const settings = readForm();
@@ -2291,6 +2385,12 @@ function applyDevModeUI(enabled) {
     }
     if (elements.chkCompileBinary) {
       elements.chkCompileBinary.checked = false;
+    }
+    const onDevTab =
+      (elements.tabShadow && !elements.tabShadow.classList.contains("hidden")) ||
+      (elements.tabAtmosphere && !elements.tabAtmosphere.classList.contains("hidden"));
+    if (onDevTab) {
+      switchTab("graphics");
     }
     updatePostProcessingVisibility();
     updateShadowBiasVisibility();
@@ -2763,7 +2863,7 @@ async function confirmImportSave() {
       currentSettings = { ...defaultSettings, ...res.settings };
       populateForm(currentSettings);
       await loadAvailableLanguages(currentSettings.Language, currentSettings.AudioLanguage);
-      document.querySelectorAll("select").forEach(refreshCustomSelect);
+      applyDevModeUI(isDevModeCached);
       showSavesFeedback(
         `Imported "${res.importedProfileName}" and applied its bundled launcher settings.`
       );

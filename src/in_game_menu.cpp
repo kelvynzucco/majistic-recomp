@@ -252,6 +252,125 @@ std::string UpperAscii(std::string s) {
   return s;
 }
 
+// Persisted across menu open/close during a play session.
+// Opens fullscreen by default; switching to windowed mode remembers position & size.
+struct OverlayWindowState {
+  bool is_fullscreen = true;
+  bool has_windowed_rect = false;
+  ImVec2 windowed_pos = ImVec2(0.0f, 0.0f);
+  ImVec2 windowed_size = ImVec2(880.0f, 640.0f);
+};
+
+OverlayWindowState g_overlay_state;
+
+void ClampWindowedRect(const ImVec2& vp_pos, const ImVec2& vp_size) {
+  const float min_w = std::min(720.0f, std::max(320.0f, vp_size.x - 24.0f));
+  const float min_h = std::min(480.0f, std::max(280.0f, vp_size.y - 24.0f));
+  const float max_w = std::max(min_w, vp_size.x - 16.0f);
+  const float max_h = std::max(min_h, vp_size.y - 16.0f);
+
+  g_overlay_state.windowed_size.x = std::clamp(g_overlay_state.windowed_size.x, min_w, max_w);
+  g_overlay_state.windowed_size.y = std::clamp(g_overlay_state.windowed_size.y, min_h, max_h);
+
+  const float min_x = vp_pos.x - g_overlay_state.windowed_size.x + 120.0f;
+  const float max_x = vp_pos.x + vp_size.x - 120.0f;
+  const float min_y = vp_pos.y;
+  const float max_y = vp_pos.y + vp_size.y - 56.0f;
+
+  g_overlay_state.windowed_pos.x = std::clamp(g_overlay_state.windowed_pos.x, min_x, std::max(min_x, max_x));
+  g_overlay_state.windowed_pos.y = std::clamp(g_overlay_state.windowed_pos.y, min_y, std::max(min_y, max_y));
+}
+
+void InitDefaultWindowedRect(const ImVec2& vp_pos, const ImVec2& vp_size) {
+  const float def_w = std::clamp(vp_size.x * 0.72f, 720.0f, 960.0f);
+  const float def_h = std::clamp(vp_size.y * 0.78f, 480.0f, 680.0f);
+  g_overlay_state.windowed_size = ImVec2(def_w, def_h);
+  g_overlay_state.windowed_pos = ImVec2(
+      vp_pos.x + (vp_size.x - def_w) * 0.5f,
+      vp_pos.y + (vp_size.y - def_h) * 0.5f);
+  ClampWindowedRect(vp_pos, vp_size);
+  g_overlay_state.has_windowed_rect = true;
+}
+
+bool DrawWindowModeButton(const char* id, float size, bool is_fullscreen, bool* out_hovered) {
+  const ImVec2 pos = ImGui::GetCursorScreenPos();
+  const bool pressed = ImGui::InvisibleButton(id, ImVec2(size, size));
+  const bool hovered = ImGui::IsItemHovered();
+  const bool active = ImGui::IsItemActive();
+  if (out_hovered) *out_hovered = hovered;
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 p_max(pos.x + size, pos.y + size);
+
+  if (active) {
+    dl->AddRectFilled(pos, p_max, ImGui::GetColorU32(ImVec4(0.240f, 0.270f, 0.350f, 1.00f)), 7.0f);
+  } else if (hovered) {
+    dl->AddRectFilled(pos, p_max, ImGui::GetColorU32(ImVec4(0.196f, 0.220f, 0.290f, 0.90f)), 7.0f);
+  }
+
+  const ImU32 icon_col = ImGui::GetColorU32(
+      hovered ? kColTextPrimary : ImVec4(0.760f, 0.800f, 0.860f, 1.00f));
+  const float cx = pos.x + size * 0.5f;
+  const float cy = pos.y + size * 0.5f;
+
+  if (is_fullscreen) {
+    // Restore Down (Windowed Mode) icon: overlapping front + back squares
+    const ImVec2 front_min(cx - 5.0f, cy - 2.0f);
+    const ImVec2 front_max(cx + 3.0f, cy + 6.0f);
+    dl->AddRect(front_min, front_max, icon_col, 1.5f, 0, 1.5f);
+
+    // Back square top & right edges peeking behind the front square
+    dl->PathClear();
+    dl->PathLineTo(ImVec2(cx - 2.0f, cy - 2.5f));
+    dl->PathLineTo(ImVec2(cx - 2.0f, cy - 5.0f));
+    dl->PathLineTo(ImVec2(cx + 5.5f, cy - 5.0f));
+    dl->PathLineTo(ImVec2(cx + 5.5f, cy + 2.5f));
+    dl->PathLineTo(ImVec2(cx + 3.0f, cy + 2.5f));
+    dl->PathStroke(icon_col, 0, 1.5f);
+  } else {
+    // Maximize (Fullscreen Mode) icon: crisp rounded square
+    dl->AddRect(ImVec2(cx - 5.0f, cy - 5.0f), ImVec2(cx + 5.0f, cy + 5.0f),
+                icon_col, 1.5f, 0, 1.5f);
+  }
+
+  if (hovered) {
+    ImGui::SetTooltip("%s", is_fullscreen
+                                ? "Windowed Mode (drag to inspect live changes)"
+                                : "Fullscreen Mode");
+  }
+  return pressed;
+}
+
+bool DrawCloseButton(const char* id, float size, bool* out_hovered) {
+  const ImVec2 pos = ImGui::GetCursorScreenPos();
+  const bool pressed = ImGui::InvisibleButton(id, ImVec2(size, size));
+  const bool hovered = ImGui::IsItemHovered();
+  const bool active = ImGui::IsItemActive();
+  if (out_hovered) *out_hovered = hovered;
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  const ImVec2 p_max(pos.x + size, pos.y + size);
+
+  if (active) {
+    dl->AddRectFilled(pos, p_max, ImGui::GetColorU32(kColRoseBtn), 7.0f);
+  } else if (hovered) {
+    dl->AddRectFilled(pos, p_max, ImGui::GetColorU32(kColRoseBtnHov), 7.0f);
+  }
+
+  const ImU32 icon_col = ImGui::GetColorU32(
+      hovered ? kColTextPrimary : ImVec4(0.760f, 0.800f, 0.860f, 1.00f));
+  const float cx = pos.x + size * 0.5f;
+  const float cy = pos.y + size * 0.5f;
+  constexpr float kHalf = 4.5f;
+  dl->AddLine(ImVec2(cx - kHalf, cy - kHalf), ImVec2(cx + kHalf, cy + kHalf), icon_col, 1.75f);
+  dl->AddLine(ImVec2(cx + kHalf, cy - kHalf), ImVec2(cx - kHalf, cy + kHalf), icon_col, 1.75f);
+
+  if (hovered) {
+    ImGui::SetTooltip("Close Menu (F1 / ESC)");
+  }
+  return pressed;
+}
+
 }  // namespace
 
 InGameMenuDialog::InGameMenuDialog(rex::ui::ImGuiDrawer* imgui_drawer,
@@ -261,7 +380,8 @@ InGameMenuDialog::InGameMenuDialog(rex::ui::ImGuiDrawer* imgui_drawer,
     : rex::ui::ImGuiDialog(imgui_drawer),
       on_resume_(std::move(on_resume)),
       on_quit_(std::move(on_quit)),
-      on_clear_caches_(std::move(on_clear_caches)) {
+      on_clear_caches_(std::move(on_clear_caches)),
+      apply_windowed_rect_(!g_overlay_state.is_fullscreen) {
   rex::input::mnk::SetMouseLookActive(false);
   REXLOG_INFO("[InGameMenu] Opened in-game settings overlay.");
 }
@@ -519,30 +639,82 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
   const auto& fonts = GetUiFonts();
   PushFontSafe(fonts.body);
 
-  ImGui::SetNextWindowSize(ImVec2(840.0f, 630.0f), ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSizeConstraints(ImVec2(720.0f, 480.0f), ImVec2(1400.0f, 960.0f));
-  const ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
-  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  const ImGuiViewport* viewport = ImGui::GetMainViewport();
+  const ImVec2 vp_pos = viewport ? viewport->Pos : ImVec2(0.0f, 0.0f);
+  const ImVec2 vp_size =
+      (viewport && viewport->Size.x > 0.0f && viewport->Size.y > 0.0f)
+          ? viewport->Size
+          : io.DisplaySize;
 
-  const ImGuiWindowFlags window_flags =
+  const bool is_fullscreen = g_overlay_state.is_fullscreen;
+
+  // Zero-latency custom title bar drag when in windowed mode
+  if (dragging_window_) {
+    if (!is_fullscreen && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+      g_overlay_state.windowed_pos = ImVec2(
+          io.MousePos.x - drag_offset_.x,
+          io.MousePos.y - drag_offset_.y);
+      ClampWindowedRect(vp_pos, vp_size);
+      ImGui::SetNextWindowPos(g_overlay_state.windowed_pos, ImGuiCond_Always);
+    } else {
+      dragging_window_ = false;
+    }
+  }
+
+  ImGuiWindowFlags window_flags =
       ImGuiWindowFlags_NoCollapse |
       ImGuiWindowFlags_NoTitleBar |
       ImGuiWindowFlags_NoScrollbar |
       ImGuiWindowFlags_NoScrollWithMouse;
 
+  if (is_fullscreen) {
+    ImGui::SetNextWindowPos(vp_pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(vp_size, ImGuiCond_Always);
+    window_flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+  } else {
+    if (!g_overlay_state.has_windowed_rect) {
+      InitDefaultWindowedRect(vp_pos, vp_size);
+      apply_windowed_rect_ = true;
+    }
+
+    const float min_w = std::min(720.0f, std::max(320.0f, vp_size.x - 24.0f));
+    const float min_h = std::min(480.0f, std::max(280.0f, vp_size.y - 24.0f));
+    const float max_w = std::max(min_w, vp_size.x - 16.0f);
+    const float max_h = std::max(min_h, vp_size.y - 16.0f);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(min_w, min_h), ImVec2(max_w, max_h));
+
+    if (apply_windowed_rect_) {
+      ClampWindowedRect(vp_pos, vp_size);
+      ImGui::SetNextWindowPos(g_overlay_state.windowed_pos, ImGuiCond_Always);
+      ImGui::SetNextWindowSize(g_overlay_state.windowed_size, ImGuiCond_Always);
+      apply_windowed_rect_ = false;
+    }
+  }
+
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, is_fullscreen ? 0.0f : 12.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, is_fullscreen ? 0.0f : 1.0f);
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.059f, 0.067f, 0.090f, 0.97f));
 
   const bool window_open =
       ImGui::Begin("Majistic Recomp - In-Game Settings###MajinInGameOverlay", nullptr, window_flags);
 
   ImGui::PopStyleColor();
-  ImGui::PopStyleVar();
+  ImGui::PopStyleVar(3);
 
   if (window_open) {
+    const ImVec2 parent_win_pos = ImGui::GetWindowPos();
+    const ImVec2 parent_win_size = ImGui::GetWindowSize();
+    if (!is_fullscreen) {
+      g_overlay_state.windowed_pos = parent_win_pos;
+      g_overlay_state.windowed_size = parent_win_size;
+      g_overlay_state.has_windowed_rect = true;
+    }
+
     const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
     constexpr float kHeaderHeight = 56.0f;
     constexpr float kFooterHeight = 58.0f;
+    bool toggle_mode_requested = false;
 
     // =========================================================================
     // TOP HEADER BAR (matching launcher appHeader)
@@ -572,16 +744,21 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
         DrawPillBadge("DEV", kColAmberBg, kColAmberBdr, kColAmberText);
       }
 
-      // Right side: shortcut hint + close button
-      const char* shortcut_hint = "Live Settings  |  Press [F1] or [ESC] to resume";
+      // Right side: shortcut hint + windowed/fullscreen toggle + close button
+      const char* shortcut_hint = is_fullscreen
+                                      ? "Live Settings  |  Press [F1] or [ESC] to resume"
+                                      : "Drag bar to move  |  [F1] or [ESC] to resume";
       PushFontSafe(fonts.caption);
       const float hint_w = ImGui::CalcTextSize(shortcut_hint).x;
       const float hint_h = ImGui::GetTextLineHeight();
       PopFontSafe(fonts.caption);
 
-      const float close_btn_sz = 28.0f;
+      constexpr float kHeaderBtnSz = 28.0f;
+      constexpr float kHeaderBtnGap = 6.0f;
       const float right_edge = ImGui::GetWindowWidth() - 16.0f;
-      const float hint_x = right_edge - close_btn_sz - 14.0f - hint_w;
+      const float close_btn_x = right_edge - kHeaderBtnSz;
+      const float mode_btn_x = close_btn_x - kHeaderBtnGap - kHeaderBtnSz;
+      const float hint_x = mode_btn_x - 14.0f - hint_w;
 
       if (hint_x > ImGui::GetCursorPosX() + 16.0f) {
         ImGui::SameLine();
@@ -593,18 +770,31 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
         PopFontSafe(fonts.caption);
       }
 
-      ImGui::SetCursorPos(ImVec2(right_edge - close_btn_sz, (kHeaderHeight - close_btn_sz) * 0.5f));
-      ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, kColRoseBtnHov);
-      ImGui::PushStyleColor(ImGuiCol_ButtonActive, kColRoseBtn);
-      ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-      ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 7.0f);
-      ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-      if (ImGui::Button("X##HeaderClose", ImVec2(close_btn_sz, close_btn_sz))) {
+      const float btn_y = (kHeaderHeight - kHeaderBtnSz) * 0.5f;
+      bool mode_btn_hovered = false;
+      bool close_btn_hovered = false;
+
+      ImGui::SetCursorPos(ImVec2(mode_btn_x, btn_y));
+      if (DrawWindowModeButton("##HeaderWindowMode", kHeaderBtnSz, is_fullscreen, &mode_btn_hovered)) {
+        toggle_mode_requested = true;
+      }
+
+      ImGui::SetCursorPos(ImVec2(close_btn_x, btn_y));
+      if (DrawCloseButton("##HeaderClose", kHeaderBtnSz, &close_btn_hovered)) {
         if (on_resume_) on_resume_();
       }
-      ImGui::PopStyleVar(2);
-      ImGui::PopStyleColor(4);
+
+      // Drag header to reposition window in windowed mode; double-click to toggle fullscreen
+      const bool header_btn_hovered = mode_btn_hovered || close_btn_hovered;
+      if (ImGui::IsWindowHovered() && !header_btn_hovered && !ImGui::IsAnyItemActive()) {
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+          toggle_mode_requested = true;
+        } else if (!is_fullscreen && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+          dragging_window_ = true;
+          drag_offset_ = ImVec2(io.MousePos.x - parent_win_pos.x,
+                                io.MousePos.y - parent_win_pos.y);
+        }
+      }
 
       // Bottom divider
       const ImVec2 hpos = ImGui::GetWindowPos();
@@ -618,6 +808,24 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
     ImGui::EndChild();
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor();
+
+    if (toggle_mode_requested) {
+      dragging_window_ = false;
+      if (g_overlay_state.is_fullscreen) {
+        g_overlay_state.is_fullscreen = false;
+        if (!g_overlay_state.has_windowed_rect) {
+          InitDefaultWindowedRect(vp_pos, vp_size);
+        } else {
+          ClampWindowedRect(vp_pos, vp_size);
+        }
+        apply_windowed_rect_ = true;
+      } else {
+        g_overlay_state.windowed_pos = parent_win_pos;
+        g_overlay_state.windowed_size = parent_win_size;
+        g_overlay_state.has_windowed_rect = true;
+        g_overlay_state.is_fullscreen = true;
+      }
+    }
 
     // =========================================================================
     // MIDDLE WORKSPACE: Vertical Sidebar + Scrollable Content Area

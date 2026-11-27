@@ -50,6 +50,9 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
 
   Tab active_tab_ = Tab::kGraphics;
   bool show_quit_confirm_ = false;
+  bool apply_windowed_rect_ = false;
+  bool dragging_window_ = false;
+  ImVec2 drag_offset_ = ImVec2(0.0f, 0.0f);
   std::string save_status_msg_;
   float save_status_timer_ = 0.0f;
 };

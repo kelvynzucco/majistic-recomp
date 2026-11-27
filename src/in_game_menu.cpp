@@ -285,11 +285,25 @@ void InGameMenuDialog::OnDraw(ImGuiIO& io) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Tab Bar for categorized configuration (standardized with Launcher)
+    // Tab Bar for categorized configuration
     if (ImGui::BeginTabBar("MajinInGameTabs", ImGuiTabBarFlags_None)) {
       if (ImGui::BeginTabItem("Graphics")) {
         if (ImGui::BeginChild("GraphicsScroll", ImVec2(0, -44.0f), false)) {
           DrawGraphicsTab();
+        }
+        ImGui::EndChild();
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("Shadow")) {
+        if (ImGui::BeginChild("ShadowScroll", ImVec2(0, -44.0f), false)) {
+          DrawShadowTab();
+        }
+        ImGui::EndChild();
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("Atmosphere")) {
+        if (ImGui::BeginChild("AtmosphereScroll", ImVec2(0, -44.0f), false)) {
+          DrawAtmosphereTab();
         }
         ImGui::EndChild();
         ImGui::EndTabItem();
@@ -370,36 +384,6 @@ void InGameMenuDialog::DrawGraphicsTab() {
   ImGui::Spacing();
   DrawSectionHeader("DISPLAY");
 
-  // Shadow Quality (majin_shadow_scale)
-  const int32_t current_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
-  const char* shadow_scale_labels[] = {
-      "1x - Native",
-      "2x - Enhanced",
-      "4x - Ultra Clean",
-  };
-  const int shadow_scale_values[] = {1, 2, 4};
-
-  int shadow_idx = 0;
-  if (current_shadow_scale >= 4) {
-    shadow_idx = 2;
-  } else if (current_shadow_scale >= 2) {
-    shadow_idx = 1;
-  } else {
-    shadow_idx = 0;
-  }
-
-  ImGui::Text("Shadow Quality:");
-  ImGui::SetNextItemWidth(360.0f);
-  if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
-    const int new_val = shadow_scale_values[shadow_idx];
-    rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
-    if (on_clear_caches_) {
-      on_clear_caches_();
-    }
-  }
-
-  ImGui::Spacing();
-
   // Upscaler (present_effect)
   const std::string current_upscaler = rex::cvar::GetFlagByName("present_effect");
   const char* upscaler_labels[] = {
@@ -455,8 +439,6 @@ void InGameMenuDialog::DrawGraphicsTab() {
   ImGui::Spacing();
 
   const bool dev_mode = rex::cvar::Query<bool>("majin_dev_mode");
-  const std::string active_backend = rex::cvar::GetFlagByName("gpu_backend");
-  const bool is_vulkan = (active_backend == "vulkan");
 
   // Anti-Aliasing (swap_post_effect)
   const std::string current_post = rex::cvar::GetFlagByName("swap_post_effect");
@@ -552,243 +534,6 @@ void InGameMenuDialog::DrawGraphicsTab() {
     }
     DrawHintText("Overrides 360 Bayer 4x4 foliage/shadow dither & A2M holes. Smooth Fade keeps leaves solid (>=0.75) while preserving camera fade (hot-reload).");
   }
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  ImGui::TextColored(ImVec4(0.65f, 0.72f, 0.82f, 1.0f), "SHADOW FILTERING & STABILITY");
-  ImGui::Spacing();
-
-  // Shadow Filtering (PCF) - Vulkan SPIR-V
-  {
-    ImGui::BeginDisabled(!is_vulkan);
-    std::string cur_pcf = rex::cvar::GetFlagByName("majin_shadow_pcf_mode");
-    if (cur_pcf.empty()) cur_pcf = "soft";
-    static const char* kPcfLabels[] = {
-        "4x4 Cubic PCF (Recommended - Smooth, Zero Striping)",
-        "2x2 Bilinear PCF (Sharp, Smooth Sun Motion)",
-        "6x6 Tent PCF (Ultra Soft Penumbra)",
-        "Original 360 (1-Tap Binary)",
-    };
-    static const char* kPcfValues[] = {"soft", "bilinear", "ultra", "original"};
-    int pcf_idx = 0;
-    for (int i = 0; i < 4; ++i) {
-      if (cur_pcf == kPcfValues[i]) {
-        pcf_idx = i;
-        break;
-      }
-    }
-    ImGui::Text("Shadow Filtering (PCF):");
-    if (!is_vulkan) {
-      ImGui::SameLine();
-      ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "[Vulkan Only]");
-    }
-    ImGui::SetNextItemWidth(360.0f);
-    if (ImGui::Combo("##ShadowPcfMode", &pcf_idx, kPcfLabels, 4)) {
-      rex::cvar::SetFlagByName("majin_shadow_pcf_mode", kPcfValues[pcf_idx]);
-    }
-    DrawHintText("Sub-texel shadow filtering in KbPreZSSSM* shaders. Eliminates stone-wall striping and makes sunlight move smoothly at 60 FPS (hot-reload).");
-
-    ImGui::Spacing();
-
-    bool rpb_enabled = true;
-    if (!rex::cvar::GetFlagByName("majin_shadow_receiver_bias").empty()) {
-      rpb_enabled = rex::cvar::Query<bool>("majin_shadow_receiver_bias");
-    }
-    if (ImGui::Checkbox("Receiver Plane Depth Bias (Anti-Striping)", &rpb_enabled)) {
-      rex::cvar::SetFlagByName("majin_shadow_receiver_bias", rpb_enabled ? "true" : "false");
-    }
-    DrawHintText("Computes per-texel tangent-plane depth slope in PCF to remove grazing stone-wall stripes without Peter-Panning (hot-reload).");
-
-    ImGui::Spacing();
-
-    bool two_sided_shadows = true;
-    if (!rex::cvar::GetFlagByName("majin_shadow_two_sided").empty()) {
-      two_sided_shadows = rex::cvar::Query<bool>("majin_shadow_two_sided");
-    }
-    if (ImGui::Checkbox("Two-Sided Shadow Casters (Anti-Light-Leak)", &two_sided_shadows)) {
-      rex::cvar::SetFlagByName("majin_shadow_two_sided", two_sided_shadows ? "true" : "false");
-    }
-    DrawHintText("Disables backface culling in shadow depth passes so single-sided rock cliffs and stone walls cast watertight shadows without base light leaks (hot-reload).");
-    ImGui::EndDisabled();
-  }
-
-  ImGui::Spacing();
-
-  // Cascade Texel Snapping (CPU/PPC - works on Vulkan & D3D12)
-  {
-    bool texel_snap = true;
-    if (!rex::cvar::GetFlagByName("majin_shadow_texel_snap").empty()) {
-      texel_snap = rex::cvar::Query<bool>("majin_shadow_texel_snap");
-    }
-    if (ImGui::Checkbox("Cascade Texel Snapping (Anti-Shimmer)", &texel_snap)) {
-      rex::cvar::SetFlagByName("majin_shadow_texel_snap", texel_snap ? "true" : "false");
-    }
-    DrawHintText("Snaps orthographic shadow cascade bounds to shadow-map texel increments so edges stay stable during camera movement (hot-reload).");
-  }
-
-  ImGui::Spacing();
-
-  // Screen-Space Shadow Blur (SSSM) Integration
-  {
-    std::string cur_sssm = rex::cvar::GetFlagByName("majin_shadow_sssm_mode");
-    if (cur_sssm.empty()) cur_sssm = "auto";
-    static const char* kSssmLabels[] = {
-        "Auto (Off for 4x4/6x6 PCF, 0.5x for 2x2, Full for Original)",
-        "Original (Full SSSM Blur)",
-        "Subtle (0.5x SSSM Blur)",
-        "Off (Pure 3D Shadow Map / PCF)",
-    };
-    static const char* kSssmValues[] = {"auto", "original", "subtle", "off"};
-    int sssm_idx = 0;
-    for (int i = 0; i < 4; ++i) {
-      if (cur_sssm == kSssmValues[i]) {
-        sssm_idx = i;
-        break;
-      }
-    }
-    ImGui::Text("Screen-Space Shadow Blur (SSSM):");
-    ImGui::SetNextItemWidth(360.0f);
-    if (ImGui::Combo("##ShadowSssmMode", &sssm_idx, kSssmLabels, 4)) {
-      rex::cvar::SetFlagByName("majin_shadow_sssm_mode", kSssmValues[sssm_idx]);
-    }
-    DrawHintText("Coordinates screen-space shadow blur with 3D PCF so flat floors and steep walls share uniform shadow softness (hot-reload).");
-  }
-
-  ImGui::Spacing();
-  ImGui::Separator();
-  ImGui::Spacing();
-
-  ImGui::TextColored(ImVec4(0.65f, 0.72f, 0.82f, 1.0f), "SHADOW DEPTH BIAS");
-  if (!is_vulkan) {
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "[Off - Vulkan Only]");
-  }
-  ImGui::Spacing();
-  if (!is_vulkan) {
-    DrawHintText("Shadow Depth Bias is Off on DirectX 12. Switch Render Path to Vulkan in the launcher to adjust these settings.");
-    ImGui::Spacing();
-  }
-
-  ImGui::BeginDisabled(!is_vulkan);
-
-  // Shadow Slope-Scaled Depth Bias (supports negative values for Reversed-Z testing)
-  double current_slope_bias = 0.00;
-  const std::string slope_bias_str = rex::cvar::GetFlagByName("majin_shadow_slope_bias");
-  if (!slope_bias_str.empty()) {
-    current_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
-  }
-  float slope_val = is_vulkan ? static_cast<float>(current_slope_bias) : 0.0f;
-  ImGui::Text("Shadow Slope-Scaled Depth Bias:");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, -2.0f, 3.0f, is_vulkan ? "%.2f" : "Off")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", slope_val);
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("-0.05##SlopeMinus")) {
-    slope_val = std::max(-2.0f, slope_val - 0.05f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", slope_val);
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("+0.05##SlopePlus")) {
-    slope_val = std::min(3.0f, slope_val + 0.05f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.2f", slope_val);
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
-  }
-  DrawHintText("Signed slope bias for shadow passes (default: 0.00; negative values push casters deeper in Reversed-Z).");
-
-  ImGui::Spacing();
-
-  // Shadow Constant Depth Bias (supports negative values for Reversed-Z testing)
-  double current_const_bias = 0.000;
-  const std::string const_bias_str = rex::cvar::GetFlagByName("majin_shadow_constant_bias");
-  if (!const_bias_str.empty()) {
-    current_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
-  }
-  float const_val = is_vulkan ? static_cast<float>(current_const_bias) : 0.0f;
-  ImGui::Text("Shadow Constant Depth Bias:");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowConstBias", &const_val, -0.050f, 0.050f, is_vulkan ? "%.3f" : "Off")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", const_val);
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("-0.001##ConstMinus")) {
-    const_val = std::max(-0.050f, const_val - 0.001f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", const_val);
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("+0.001##ConstPlus")) {
-    const_val = std::min(0.050f, const_val + 0.001f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", const_val);
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
-  }
-  DrawHintText("Fine signed constant offset added to shadow depth passes (default: 0.000).");
-
-  ImGui::Spacing();
-
-  // Shadow Depth Bias Clamp (magnitude; sign automatically follows bias sign)
-  double current_bias_clamp = 0.000;
-  const std::string bias_clamp_str = rex::cvar::GetFlagByName("majin_shadow_bias_clamp");
-  if (!bias_clamp_str.empty()) {
-    current_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
-  }
-  float clamp_val = is_vulkan ? static_cast<float>(current_bias_clamp) : 0.0f;
-  ImGui::Text("Shadow Depth Bias Clamp:");
-  ImGui::SetNextItemWidth(320.0f);
-  if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, is_vulkan ? "%.3f" : "Off")) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("-0.001##ClampMinus")) {
-    clamp_val = std::max(0.000f, clamp_val - 0.001f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("+0.001##ClampPlus")) {
-    clamp_val = std::min(0.020f, clamp_val + 0.001f);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
-  }
-  DrawHintText("Caps maximum slope bias magnitude on silhouette edges; sign automatically matches bias sign (default: 0.000).");
-
-  ImGui::Spacing();
-
-  // Shadow Bias Preset Buttons
-  if (ImGui::Button("Zero Bias (Default)", ImVec2(150, 26))) {
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.00");
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("Positive (+0.30)", ImVec2(130, 26))) {
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.30");
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("Reversed-Z (-0.30)", ImVec2(150, 26))) {
-    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "-0.30");
-    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
-    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
-  }
-
-  ImGui::EndDisabled();
 
   ImGui::Spacing();
   ImGui::Spacing();
@@ -912,6 +657,310 @@ void InGameMenuDialog::DrawGraphicsTab() {
     }
     DrawHintText("Show Live Guest FPS in Window Title (majin_window_fps).");
   }
+}
+
+void InGameMenuDialog::DrawShadowTab() {
+  const std::string active_backend = rex::cvar::GetFlagByName("gpu_backend");
+  const bool is_vulkan = (active_backend == "vulkan");
+
+  ImGui::Spacing();
+  DrawSectionHeader("SHADOW QUALITY");
+
+  // Shadow Quality (majin_shadow_scale)
+  const int32_t current_shadow_scale = rex::cvar::Query<int32_t>("majin_shadow_scale");
+  const char* shadow_scale_labels[] = {
+      "1x - Native",
+      "2x - Enhanced",
+      "4x - Ultra Clean",
+  };
+  const int shadow_scale_values[] = {1, 2, 4};
+
+  int shadow_idx = 0;
+  if (current_shadow_scale >= 4) {
+    shadow_idx = 2;
+  } else if (current_shadow_scale >= 2) {
+    shadow_idx = 1;
+  } else {
+    shadow_idx = 0;
+  }
+
+  ImGui::Text("Shadow Resolution Scale:");
+  ImGui::SetNextItemWidth(360.0f);
+  if (ImGui::Combo("##MajinShadowScale", &shadow_idx, shadow_scale_labels, IM_ARRAYSIZE(shadow_scale_labels))) {
+    const int new_val = shadow_scale_values[shadow_idx];
+    rex::cvar::SetFlagByName("majin_shadow_scale", std::to_string(new_val));
+    if (on_clear_caches_) {
+      on_clear_caches_();
+    }
+  }
+  DrawHintText("Scales shadow map resolution dynamically (1x = native 360, 2x = enhanced, 4x = ultra clean).");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  DrawSectionHeader("SHADOW FILTERING & STABILITY");
+
+  // Shadow Filtering (PCF) - Vulkan SPIR-V
+  {
+    ImGui::BeginDisabled(!is_vulkan);
+    std::string cur_pcf = rex::cvar::GetFlagByName("majin_shadow_pcf_mode");
+    if (cur_pcf.empty()) cur_pcf = "soft";
+    static const char* kPcfLabels[] = {
+        "4x4 Cubic PCF (Recommended - Smooth, Zero Striping)",
+        "2x2 Bilinear PCF (Sharp, Smooth Sun Motion)",
+        "6x6 Tent PCF (Ultra Soft Penumbra)",
+        "Original 360 (1-Tap Binary)",
+    };
+    static const char* kPcfValues[] = {"soft", "bilinear", "ultra", "original"};
+    int pcf_idx = 0;
+    for (int i = 0; i < 4; ++i) {
+      if (cur_pcf == kPcfValues[i]) {
+        pcf_idx = i;
+        break;
+      }
+    }
+    ImGui::Text("Shadow Filtering (PCF):");
+    if (!is_vulkan) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "[Vulkan Only]");
+    }
+    ImGui::SetNextItemWidth(360.0f);
+    if (ImGui::Combo("##ShadowPcfMode", &pcf_idx, kPcfLabels, 4)) {
+      rex::cvar::SetFlagByName("majin_shadow_pcf_mode", kPcfValues[pcf_idx]);
+    }
+    DrawHintText("Sub-texel shadow filtering in KbPreZSSSM* shaders. Eliminates stone-wall striping and makes sunlight move smoothly at 60 FPS (hot-reload).");
+
+    ImGui::Spacing();
+
+    bool rpb_enabled = true;
+    if (!rex::cvar::GetFlagByName("majin_shadow_receiver_bias").empty()) {
+      rpb_enabled = rex::cvar::Query<bool>("majin_shadow_receiver_bias");
+    }
+    if (ImGui::Checkbox("Receiver Plane Depth Bias (Anti-Striping)", &rpb_enabled)) {
+      rex::cvar::SetFlagByName("majin_shadow_receiver_bias", rpb_enabled ? "true" : "false");
+    }
+    DrawHintText("Computes per-texel tangent-plane depth slope in PCF to remove grazing stone-wall stripes without Peter-Panning (hot-reload).");
+
+    ImGui::Spacing();
+
+    bool two_sided_shadows = true;
+    if (!rex::cvar::GetFlagByName("majin_shadow_two_sided").empty()) {
+      two_sided_shadows = rex::cvar::Query<bool>("majin_shadow_two_sided");
+    }
+    if (ImGui::Checkbox("Two-Sided Shadow Casters (Anti-Light-Leak)", &two_sided_shadows)) {
+      rex::cvar::SetFlagByName("majin_shadow_two_sided", two_sided_shadows ? "true" : "false");
+    }
+    DrawHintText("Disables backface culling in shadow depth passes so single-sided rock cliffs and stone walls cast watertight shadows without base light leaks (hot-reload).");
+    ImGui::EndDisabled();
+  }
+
+  ImGui::Spacing();
+
+  // Cascade Texel Snapping (CPU/PPC - works on Vulkan & D3D12)
+  {
+    bool texel_snap = true;
+    if (!rex::cvar::GetFlagByName("majin_shadow_texel_snap").empty()) {
+      texel_snap = rex::cvar::Query<bool>("majin_shadow_texel_snap");
+    }
+    if (ImGui::Checkbox("Cascade Texel Snapping (Anti-Shimmer)", &texel_snap)) {
+      rex::cvar::SetFlagByName("majin_shadow_texel_snap", texel_snap ? "true" : "false");
+    }
+    DrawHintText("Snaps orthographic shadow cascade bounds to shadow-map texel increments so edges stay stable during camera movement (hot-reload).");
+  }
+
+  ImGui::Spacing();
+
+  // Screen-Space Shadow Blur (SSSM) Integration
+  {
+    std::string cur_sssm = rex::cvar::GetFlagByName("majin_shadow_sssm_mode");
+    if (cur_sssm.empty()) cur_sssm = "auto";
+    static const char* kSssmLabels[] = {
+        "Auto (Off for 4x4/6x6 PCF, 0.5x for 2x2, Full for Original)",
+        "Original (Full SSSM Blur)",
+        "Subtle (0.5x SSSM Blur)",
+        "Off (Pure 3D Shadow Map / PCF)",
+    };
+    static const char* kSssmValues[] = {"auto", "original", "subtle", "off"};
+    int sssm_idx = 0;
+    for (int i = 0; i < 4; ++i) {
+      if (cur_sssm == kSssmValues[i]) {
+        sssm_idx = i;
+        break;
+      }
+    }
+    ImGui::Text("Screen-Space Shadow Blur (SSSM):");
+    ImGui::SetNextItemWidth(360.0f);
+    if (ImGui::Combo("##ShadowSssmMode", &sssm_idx, kSssmLabels, 4)) {
+      rex::cvar::SetFlagByName("majin_shadow_sssm_mode", kSssmValues[sssm_idx]);
+    }
+    DrawHintText("Coordinates screen-space shadow blur with 3D PCF so flat floors and steep walls share uniform shadow softness (hot-reload).");
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  DrawSectionHeader("SHADOW DEPTH BIAS");
+  if (!is_vulkan) {
+    ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.25f, 1.0f), "[Off - Vulkan Only]");
+    DrawHintText("Shadow Depth Bias is Off on DirectX 12. Switch Render Path to Vulkan in the launcher to adjust these settings.");
+    ImGui::Spacing();
+  }
+
+  ImGui::BeginDisabled(!is_vulkan);
+
+  // Shadow Slope-Scaled Depth Bias (supports negative values for Reversed-Z testing)
+  double current_slope_bias = 0.00;
+  const std::string slope_bias_str = rex::cvar::GetFlagByName("majin_shadow_slope_bias");
+  if (!slope_bias_str.empty()) {
+    current_slope_bias = rex::cvar::Query<double>("majin_shadow_slope_bias");
+  }
+  float slope_val = is_vulkan ? static_cast<float>(current_slope_bias) : 0.0f;
+  ImGui::Text("Shadow Slope-Scaled Depth Bias:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##ShadowSlopeBias", &slope_val, -2.0f, 3.0f, is_vulkan ? "%.2f" : "Off")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.05##SlopeMinus")) {
+    slope_val = std::max(-2.0f, slope_val - 0.05f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.05##SlopePlus")) {
+    slope_val = std::min(3.0f, slope_val + 0.05f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.2f", slope_val);
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", buf);
+  }
+  DrawHintText("Signed slope bias for shadow passes (default: 0.00; negative values push casters deeper in Reversed-Z).");
+
+  ImGui::Spacing();
+
+  // Shadow Constant Depth Bias (supports negative values for Reversed-Z testing)
+  double current_const_bias = 0.000;
+  const std::string const_bias_str = rex::cvar::GetFlagByName("majin_shadow_constant_bias");
+  if (!const_bias_str.empty()) {
+    current_const_bias = rex::cvar::Query<double>("majin_shadow_constant_bias");
+  }
+  float const_val = is_vulkan ? static_cast<float>(current_const_bias) : 0.0f;
+  ImGui::Text("Shadow Constant Depth Bias:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##ShadowConstBias", &const_val, -0.050f, 0.050f, is_vulkan ? "%.3f" : "Off")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.001##ConstMinus")) {
+    const_val = std::max(-0.050f, const_val - 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.001##ConstPlus")) {
+    const_val = std::min(0.050f, const_val + 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", const_val);
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", buf);
+  }
+  DrawHintText("Fine signed constant offset added to shadow depth passes (default: 0.000).");
+
+  ImGui::Spacing();
+
+  // Shadow Depth Bias Clamp (magnitude; sign automatically follows bias sign)
+  double current_bias_clamp = 0.000;
+  const std::string bias_clamp_str = rex::cvar::GetFlagByName("majin_shadow_bias_clamp");
+  if (!bias_clamp_str.empty()) {
+    current_bias_clamp = rex::cvar::Query<double>("majin_shadow_bias_clamp");
+  }
+  float clamp_val = is_vulkan ? static_cast<float>(current_bias_clamp) : 0.0f;
+  ImGui::Text("Shadow Depth Bias Clamp:");
+  ImGui::SetNextItemWidth(320.0f);
+  if (ImGui::SliderFloat("##ShadowBiasClamp", &clamp_val, 0.000f, 0.020f, is_vulkan ? "%.3f" : "Off")) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("-0.001##ClampMinus")) {
+    clamp_val = std::max(0.000f, clamp_val - 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+0.001##ClampPlus")) {
+    clamp_val = std::min(0.020f, clamp_val + 0.001f);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.3f", clamp_val);
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", buf);
+  }
+  DrawHintText("Caps maximum slope bias magnitude on silhouette edges; sign automatically matches bias sign (default: 0.000).");
+
+  ImGui::Spacing();
+
+  // Shadow Bias Preset Buttons
+  if (ImGui::Button("Zero Bias (Default)", ImVec2(150, 26))) {
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.00");
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.000");
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Positive (+0.30)", ImVec2(130, 26))) {
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "0.30");
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Reversed-Z (-0.30)", ImVec2(150, 26))) {
+    rex::cvar::SetFlagByName("majin_shadow_slope_bias", "-0.30");
+    rex::cvar::SetFlagByName("majin_shadow_constant_bias", "0.000");
+    rex::cvar::SetFlagByName("majin_shadow_bias_clamp", "0.002");
+  }
+
+  ImGui::EndDisabled();
+}
+
+void InGameMenuDialog::DrawAtmosphereTab() {
+  ImGui::Spacing();
+  DrawSectionHeader("PLAYER-ATTACHED AMBIENT VFX");
+
+  // Tepeu Ambient Dust / Smoke / Ash / Heat-Haze VFX (excludes Area 2 rain effectId 551)
+  bool tepeu_ambient_vfx = true;
+  if (!rex::cvar::GetFlagByName("majin_tepeu_ambient_vfx").empty()) {
+    tepeu_ambient_vfx = rex::cvar::Query<bool>("majin_tepeu_ambient_vfx");
+  }
+  if (ImGui::Checkbox("Ambient Dust & Smoke Around Tepeu", &tepeu_ambient_vfx)) {
+    rex::cvar::SetFlagByName("majin_tepeu_ambient_vfx", tepeu_ambient_vfx ? "true" : "false");
+  }
+  DrawHintText(
+      "Toggles area-specific dust, smoke, ash, embers, and heat-haze particle emitters attached "
+      "to Tepeu (Areas 1, 3, 4 & 5). Area 2 rain and wet-surface effects remain unaffected (hot-reload).");
+
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
+
+  DrawSectionHeader("VOLUMETRIC SCREEN-SPACE LIGHT");
+
+  // Tyndall360 Sun God-Rays (TKemumakiTyndall / filterTyndall360)
+  bool tyndall_enabled = true;
+  if (!rex::cvar::GetFlagByName("majin_tyndall").empty()) {
+    tyndall_enabled = rex::cvar::Query<bool>("majin_tyndall");
+  }
+  if (ImGui::Checkbox("Sun God-Rays (Tyndall360)", &tyndall_enabled)) {
+    rex::cvar::SetFlagByName("majin_tyndall", tyndall_enabled ? "true" : "false");
+  }
+  DrawHintText(
+      "Toggles the full-screen additive volumetric sun-ray haze filter (filterTyndall360) "
+      "that sweeps across the screen as the camera turns toward the sun (hot-reload).");
 }
 
 void InGameMenuDialog::DrawControlsTab() {

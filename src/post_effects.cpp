@@ -10,6 +10,7 @@
 // its test, and clears it when switched off.
 
 #include "generated/default/majin_pch.h"
+#include "edition_offsets.h"
 
 #include <rex/cvar.h>
 #include <rex/logging.h>
@@ -18,7 +19,9 @@
 #include <rex/system/xmemory.h>
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -99,6 +102,14 @@ static auto _cvar_reg_majin_bloom = ::rex::cvar::FlagRegistrar({
 
 REXCVAR_DEFINE_BOOL(majin_pause_distortion, true, "Graphics",
                     "Screen wave distortion effect behind pause and map menus");
+
+REXCVAR_DEFINE_BOOL(majin_tyndall, true, "Graphics",
+                    "Full-screen volumetric sun god-rays filter (filterTyndall360)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(majin_tepeu_ambient_vfx, true, "Graphics",
+                    "Area-specific ambient dust, smoke, ash, and heat-haze particles attached to Tepeu (excludes Area 2 rain)")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 // Scene fog intensity (slider from 0.0 to 1.0, default 0.80, 1.0 = original).
 // Accepts both booleans ("true" -> 0.80, "false" -> 0.0) and floats ("0.0" to "1.0").
@@ -361,4 +372,103 @@ REX_EXTERN(sub_821A5F98) {
     REX_STORE_U32(ctx.r3.u32 + 1520, 0);
   }
   __imp__sub_821A5F98(ctx, base);
+}
+
+// Intercepts SysKemumaki TKemumakiTyndall pass (sub_821A26C8, identical in both USA and PAL).
+// When majin_tyndall is false, skips the full-screen additive volumetric sun-ray pass
+// (filterTyndall360 + KB/texture/tyndallMask512) while leaving the scene RT untouched.
+REX_EXTERN(__imp__sub_821A26C8);
+REX_EXTERN(sub_821A26C8) {
+  if (!REXCVAR_GET(majin_tyndall)) {
+    return;
+  }
+  __imp__sub_821A26C8(ctx, base);
+}
+
+// Intercepts TaskEventHitEffect slot updater (PAL sub_8234ACF0 / USA sub_8234AC80).
+// Filters area-specific ambient dust/smoke/ash/embers/heat-haze VFX attached directly
+// to Tepeu (charaType == 2), while explicitly excluding Area 2 rain (effectId == 551)
+// and taskRainManager so rain, wet surfaces, and lens droplets remain intact.
+// Supports live hot-reload toggling in both directions without leaking VFX handles:
+// - When switched OFF while active (slot+36 != 0), temporarily invokes the native stop
+//   branch (mode=2, trig=1, timeMode=2, inside=1) so the game cleanly stops the effect
+//   on the same frame and clears slot+36.
+// - When switched back ON while still inside an edge-triggered volume (slot+20 == 0),
+//   temporarily pulses task+428 (justEntered) for a short window so the effect restarts
+//   immediately without needing to exit and re-enter the volume.
+namespace {
+std::atomic<bool> g_prev_tepeu_vfx_enabled{true};
+std::atomic<int64_t> g_tepeu_vfx_reenable_until_ms{0};
+
+int64_t NowSteadyMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+}  // namespace
+
+REX_EXTERN(MAJIN_IMP_EVENT_HIT_EFFECT_SLOT);
+REX_EXTERN(MAJIN_FN_EVENT_HIT_EFFECT_SLOT) {
+  const uint32_t task = ctx.r3.u32;
+  const uint32_t slot = ctx.r4.u32;
+  if (task < 0x10000u || task >= 0xF0000000u || slot < 0x10000u || slot >= 0xF0000000u) {
+    MAJIN_IMP_EVENT_HIT_EFFECT_SLOT(ctx, base);
+    return;
+  }
+
+  const uint32_t effect_id = REX_LOAD_U32(slot + 8) & 0xFFFFu;
+  const uint32_t chara_type = REX_LOAD_U32(slot + 12);
+  // Only target player-attached (Kobito/Tepeu) ambient particles; keep rain (551) untouched.
+  if (chara_type != 2u || effect_id == 0u || effect_id == 551u) {
+    MAJIN_IMP_EVENT_HIT_EFFECT_SLOT(ctx, base);
+    return;
+  }
+
+  const bool enabled = REXCVAR_GET(majin_tepeu_ambient_vfx);
+  const bool was_enabled = g_prev_tepeu_vfx_enabled.exchange(enabled, std::memory_order_relaxed);
+  if (!was_enabled && enabled) {
+    g_tepeu_vfx_reenable_until_ms.store(NowSteadyMs() + 250, std::memory_order_relaxed);
+  }
+
+  if (!enabled) {
+    if (REX_LOAD_U32(slot + 36) != 0u) {
+      // Trigger the native stop path (loc_8234B1F8) to cleanly stop active handles and clear slot+36.
+      const uint32_t orig_trig = REX_LOAD_U32(slot + 20);
+      const uint32_t orig_mode = REX_LOAD_U32(slot + 24);
+      const uint32_t orig_time = REX_LOAD_U32(slot + 28);
+      const uint32_t orig_inside = REX_LOAD_U32(task + 424);
+
+      REX_STORE_U32(slot + 20, 1u);
+      REX_STORE_U32(slot + 24, 2u);
+      REX_STORE_U32(slot + 28, 2u);
+      REX_STORE_U32(task + 424, 1u);
+
+      MAJIN_IMP_EVENT_HIT_EFFECT_SLOT(ctx, base);
+
+      REX_STORE_U32(slot + 20, orig_trig);
+      REX_STORE_U32(slot + 24, orig_mode);
+      REX_STORE_U32(slot + 28, orig_time);
+      REX_STORE_U32(task + 424, orig_inside);
+      REX_STORE_U32(slot + 36, 0u);
+    }
+    return;
+  }
+
+  const int64_t reenable_until = g_tepeu_vfx_reenable_until_ms.load(std::memory_order_relaxed);
+  if (reenable_until != 0) {
+    if (NowSteadyMs() <= reenable_until) {
+      if (REX_LOAD_U32(slot + 20) == 0u && REX_LOAD_U32(slot + 24) == 1u &&
+          REX_LOAD_U32(slot + 36) == 0u && REX_LOAD_U32(task + 424) != 0u &&
+          REX_LOAD_U32(task + 428) == 0u) {
+        REX_STORE_U32(task + 428, 1u);
+        MAJIN_IMP_EVENT_HIT_EFFECT_SLOT(ctx, base);
+        REX_STORE_U32(task + 428, 0u);
+        return;
+      }
+    } else {
+      g_tepeu_vfx_reenable_until_ms.store(0, std::memory_order_relaxed);
+    }
+  }
+
+  MAJIN_IMP_EVENT_HIT_EFFECT_SLOT(ctx, base);
 }

@@ -25,6 +25,8 @@ class InGameMenuDialog : public rex::ui::ImGuiDialog {
 
  private:
   void DrawGraphicsTab();
+  void DrawShadowTab();
+  void DrawAtmosphereTab();
   void DrawControlsTab();
   void DrawFixesTab();
   void DrawPreferencesTab();

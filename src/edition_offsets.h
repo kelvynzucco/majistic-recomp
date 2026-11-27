@@ -65,6 +65,10 @@ inline constexpr uint32_t kMediaIdPal = 0x67BD87EF;
 #define MAJIN_FN_SHADOW_CASCADE_UPDATE sub_8218DD60
 #define MAJIN_IMP_SHADOW_CASCADE_UPDATE __imp__sub_8218DD60
 
+// Player-attached ambient VFX trigger volume slot updater (TaskEventHitEffect)
+#define MAJIN_FN_EVENT_HIT_EFFECT_SLOT sub_8234ACF0
+#define MAJIN_IMP_EVENT_HIT_EFFECT_SLOT __imp__sub_8234ACF0
+
 namespace majin::offsets {
 // Scenario root pointer in .data is identical across both USA and PAL editions (0x82BA73D0).
 // In PPC asm: lis r31, -32070 (0x82BA0000) -> lwz r11, 29648(r31) (0x82BA73D0).
@@ -125,6 +129,10 @@ inline constexpr uint32_t kLogoEndFlagCallLR = 0x821CECE0;
 #define MAJIN_IMP_MAPSLOT_APPLY_RES __imp__sub_823790F0
 #define MAJIN_FN_SHADOW_CASCADE_UPDATE sub_8218DD60
 #define MAJIN_IMP_SHADOW_CASCADE_UPDATE __imp__sub_8218DD60
+
+// Player-attached ambient VFX trigger volume slot updater (TaskEventHitEffect)
+#define MAJIN_FN_EVENT_HIT_EFFECT_SLOT sub_8234AC80
+#define MAJIN_IMP_EVENT_HIT_EFFECT_SLOT __imp__sub_8234AC80
 
 namespace majin::offsets {
 inline constexpr uint32_t kScenarioRootPtr = 0x82BA73D0;
